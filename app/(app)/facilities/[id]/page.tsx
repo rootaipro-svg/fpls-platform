@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import AddBuildingForm from "@/components/add-building-form";
+import AddSystemForm from "@/components/add-system-form";
 import { getSessionUser } from "@/lib/auth";
 import { getTenantWorkbookId } from "@/lib/tenant";
 import { readSheet } from "@/lib/sheets";
@@ -9,14 +10,22 @@ export default async function FacilityDetailPage({ params }: { params: Promise<{
   const user = await getSessionUser();
   const workbookId = await getTenantWorkbookId(user.tenantId);
 
-  const [facilities, buildings, systems] = await Promise.all([
+  const [facilities, buildings, systems, systemsRef] = await Promise.all([
     readSheet(workbookId, "FACILITIES"),
     readSheet(workbookId, "BUILDINGS"),
-    readSheet(workbookId, "BUILDING_SYSTEMS")
+    readSheet(workbookId, "BUILDING_SYSTEMS"),
+    readSheet(workbookId, "SYSTEMS_REF")
   ]);
 
   const facility = facilities.find((f) => String(f.facility_id) === id);
   const facilityBuildings = buildings.filter((b) => String(b.facility_id) === id);
+
+  const systemOptions = systemsRef
+    .filter((s) => String(s.enabled || "").toLowerCase() !== "false")
+    .map((s) => ({
+      system_code: String(s.system_code),
+      system_name: String(s.system_name || s.system_code)
+    }));
 
   return (
     <AppShell title={String(facility?.facility_name || "Facility")}>
@@ -36,6 +45,16 @@ export default async function FacilityDetailPage({ params }: { params: Promise<{
           }
         ]}
       />
+
+      {facilityBuildings.length > 0 ? (
+        <AddSystemForm
+          buildings={facilityBuildings.map((b) => ({
+            building_id: String(b.building_id),
+            building_name: String(b.building_name)
+          }))}
+          systems={systemOptions}
+        />
+      ) : null}
 
       {facilityBuildings.length === 0 ? (
         <div className="card">
