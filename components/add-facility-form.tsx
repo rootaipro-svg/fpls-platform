@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 
 type FormState = {
   facility_name: string;
@@ -32,32 +33,35 @@ const initialState: FormState = {
   contact_person: "",
   contact_phone: "",
   contact_email: "",
-  notes: ""
+  notes: "",
 };
 
+const fieldClass =
+  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-100";
+
 const facilityTypes = [
-  { value: "commercial", label: "Commercial" },
-  { value: "industrial", label: "Industrial" },
-  { value: "residential", label: "Residential" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "hospitality", label: "Hospitality" },
-  { value: "education", label: "Education" },
-  { value: "mixed_use", label: "Mixed Use" },
-  { value: "government", label: "Government" }
+  { value: "commercial", label: "تجاري" },
+  { value: "industrial", label: "صناعي" },
+  { value: "residential", label: "سكني" },
+  { value: "healthcare", label: "صحي" },
+  { value: "hospitality", label: "فندقي" },
+  { value: "education", label: "تعليمي" },
+  { value: "mixed_use", label: "متعدد الاستخدام" },
+  { value: "government", label: "حكومي" },
 ];
 
 const occupancyTypes = [
-  { value: "office", label: "Office" },
-  { value: "mercantile", label: "Mercantile" },
-  { value: "assembly", label: "Assembly" },
-  { value: "industrial", label: "Industrial" },
-  { value: "storage", label: "Storage" },
-  { value: "residential_highrise", label: "Residential High-rise" },
-  { value: "residential_lowrise", label: "Residential Low-rise" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "educational", label: "Educational" },
-  { value: "hotel", label: "Hotel" },
-  { value: "mixed_use", label: "Mixed Use" }
+  { value: "office", label: "مكاتب" },
+  { value: "mercantile", label: "تجاري / بيع" },
+  { value: "assembly", label: "تجمع" },
+  { value: "industrial", label: "صناعي" },
+  { value: "storage", label: "تخزين" },
+  { value: "residential_highrise", label: "سكني مرتفع" },
+  { value: "residential_lowrise", label: "سكني منخفض" },
+  { value: "healthcare", label: "صحي" },
+  { value: "educational", label: "تعليمي" },
+  { value: "hotel", label: "فندقي" },
+  { value: "mixed_use", label: "متعدد الاستخدام" },
 ];
 
 export default function AddFacilityForm() {
@@ -87,7 +91,7 @@ export default function AddFacilityForm() {
     setMessage("");
 
     if (!canSubmit) {
-      setError("Please fill the required fields.");
+      setError("يرجى تعبئة الحقول الأساسية.");
       return;
     }
 
@@ -97,163 +101,160 @@ export default function AddFacilityForm() {
       const res = await fetch("/api/facilities", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        throw new Error(data.message || "Failed to create facility");
+        throw new Error(data.message || "تعذر إنشاء المنشأة");
       }
 
-      setMessage("Facility created successfully ✅");
+      setMessage("تم إنشاء المنشأة بنجاح");
       setForm(initialState);
       setOpen(false);
       router.refresh();
     } catch (err: any) {
-      setError(err.message || "Failed to create facility");
+      setError(err.message || "تعذر إنشاء المنشأة");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="card">
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-lg font-semibold">Facilities</div>
-          <div className="text-sm text-slate-500">
-            Add a new facility directly from the app
+          <div className="text-lg font-bold text-slate-900">إضافة منشأة</div>
+          <div className="mt-1 text-sm text-slate-500">
+            سجل منشأة جديدة داخل النظام مع بياناتها الأساسية
           </div>
         </div>
 
         <button
           type="button"
-          className="btn"
           onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
         >
-          {open ? "Close" : "+ Add Facility"}
+          <Plus className="h-4 w-4" />
+          {open ? "إغلاق" : "منشأة جديدة"}
         </button>
       </div>
 
       {message ? (
-        <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {message}
         </div>
       ) : null}
 
       {open ? (
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-          <div className="grid gap-3">
-            <input
-              className="input"
-              placeholder="Facility name *"
-              value={form.facility_name}
-              onChange={(e) => updateField("facility_name", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="اسم المنشأة *"
+            value={form.facility_name}
+            onChange={(e) => updateField("facility_name", e.target.value)}
+          />
 
-            <input
-              className="input"
-              placeholder="Facility name (Arabic)"
-              value={form.facility_name_ar}
-              onChange={(e) => updateField("facility_name_ar", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="اسم المنشأة بالعربية"
+            value={form.facility_name_ar}
+            onChange={(e) => updateField("facility_name_ar", e.target.value)}
+          />
 
-            <input
-              className="input"
-              placeholder="Owner name"
-              value={form.owner_name}
-              onChange={(e) => updateField("owner_name", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="اسم المالك"
+            value={form.owner_name}
+            onChange={(e) => updateField("owner_name", e.target.value)}
+          />
 
-            <input
-              className="input"
-              placeholder="Operator name"
-              value={form.operator_name}
-              onChange={(e) => updateField("operator_name", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="اسم المشغل"
+            value={form.operator_name}
+            onChange={(e) => updateField("operator_name", e.target.value)}
+          />
 
-            <select
-              className="select"
-              value={form.facility_type}
-              onChange={(e) => updateField("facility_type", e.target.value)}
-            >
-              {facilityTypes.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+          <select
+            className={fieldClass}
+            value={form.facility_type}
+            onChange={(e) => updateField("facility_type", e.target.value)}
+          >
+            {facilityTypes.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
 
-            <select
-              className="select"
-              value={form.occupancy_classification}
-              onChange={(e) => updateField("occupancy_classification", e.target.value)}
-            >
-              {occupancyTypes.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+          <select
+            className={fieldClass}
+            value={form.occupancy_classification}
+            onChange={(e) => updateField("occupancy_classification", e.target.value)}
+          >
+            {occupancyTypes.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
 
-            <input
-              className="input"
-              placeholder="City *"
-              value={form.city}
-              onChange={(e) => updateField("city", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="المدينة *"
+            value={form.city}
+            onChange={(e) => updateField("city", e.target.value)}
+          />
 
-            <input
-              className="input"
-              placeholder="District"
-              value={form.district}
-              onChange={(e) => updateField("district", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="الحي"
+            value={form.district}
+            onChange={(e) => updateField("district", e.target.value)}
+          />
 
-            <textarea
-              className="textarea"
-              placeholder="Address"
-              rows={3}
-              value={form.address}
-              onChange={(e) => updateField("address", e.target.value)}
-            />
+          <textarea
+            className={`${fieldClass} min-h-[96px] resize-none`}
+            placeholder="العنوان"
+            value={form.address}
+            onChange={(e) => updateField("address", e.target.value)}
+          />
 
-            <input
-              className="input"
-              placeholder="Contact person"
-              value={form.contact_person}
-              onChange={(e) => updateField("contact_person", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="اسم جهة الاتصال"
+            value={form.contact_person}
+            onChange={(e) => updateField("contact_person", e.target.value)}
+          />
 
-            <input
-              className="input"
-              placeholder="Contact phone"
-              value={form.contact_phone}
-              onChange={(e) => updateField("contact_phone", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="رقم الجوال"
+            value={form.contact_phone}
+            onChange={(e) => updateField("contact_phone", e.target.value)}
+          />
 
-            <input
-              className="input"
-              placeholder="Contact email"
-              type="email"
-              value={form.contact_email}
-              onChange={(e) => updateField("contact_email", e.target.value)}
-            />
+          <input
+            className={fieldClass}
+            placeholder="البريد الإلكتروني"
+            type="email"
+            value={form.contact_email}
+            onChange={(e) => updateField("contact_email", e.target.value)}
+          />
 
-            <textarea
-              className="textarea"
-              placeholder="Notes"
-              rows={3}
-              value={form.notes}
-              onChange={(e) => updateField("notes", e.target.value)}
-            />
-          </div>
+          <textarea
+            className={`${fieldClass} min-h-[96px] resize-none`}
+            placeholder="ملاحظات"
+            value={form.notes}
+            onChange={(e) => updateField("notes", e.target.value)}
+          />
 
           {error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           ) : null}
@@ -261,22 +262,21 @@ export default function AddFacilityForm() {
           <div className="flex gap-2">
             <button
               type="submit"
-              className="btn"
               disabled={saving}
-              style={{ flex: 1 }}
+              className="flex-1 rounded-2xl bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? "Saving..." : "Save Facility"}
+              {saving ? "جارٍ الحفظ..." : "حفظ المنشأة"}
             </button>
 
             <button
               type="button"
-              className="btn btn-secondary"
               onClick={() => {
                 setOpen(false);
                 setError("");
               }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Cancel
+              إلغاء
             </button>
           </div>
         </form>
