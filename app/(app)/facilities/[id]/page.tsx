@@ -1,11 +1,14 @@
 import { AppShell } from "@/components/app-shell";
 import AddBuildingForm from "@/components/add-building-form";
-import AddSystemForm from "@/components/add-system-form";
 import { getSessionUser } from "@/lib/auth";
 import { getTenantWorkbookId } from "@/lib/tenant";
 import { readSheet } from "@/lib/sheets";
 
-export default async function FacilityDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FacilityDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const user = await getSessionUser();
   const workbookId = await getTenantWorkbookId(user.tenantId);
@@ -14,17 +17,19 @@ export default async function FacilityDetailPage({ params }: { params: Promise<{
     readSheet(workbookId, "FACILITIES"),
     readSheet(workbookId, "BUILDINGS"),
     readSheet(workbookId, "BUILDING_SYSTEMS"),
-    readSheet(workbookId, "SYSTEMS_REF")
+    readSheet(workbookId, "SYSTEMS_REF"),
   ]);
 
   const facility = facilities.find((f) => String(f.facility_id) === id);
-  const facilityBuildings = buildings.filter((b) => String(b.facility_id) === id);
+  const facilityBuildings = buildings.filter(
+    (b) => String(b.facility_id) === id
+  );
 
   const systemOptions = systemsRef
     .filter((s) => String(s.enabled || "").toLowerCase() !== "false")
     .map((s) => ({
       system_code: String(s.system_code),
-      system_name: String(s.system_name || s.system_code)
+      system_name: String(s.system_name || s.system_code),
     }));
 
   return (
@@ -44,16 +49,9 @@ export default async function FacilityDetailPage({ params }: { params: Promise<{
         facilities={[
           {
             facility_id: String(facility?.facility_id || ""),
-            facility_name: String(facility?.facility_name || "Facility")
-          }
+            facility_name: String(facility?.facility_name || "Facility"),
+          },
         ]}
-      />
-
-      <AddSystemForm
-        buildings={facilityBuildings.map((b) => ({
-          building_id: String(b.building_id),
-          building_name: String(b.building_name)
-        }))}
         systems={systemOptions}
       />
 
@@ -72,9 +70,12 @@ export default async function FacilityDetailPage({ params }: { params: Promise<{
 
           return (
             <div key={String(b.building_id)} className="card">
-              <div className="text-lg font-semibold">{String(b.building_name)}</div>
+              <div className="text-lg font-semibold">
+                {String(b.building_name)}
+              </div>
               <div className="mt-1 text-sm text-slate-500">
-                {String(b.building_use || "")} · Floors: {String(b.number_of_floors || "1")}
+                {String(b.building_use || "")} · Floors:{" "}
+                {String(b.number_of_floors || "1")}
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
