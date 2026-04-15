@@ -12,7 +12,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
         <UserCircle2 className="h-8 w-8 text-slate-500" />
       </div>
 
-      <div className="space-y-4">{children}</div>
+      <div className="space-y-4 pb-24">{children}</div>
 
       <nav className="fixed bottom-4 left-1/2 w-[calc(100%-32px)] max-w-[688px] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
