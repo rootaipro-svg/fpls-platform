@@ -43,6 +43,7 @@ drive_file_url: uploaded.data.webViewLink || "",
       gps_longitude: "",
       notes: ""
     });
+    
 
     return NextResponse.json({ ok: true, data: uploaded.data });
   } catch (error: any) {
