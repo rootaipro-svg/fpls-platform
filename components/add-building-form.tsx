@@ -8,8 +8,14 @@ type FacilityOption = {
   facility_name: string;
 };
 
+type SystemOption = {
+  system_code: string;
+  system_name: string;
+};
+
 type Props = {
   facilities: FacilityOption[];
+  systems: SystemOption[];
 };
 
 type FormState = {
@@ -28,6 +34,7 @@ type FormState = {
   civil_defense_permit_no: string;
   evacuation_strategy: string;
   notes: string;
+  system_codes: string[];
 };
 
 const initialState: FormState = {
@@ -45,7 +52,8 @@ const initialState: FormState = {
   year_built: "",
   civil_defense_permit_no: "",
   evacuation_strategy: "",
-  notes: ""
+  notes: "",
+  system_codes: []
 };
 
 const buildingUses = [
@@ -84,7 +92,7 @@ const riskProfiles = [
   { value: "special_hazard", label: "Special Hazard" }
 ];
 
-export default function AddBuildingForm({ facilities }: Props) {
+export default function AddBuildingForm({ facilities, systems }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
@@ -107,6 +115,18 @@ export default function AddBuildingForm({ facilities }: Props) {
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleSystem(systemCode: string) {
+    setForm((prev) => {
+      const exists = prev.system_codes.includes(systemCode);
+      return {
+        ...prev,
+        system_codes: exists
+          ? prev.system_codes.filter((code) => code !== systemCode)
+          : [...prev.system_codes, systemCode]
+      };
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -136,7 +156,9 @@ export default function AddBuildingForm({ facilities }: Props) {
         throw new Error(data.message || "Failed to create building");
       }
 
-      setMessage("Building created successfully ✅");
+      setMessage(
+        `Building created successfully ✅${data.data?.systems_created ? ` (${data.data.systems_created} systems added)` : ""}`
+      );
       setForm({
         ...initialState,
         facility_id: facilities[0]?.facility_id || ""
@@ -154,186 +176,3 @@ export default function AddBuildingForm({ facilities }: Props) {
     <div className="card">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-lg font-semibold">Buildings</div>
-          <div className="text-sm text-slate-500">
-            Add a building and link it to an existing facility
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="btn"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "Close" : "+ Add Building"}
-        </button>
-      </div>
-
-      {message ? (
-        <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {message}
-        </div>
-      ) : null}
-
-      {open ? (
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-          <select
-            className="select"
-            value={form.facility_id}
-            onChange={(e) => updateField("facility_id", e.target.value)}
-          >
-            {facilities.map((facility) => (
-              <option key={facility.facility_id} value={facility.facility_id}>
-                {facility.facility_name}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="input"
-            placeholder="Building name *"
-            value={form.building_name}
-            onChange={(e) => updateField("building_name", e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Building name (Arabic)"
-            value={form.building_name_ar}
-            onChange={(e) => updateField("building_name_ar", e.target.value)}
-          />
-
-          <select
-            className="select"
-            value={form.building_use}
-            onChange={(e) => updateField("building_use", e.target.value)}
-          >
-            {buildingUses.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="input"
-            placeholder="Construction type"
-            value={form.construction_type}
-            onChange={(e) => updateField("construction_type", e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Number of floors"
-            type="number"
-            value={form.number_of_floors}
-            onChange={(e) => updateField("number_of_floors", e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Basement count"
-            type="number"
-            value={form.basement_count}
-            onChange={(e) => updateField("basement_count", e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Building height (m)"
-            value={form.building_height_m}
-            onChange={(e) => updateField("building_height_m", e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Area (m²)"
-            value={form.area_m2}
-            onChange={(e) => updateField("area_m2", e.target.value)}
-          />
-
-          <select
-            className="select"
-            value={form.occupancy_profile_id}
-            onChange={(e) => updateField("occupancy_profile_id", e.target.value)}
-          >
-            {occupancyProfiles.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="select"
-            value={form.risk_profile_id}
-            onChange={(e) => updateField("risk_profile_id", e.target.value)}
-          >
-            {riskProfiles.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="input"
-            placeholder="Year built"
-            value={form.year_built}
-            onChange={(e) => updateField("year_built", e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Civil Defense permit number"
-            value={form.civil_defense_permit_no}
-            onChange={(e) => updateField("civil_defense_permit_no", e.target.value)}
-          />
-
-          <input
-            className="input"
-            placeholder="Evacuation strategy"
-            value={form.evacuation_strategy}
-            onChange={(e) => updateField("evacuation_strategy", e.target.value)}
-          />
-
-          <textarea
-            className="textarea"
-            placeholder="Notes"
-            rows={3}
-            value={form.notes}
-            onChange={(e) => updateField("notes", e.target.value)}
-          />
-
-          {error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="btn"
-              disabled={saving}
-              style={{ flex: 1 }}
-            >
-              {saving ? "Saving..." : "Save Building"}
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setOpen(false);
-                setError("");
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      ) : null}
-    </div>
-  );
-}
