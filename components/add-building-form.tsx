@@ -96,13 +96,15 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [systemSearch, setSystemSearch] = useState("");
+
   const [form, setForm] = useState<FormState>({
     ...initialState,
     facility_id: facilities[0]?.facility_id || ""
   });
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
 
   const canSubmit = useMemo(() => {
     return (
@@ -113,6 +115,17 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
       form.risk_profile_id.trim()
     );
   }, [form]);
+
+  const filteredSystems = useMemo(() => {
+    const q = systemSearch.trim().toLowerCase();
+    if (!q) return systems;
+
+    return systems.filter((system) => {
+      const name = system.system_name.toLowerCase();
+      const code = system.system_code.toLowerCase();
+      return name.includes(q) || code.includes(q);
+    });
+  }, [systems, systemSearch]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -128,6 +141,23 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
           : [...prev.system_codes, systemCode]
       };
     });
+  }
+
+  function selectAllFiltered() {
+    setForm((prev) => {
+      const merged = new Set([...prev.system_codes, ...filteredSystems.map((s) => s.system_code)]);
+      return {
+        ...prev,
+        system_codes: Array.from(merged)
+      };
+    });
+  }
+
+  function clearAllSystems() {
+    setForm((prev) => ({
+      ...prev,
+      system_codes: []
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -170,6 +200,7 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
         facility_id: facilities[0]?.facility_id || ""
       });
 
+      setSystemSearch("");
       setOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -305,33 +336,75 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
             ))}
           </select>
 
-          <div className="rounded-2xl border border-blue-300 bg-blue-50 p-3">
-            <div className="mb-2 text-sm font-semibold text-blue-900">
-              Installed Systems
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">
+                  Installed Systems
+                </div>
+                <div className="text-xs text-slate-500">
+                  Selected: {form.system_codes.length}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 px-3 py-1 text-xs"
+                  onClick={selectAllFiltered}
+                >
+                  Select filtered
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 px-3 py-1 text-xs"
+                  onClick={clearAllSystems}
+                >
+                  Clear
+                </button>
+              </div>
             </div>
 
-            <div className="grid gap-2">
-              {systems.length === 0 ? (
-                <div className="text-sm text-slate-500">
-                  No system options available
+            <input
+              className="input mt-3"
+              placeholder="Search systems by name or code"
+              value={systemSearch}
+              onChange={(e) => setSystemSearch(e.target.value)}
+            />
+
+            <div className="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+              {filteredSystems.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-slate-500">
+                  No matching systems found
                 </div>
               ) : (
-                systems.map((system) => {
+                filteredSystems.map((system) => {
                   const checked = form.system_codes.includes(system.system_code);
 
                   return (
                     <label
                       key={system.system_code}
-                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                      className={`flex w-full cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${
+                        checked
+                          ? "border-blue-400 bg-blue-50"
+                          : "border-slate-200 bg-white"
+                      }`}
                     >
                       <input
                         type="checkbox"
+                        className="mt-1 h-4 w-4 shrink-0"
                         checked={checked}
                         onChange={() => toggleSystem(system.system_code)}
                       />
-                      <span className="text-sm">
-                        {system.system_name} ({system.system_code})
-                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium break-words text-slate-900">
+                          {system.system_name}
+                        </div>
+                        <div className="mt-1 text-xs break-all text-slate-500">
+                          {system.system_code}
+                        </div>
+                      </div>
                     </label>
                   );
                 })
