@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CheckSquare, Plus, Search, ShieldCheck } from "lucide-react";
+import { CheckSquare, Plus, Search, ShieldCheck } from "lucide-react";
 
 type FacilityOption = {
   facility_id: string;
@@ -219,23 +219,21 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-lg font-bold text-slate-900">إضافة مبنى</div>
-          <div className="mt-1 text-sm text-slate-500">
-            أضف مبنى جديدًا وحدد الأنظمة الموجودة داخله
-          </div>
+      <div>
+        <div className="text-lg font-bold text-slate-900">إضافة مبنى</div>
+        <div className="mt-1 text-sm leading-6 text-slate-500">
+          أضف مبنى جديدًا وحدد الأنظمة الموجودة داخله
         </div>
-
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
-        >
-          <Plus className="h-4 w-4" />
-          {open ? "إغلاق" : "مبنى جديد"}
-        </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+      >
+        <Plus className="h-4 w-4" />
+        {open ? "إغلاق النموذج" : "إضافة مبنى جديد"}
+      </button>
 
       {message ? (
         <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -363,7 +361,7 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
                   className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
                 >
                   <CheckSquare className="h-3.5 w-3.5" />
-                  تحديد المعروض
+                  تحديد
                 </button>
 
                 <button
