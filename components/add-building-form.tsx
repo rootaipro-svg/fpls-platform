@@ -159,10 +159,12 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
       setMessage(
         `Building created successfully ✅${data.data?.systems_created ? ` (${data.data.systems_created} systems added)` : ""}`
       );
+
       setForm({
         ...initialState,
         facility_id: facilities[0]?.facility_id || ""
       });
+
       setOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -176,3 +178,89 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
     <div className="card">
       <div className="flex items-center justify-between gap-3">
         <div>
+          <div className="text-lg font-semibold">Buildings</div>
+          <div className="text-sm text-slate-500">
+            Add a building and choose the systems installed in it
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "Close" : "+ Add Building"}
+        </button>
+      </div>
+
+      {message ? (
+        <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          {message}
+        </div>
+      ) : null}
+
+      {open ? (
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <select
+            className="select"
+            value={form.facility_id}
+            onChange={(e) => updateField("facility_id", e.target.value)}
+          >
+            {facilities.map((facility) => (
+              <option key={facility.facility_id} value={facility.facility_id}>
+                {facility.facility_name}
+              </option>
+            ))}
+          </select>
+
+          <input
+            className="input"
+            placeholder="Building name *"
+            value={form.building_name}
+            onChange={(e) => updateField("building_name", e.target.value)}
+          />
+
+          <input
+            className="input"
+            placeholder="Building name (Arabic)"
+            value={form.building_name_ar}
+            onChange={(e) => updateField("building_name_ar", e.target.value)}
+          />
+
+          <select
+            className="select"
+            value={form.building_use}
+            onChange={(e) => updateField("building_use", e.target.value)}
+          >
+            {buildingUses.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+
+          <input
+            className="input"
+            placeholder="Construction type"
+            value={form.construction_type}
+            onChange={(e) => updateField("construction_type", e.target.value)}
+          />
+
+          <input
+            className="input"
+            placeholder="Number of floors"
+            type="number"
+            value={form.number_of_floors}
+            onChange={(e) => updateField("number_of_floors", e.target.value)}
+          />
+
+          <input
+            className="input"
+            placeholder="Basement count"
+            type="number"
+            value={form.basement_count}
+            onChange={(e) => updateField("basement_count", e.target.value)}
+          />
+
+          <input
+            class
