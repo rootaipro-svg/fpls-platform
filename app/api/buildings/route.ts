@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           message:
-            "facility_id, building_name, building_use, occupancy_profile_id, and risk_profile_id are required"
+            "facility_id, building_name, building_use, occupancy_profile_id, and risk_profile_id are required",
         },
         { status: 400 }
       );
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       status: "active",
       notes: body.notes || "",
       created_at: nowIso(),
-      updated_at: nowIso()
+      updated_at: nowIso(),
     });
 
     const systemCodes: string[] = Array.isArray(body.system_codes)
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
         next_inspection_anchor_date: new Date().toISOString().slice(0, 10),
         notes: "",
         created_at: nowIso(),
-        updated_at: nowIso()
+        updated_at: nowIso(),
       });
     }
 
@@ -126,4 +126,14 @@ export async function POST(req: NextRequest) {
       data: {
         building_id: buildingId,
         building_code: buildingCode,
-        total
+        total_buildings: updatedBuildings.length,
+        systems_created: systemCodes.length,
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { ok: false, message: error.message || "Failed to create building" },
+      { status: 400 }
+    );
+  }
+}
