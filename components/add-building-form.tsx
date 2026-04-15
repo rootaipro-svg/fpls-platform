@@ -94,6 +94,7 @@ const riskProfiles = [
 
 export default function AddBuildingForm({ facilities, systems }: Props) {
   const router = useRouter();
+
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
     ...initialState,
@@ -157,7 +158,11 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
       }
 
       setMessage(
-        `Building created successfully ✅${data.data?.systems_created ? ` (${data.data.systems_created} systems added)` : ""}`
+        `Building created successfully ✅${
+          data.data?.systems_created
+            ? ` (${data.data.systems_created} systems added)`
+            : ""
+        }`
       );
 
       setForm({
@@ -263,6 +268,137 @@ export default function AddBuildingForm({ facilities, systems }: Props) {
           />
 
           <input
-            class
+            className="input"
+            placeholder="Building height (m)"
+            value={form.building_height_m}
+            onChange={(e) => updateField("building_height_m", e.target.value)}
+          />
 
-            
+          <input
+            className="input"
+            placeholder="Area (m²)"
+            value={form.area_m2}
+            onChange={(e) => updateField("area_m2", e.target.value)}
+          />
+
+          <select
+            className="select"
+            value={form.occupancy_profile_id}
+            onChange={(e) => updateField("occupancy_profile_id", e.target.value)}
+          >
+            {occupancyProfiles.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="select"
+            value={form.risk_profile_id}
+            onChange={(e) => updateField("risk_profile_id", e.target.value)}
+          >
+            {riskProfiles.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+
+          <div className="rounded-2xl border border-blue-300 bg-blue-50 p-3">
+            <div className="mb-2 text-sm font-semibold text-blue-900">
+              Installed Systems
+            </div>
+
+            <div className="grid gap-2">
+              {systems.length === 0 ? (
+                <div className="text-sm text-slate-500">
+                  No system options available
+                </div>
+              ) : (
+                systems.map((system) => {
+                  const checked = form.system_codes.includes(system.system_code);
+
+                  return (
+                    <label
+                      key={system.system_code}
+                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSystem(system.system_code)}
+                      />
+                      <span className="text-sm">
+                        {system.system_name} ({system.system_code})
+                      </span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <input
+            className="input"
+            placeholder="Year built"
+            value={form.year_built}
+            onChange={(e) => updateField("year_built", e.target.value)}
+          />
+
+          <input
+            className="input"
+            placeholder="Civil Defense permit number"
+            value={form.civil_defense_permit_no}
+            onChange={(e) =>
+              updateField("civil_defense_permit_no", e.target.value)
+            }
+          />
+
+          <input
+            className="input"
+            placeholder="Evacuation strategy"
+            value={form.evacuation_strategy}
+            onChange={(e) => updateField("evacuation_strategy", e.target.value)}
+          />
+
+          <textarea
+            className="textarea"
+            placeholder="Notes"
+            rows={3}
+            value={form.notes}
+            onChange={(e) => updateField("notes", e.target.value)}
+          />
+
+          {error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="btn"
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              {saving ? "Saving..." : "Save Building"}
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setOpen(false);
+                setError("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </div>
+  );
+}
