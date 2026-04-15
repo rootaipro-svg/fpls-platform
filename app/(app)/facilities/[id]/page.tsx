@@ -31,9 +31,12 @@ export default async function FacilityDetailPage({ params }: { params: Promise<{
     <AppShell title={String(facility?.facility_name || "Facility")}>
       <div className="card">
         <div className="text-sm text-slate-500">Address</div>
-        <div className="mt-1 font-medium">{String(facility?.address || "No address provided")}</div>
+        <div className="mt-1 font-medium">
+          {String(facility?.address || "No address provided")}
+        </div>
         <div className="mt-2 text-sm text-slate-500">
-          {String(facility?.city || "")} {facility?.district ? `· ${facility.district}` : ""}
+          {String(facility?.city || "")}
+          {facility?.district ? ` · ${facility.district}` : ""}
         </div>
       </div>
 
@@ -46,15 +49,13 @@ export default async function FacilityDetailPage({ params }: { params: Promise<{
         ]}
       />
 
-      {facilityBuildings.length > 0 ? (
-        <AddSystemForm
-          buildings={facilityBuildings.map((b) => ({
-            building_id: String(b.building_id),
-            building_name: String(b.building_name)
-          }))}
-          systems={systemOptions}
-        />
-      ) : null}
+      <AddSystemForm
+        buildings={facilityBuildings.map((b) => ({
+          building_id: String(b.building_id),
+          building_name: String(b.building_name)
+        }))}
+        systems={systemOptions}
+      />
 
       {facilityBuildings.length === 0 ? (
         <div className="card">
