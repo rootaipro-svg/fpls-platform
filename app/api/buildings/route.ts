@@ -17,6 +17,10 @@ function makeBuildingCode(name: string) {
   return `${cleaned || "BLD"}-${Date.now().toString().slice(-6)}`;
 }
 
+function makeSystemInstanceCode(systemCode: string) {
+  return `${systemCode || "SYS"}-${Date.now().toString().slice(-6)}`;
+}
+
 export async function GET() {
   try {
     const user = await requirePermission("buildings", "view");
@@ -37,11 +41,18 @@ export async function POST(req: NextRequest) {
     const workbookId = await getTenantWorkbookId(user.tenantId);
     const body = await req.json();
 
-    if (!body.facility_id || !body.building_name || !body.building_use || !body.occupancy_profile_id || !body.risk_profile_id) {
+    if (
+      !body.facility_id ||
+      !body.building_name ||
+      !body.building_use ||
+      !body.occupancy_profile_id ||
+      !body.risk_profile_id
+    ) {
       return NextResponse.json(
         {
           ok: false,
-          message: "facility_id, building_name, building_use, occupancy_profile_id, and risk_profile_id are required"
+          message:
+            "facility_id, building_name, building_use, occupancy_profile_id, and risk_profile_id are required"
         },
         { status: 400 }
       );
@@ -76,6 +87,37 @@ export async function POST(req: NextRequest) {
       updated_at: nowIso()
     });
 
+    const systemCodes: string[] = Array.isArray(body.system_codes)
+      ? body.system_codes.filter(Boolean)
+      : [];
+
+    for (const systemCode of systemCodes) {
+      await appendRow(workbookId, "BUILDING_SYSTEMS", {
+        building_system_id: makeId("BSYS"),
+        building_id: buildingId,
+        system_instance_code: makeSystemInstanceCode(systemCode),
+        system_code: systemCode,
+        system_name_override: "",
+        coverage_scope: "full building",
+        protection_area: "",
+        standard_profile: systemCode,
+        authority_profile_id: "default_ksa",
+        manufacturer: "",
+        model: "",
+        serial_no: "",
+        install_date: "",
+        commission_date: "",
+        service_provider: "",
+        approval_lab_code: "",
+        criticality_class: "primary",
+        system_status: "active",
+        next_inspection_anchor_date: new Date().toISOString().slice(0, 10),
+        notes: "",
+        created_at: nowIso(),
+        updated_at: nowIso()
+      });
+    }
+
     const updatedBuildings = await readSheet(workbookId, "BUILDINGS");
 
     return NextResponse.json({
@@ -84,13 +126,4 @@ export async function POST(req: NextRequest) {
       data: {
         building_id: buildingId,
         building_code: buildingCode,
-        total_buildings: updatedBuildings.length
-      }
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { ok: false, message: error.message || "Failed to create building" },
-      { status: 400 }
-    );
-  }
-}
+        total
