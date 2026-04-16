@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   ShieldAlert,
   UserCircle2,
@@ -37,6 +38,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       label: "المخالفات",
       icon: ShieldAlert,
       active: pathname === "/findings" || pathname.startsWith("/findings/"),
+    },
+    {
+      href: "/reports",
+      label: "التقارير",
+      icon: FileText,
+      active: pathname === "/reports" || pathname.startsWith("/reports/"),
     },
   ];
 
