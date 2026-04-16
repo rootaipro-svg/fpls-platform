@@ -1,53 +1,21 @@
 import Link from "next/link";
 import { SeverityBadge } from "@/components/severity-badge";
-
-function getFindingStatusMeta(status: string) {
-  const normalized = String(status || "").toLowerCase();
-
-  if (normalized === "closed") {
-    return {
-      className: "finding-status-pill finding-status-pill--closed",
-      label: "مغلقة",
-    };
-  }
-
-  if (normalized === "verifying") {
-    return {
-      className: "finding-status-pill finding-status-pill--verifying",
-      label: "قيد التحقق",
-    };
-  }
-
-  if (normalized === "open") {
-    return {
-      className: "finding-status-pill finding-status-pill--open",
-      label: "مفتوحة",
-    };
-  }
-
-  return {
-    className: "finding-status-pill finding-status-pill--default",
-    label: status || "غير محدد",
-  };
-}
+import { FindingStatusBadge } from "@/components/finding-status-badge";
+import { CardLinkHint } from "@/components/card-link-hint";
 
 type Props = {
   finding: any;
-  systemCode?: string;
   facilityName?: string;
   buildingName?: string;
+  systemCode?: string;
 };
 
 export function FindingCard({
   finding,
-  systemCode = "",
   facilityName = "",
   buildingName = "",
+  systemCode = "",
 }: Props) {
-  const statusMeta = getFindingStatusMeta(
-    String(finding.closure_status || finding.compliance_status || "open")
-  );
-
   return (
     <Link href={`/findings/${finding.finding_id}`} className="finding-card">
       <div className="finding-card-top">
@@ -56,26 +24,29 @@ export function FindingCard({
             {String(finding.title || "مخالفة")}
           </div>
           <div className="finding-card-code">
-            {String(finding.finding_code || finding.finding_id || "")}
+            {String(finding.finding_code || finding.finding_id)}
           </div>
         </div>
 
-        <span className={statusMeta.className}>{statusMeta.label}</span>
+        <SeverityBadge severity={String(finding.severity || "")} />
       </div>
 
-      <div className="finding-card-desc">
+      <div className="finding-card-text">
         {String(finding.description || "لا يوجد وصف")}
       </div>
 
       <div className="finding-card-meta">
-        {facilityName ? facilityName : "منشأة غير محددة"}
-        {buildingName ? ` · ${buildingName}` : ""}
-        {systemCode ? ` · ${systemCode}` : ""}
+        <FindingStatusBadge
+          status={String(
+            finding.closure_status || finding.compliance_status || "open"
+          )}
+        />
+        {facilityName ? <span className="badge">{facilityName}</span> : null}
+        {buildingName ? <span className="badge">{buildingName}</span> : null}
+        {systemCode ? <span className="badge">{systemCode}</span> : null}
       </div>
 
-      <div className="finding-badges">
-        <SeverityBadge severity={String(finding.severity || "")} />
-      </div>
+      <CardLinkHint label="عرض المخالفة" />
     </Link>
   );
 }
