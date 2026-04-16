@@ -17,8 +17,8 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const user = await requirePermission("findings", "edit");
-    const workbookId = await getTenantWorkbookId(user.tenantId);
+    const user = await requirePermission("findings", "update");
+    const workbookId = user.workbookId;
     const body = await req.json();
     await updateRowById(workbookId, "FINDINGS", "finding_id", body.finding_id, {
       closure_status: body.closure_status,
