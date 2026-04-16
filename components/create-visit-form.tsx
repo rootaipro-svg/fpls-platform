@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ClipboardPlus } from "lucide-react";
 
@@ -24,6 +24,10 @@ type BuildingSystemOption = {
 type InspectorOption = {
   inspector_id: string;
   inspector_name: string;
+  email: string;
+  phone: string;
+  status: string;
+  allowed_systems: string;
 };
 
 type Props = {
@@ -55,6 +59,13 @@ const initialState: FormState = {
   selected_system_ids: [],
 };
 
+function parseAllowedSystems(value: string) {
+  return String(value || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 export default function CreateVisitForm({
   facilities,
   buildings,
@@ -85,13 +96,58 @@ export default function CreateVisitForm({
     );
   }, [buildingSystems, form.building_id]);
 
+  const selectedSystems = useMemo(() => {
+    return filteredSystems.filter((s) =>
+      form.selected_system_ids.includes(String(s.building_system_id))
+    );
+  }, [filteredSystems, form.selected_system_ids]);
+
+  const selectedSystemCodes = useMemo(() => {
+    return selectedSystems.map((s) => String(s.system_code));
+  }, [selectedSystems]);
+
+  const activeInspectors = useMemo(() => {
+    return inspectors.filter(
+      (i) => String(i.status || "active").toLowerCase() === "active"
+    );
+  }, [inspectors]);
+
+  const eligibleInspectors = useMemo(() => {
+    if (selectedSystemCodes.length === 0) {
+      return activeInspectors;
+    }
+
+    return activeInspectors.filter((inspector) => {
+      const allowed = parseAllowedSystems(inspector.allowed_systems);
+
+      if (allowed.length === 0) {
+        return true;
+      }
+
+      return selectedSystemCodes.some((code) => allowed.includes(code));
+    });
+  }, [activeInspectors, selectedSystemCodes]);
+
+  useEffect(() => {
+    if (!form.assigned_inspector_id) return;
+
+    const stillEligible = eligibleInspectors.some(
+      (i) => String(i.inspector_id) === String(form.assigned_inspector_id)
+    );
+
+    if (!stillEligible) {
+      setForm((prev) => ({ ...prev, assigned_inspector_id: "" }));
+    }
+  }, [eligibleInspectors, form.assigned_inspector_id]);
+
   const canSubmit = useMemo(() => {
     return (
       form.facility_id.trim() &&
       form.building_id.trim() &&
       form.visit_type.trim() &&
       form.planned_date.trim() &&
-      form.selected_system_ids.length > 0
+      form.selected_system_ids.length > 0 &&
+      form.assigned_inspector_id.trim()
     );
   }, [form]);
 
@@ -105,6 +161,7 @@ export default function CreateVisitForm({
       facility_id: value,
       building_id: "",
       selected_system_ids: [],
+      assigned_inspector_id: "",
     }));
   }
 
@@ -113,6 +170,7 @@ export default function CreateVisitForm({
       ...prev,
       building_id: value,
       selected_system_ids: [],
+      assigned_inspector_id: "",
     }));
   }
 
@@ -134,13 +192,9 @@ export default function CreateVisitForm({
     setError("");
 
     if (!canSubmit) {
-      setError("يرجى اختيار المنشأة والمبنى وتاريخ الزيارة ونظام واحد على الأقل.");
+      setError("يرجى اختيار المنشأة والمبنى والأنظمة والمفتش وتاريخ الزيارة.");
       return;
     }
-
-    const selectedSystems = filteredSystems.filter((s) =>
-      form.selected_system_ids.includes(String(s.building_system_id))
-    );
 
     try {
       setSaving(true);
@@ -172,7 +226,7 @@ export default function CreateVisitForm({
         throw new Error(data.message || "تعذر إنشاء الزيارة");
       }
 
-      setMessage("تم إنشاء الزيارة بنجاح");
+      setMessage("تم إنشاء الزيارة وربطها بالمفتش بنجاح");
       setForm({
         ...initialState,
         facility_id: facilities[0]?.facility_id || "",
@@ -190,7 +244,7 @@ export default function CreateVisitForm({
     <div className="form-panel">
       <div className="form-panel-title">إنشاء زيارة</div>
       <div className="form-panel-text">
-        أنشئ زيارة تفتيش جديدة وحدد المبنى والأنظمة الداخلة ضمن نطاقها
+        أنشئ زيارة جديدة واختر المبنى والأنظمة والمفتش المسؤول عنها
       </div>
 
       <button
@@ -257,13 +311,26 @@ export default function CreateVisitForm({
               onChange={(e) => updateField("assigned_inspector_id", e.target.value)}
             >
               <option value="">اختر المفتش</option>
-              {inspectors.map((inspector) => (
+              {eligibleInspectors.map((inspector) => (
                 <option key={inspector.inspector_id} value={inspector.inspector_id}>
                   {inspector.inspector_name}
+                  {inspector.phone ? ` · ${inspector.phone}` : ""}
                 </option>
               ))}
             </select>
           </div>
+
+          {eligibleInspectors.length === 0 ? (
+            <div className="alert-error">
+              لا يوجد مفتش نشط مناسب للأنظمة المختارة. راجع شيت INSPECTORS وعمود
+              allowed_systems أو حالة المفتش.
+            </div>
+          ) : (
+            <div className="helper-text">
+              يتم عرض المفتشين النشطين فقط، ومع اختيار الأنظمة يتم تفضيل من لديهم
+              صلاحية عليها عبر allowed_systems.
+            </div>
+          )}
 
           <div className="form-grid-2">
             <div>
