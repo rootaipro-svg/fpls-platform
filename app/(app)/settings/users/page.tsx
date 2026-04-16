@@ -22,13 +22,13 @@ export default async function SettingsUsersPage() {
   const users = await readSheet(actor.workbookId, "USERS");
 
   const normalizedUsers: ManagedUserRow[] = (users || [])
-    .filter(
-      (u: any) => String(u.tenant_id || "") === String(actor.tenantId)
-    )
+    .filter((u: any) => {
+      return String(u.app_user_id || u.email || u.full_name || "").trim() !== "";
+    })
     .map((u: any) => ({
       ...u,
       app_user_id: String(u.app_user_id || ""),
-      tenant_id: String(u.tenant_id || ""),
+      tenant_id: String(u.tenant_id || actor.tenantId || ""),
       full_name: String(u.full_name || u.name || "مستخدم"),
       email: String(u.email || ""),
       role: String(u.role || u.user_role || "inspector").toLowerCase(),
@@ -102,7 +102,7 @@ export default async function SettingsUsersPage() {
         <div className="user-admin-grid">
           {normalizedUsers.map((userRow) => (
             <UserRoleManagerCard
-              key={String(userRow.app_user_id)}
+              key={String(userRow.app_user_id || userRow.email)}
               userRow={userRow}
             />
           ))}
