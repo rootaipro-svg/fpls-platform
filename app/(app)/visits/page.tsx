@@ -1,8 +1,9 @@
 import { ClipboardList } from "lucide-react";
-import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { VisitCard } from "@/components/visit-card";
+import CreateVisitForm from "@/components/create-visit-form";
 import { getSessionUser } from "@/lib/auth";
 import { getTenantWorkbookId } from "@/lib/tenant";
 import { readSheet } from "@/lib/sheets";
@@ -18,51 +19,72 @@ function sortByDateDesc(rows: any[], field: string) {
 export default async function VisitsPage() {
   const user = await getSessionUser();
   const workbookId = await getTenantWorkbookId(user.tenantId);
-  const visits = await readSheet(workbookId, "VISITS");
 
-  const sortedVisits = sortByDateDesc(visits, "visit_date");
+  const [visits, facilities, buildings, buildingSystems, inspectors] =
+    await Promise.all([
+      readSheet(workbookId, "VISITS"),
+      readSheet(workbookId, "FACILITIES"),
+      readSheet(workbookId, "BUILDINGS"),
+      readSheet(workbookId, "BUILDING_SYSTEMS"),
+      readSheet(workbookId, "INSPECTORS"),
+    ]);
+
+  const sortedVisits = sortByDateDesc(visits, "planned_date");
 
   return (
     <AppShell>
       <PageHeader
         title="الزيارات"
-        subtitle="استعراض الزيارات المجدولة والمنفذة"
+        subtitle="إدارة الزيارات المجدولة والمنفذة وربطها بالأنظمة"
+      />
+
+      <CreateVisitForm
+        facilities={facilities.map((f) => ({
+          facility_id: String(f.facility_id),
+          facility_name: String(f.facility_name),
+        }))}
+        buildings={buildings.map((b) => ({
+          building_id: String(b.building_id),
+          facility_id: String(b.facility_id),
+          building_name: String(b.building_name),
+        }))}
+        buildingSystems={buildingSystems.map((s) => ({
+          building_system_id: String(s.building_system_id),
+          building_id: String(s.building_id),
+          system_code: String(s.system_code),
+        }))}
+        inspectors={inspectors.map((i) => ({
+          inspector_id: String(i.inspector_id),
+          inspector_name: String(i.inspector_name || i.full_name || i.inspector_id),
+        }))}
       />
 
       {sortedVisits.length === 0 ? (
         <EmptyState
           title="لا توجد زيارات"
-          description="بعد إنشاء زيارة جديدة ستظهر هنا قائمة الزيارات الخاصة بالمنشآت والأنظمة."
+          description="ابدأ بإنشاء أول زيارة تفتيش، ثم ستظهر هنا قائمة الزيارات."
           icon={ClipboardList}
         />
       ) : (
-        <div className="space-y-3">
-          {sortedVisits.map((visit) => (
-            <Link
-              key={String(visit.visit_id)}
-              href={`/visits/${visit.visit_id}`}
-              className="block rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-base font-bold text-slate-900">
-                    {String(visit.visit_type || "زيارة")}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500">
-                    {String(visit.visit_date || visit.planned_date || "-")}
-                  </div>
-                </div>
+        <div className="stack-3">
+          {sortedVisits.map((visit) => {
+            const facility = facilities.find(
+              (f) => String(f.facility_id) === String(visit.facility_id)
+            );
 
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  {String(visit.visit_status || "planned")}
-                </span>
-              </div>
+            const building = buildings.find(
+              (b) => String(b.building_id) === String(visit.building_id)
+            );
 
-              <div className="mt-3 text-sm text-slate-600">
-                {String(visit.summary_result || visit.notes || "لا توجد ملاحظات")}
-              </div>
-            </Link>
-          ))}
+            return (
+              <VisitCard
+                key={String(visit.visit_id)}
+                visit={visit}
+                facilityName={String(facility?.facility_name || "")}
+                buildingName={String(building?.building_name || "")}
+              />
+            );
+          })}
         </div>
       )}
     </AppShell>
