@@ -1242,3 +1242,126 @@ textarea {
   flex-wrap: wrap;
 }
 
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-header-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-link-row {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px dashed var(--line);
+  padding-top: 12px;
+}
+
+.card-link-text {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--brand);
+}
+
+.card-link-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-link-card {
+  cursor: pointer;
+}
+
+.building-block {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 14px;
+}
+
+.building-block-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.building-block-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.7;
+}
+
+.building-block-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.building-block-section {
+  margin-top: 14px;
+}
+
+.building-block-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.system-line {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 12px;
+}
+
+.system-line-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.system-line-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.system-line-date {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.muted-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+@media (max-width: 640px) {
+  .building-block-top,
+  .system-line-top,
+  .section-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
