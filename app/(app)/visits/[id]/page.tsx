@@ -1,8 +1,11 @@
-import { ClipboardList, ShieldCheck } from "lucide-react";
+import { ClipboardList, FileCheck2, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
+import { ComplianceProgress } from "@/components/compliance-progress";
+import { VisitSystemSummaryCard } from "@/components/visit-system-summary-card";
 import VisitExecutionForm from "@/components/visit-execution-form";
 import { getSessionUser } from "@/lib/auth";
 import { getTenantWorkbookId } from "@/lib/tenant";
@@ -18,13 +21,14 @@ export default async function VisitDetailPage({
   const user = await getSessionUser();
   const workbookId = await getTenantWorkbookId(user.tenantId);
 
-  const [visits, visitSystems, facilities, buildings, responses] =
+  const [visits, visitSystems, facilities, buildings, responses, findings] =
     await Promise.all([
       readSheet(workbookId, "VISITS"),
       readSheet(workbookId, "VISIT_SYSTEMS"),
       readSheet(workbookId, "FACILITIES"),
       readSheet(workbookId, "BUILDINGS"),
       readSheet(workbookId, "RESPONSES"),
+      readSheet(workbookId, "FINDINGS"),
     ]);
 
   const visit = visits.find((v) => String(v.visit_id) === id);
@@ -38,7 +42,41 @@ export default async function VisitDetailPage({
     (b) => String(b.building_id) === String(visit?.building_id || "")
   );
 
-  const checklistPerSystem = await Promise.all(
+  const visitSystemIds = new Set(
+    systems.map((s) => String(s.visit_system_id))
+  );
+
+  const responseRows = responses.filter((r) =>
+    visitSystemIds.has(String(r.visit_system_id))
+  );
+
+  const findingRows = findings.filter((f) =>
+    visitSystemIds.has(String(f.visit_system_id))
+  );
+
+  const compliantCount = responseRows.filter(
+    (r) => String(r.response_value || "").toLowerCase() === "compliant"
+  ).length;
+
+  const nonCompliantCount = responseRows.filter(
+    (r) => String(r.response_value || "").toLowerCase() === "non_compliant"
+  ).length;
+
+  const notApplicableCount = responseRows.filter(
+    (r) => String(r.response_value || "").toLowerCase() === "not_applicable"
+  ).length;
+
+  const scoredTotal = compliantCount + nonCompliantCount;
+  const overallCompliance =
+    scoredTotal > 0 ? Math.round((compliantCount / scoredTotal) * 100) : 0;
+
+  const openFindingsCount = findingRows.filter(
+    (f) =>
+      String(f.closure_status || f.compliance_status || "").toLowerCase() !==
+      "closed"
+  ).length;
+
+  const executionItemsNested = await Promise.all(
     systems.map(async (system) => {
       const items = await getChecklistForSystem(
         workbookId,
@@ -58,68 +96,118 @@ export default async function VisitDetailPage({
     })
   );
 
-  const executionItems = checklistPerSystem.flat();
+  const executionItems = executionItemsNested.flat();
 
-  const existingResponses = responses
-    .filter((r) =>
-      systems.some(
-        (s) => String(s.visit_system_id) === String(r.visit_system_id)
-      )
-    )
-    .map((r) => ({
-      visit_system_id: String(r.visit_system_id),
-      checklist_item_id: String(r.checklist_item_id),
-      response_value: String(r.response_value || ""),
-      finding_severity: String(r.finding_severity || ""),
-      comments: String(r.comments || ""),
-    }));
+  const existingResponses = responseRows.map((r) => ({
+    visit_system_id: String(r.visit_system_id),
+    checklist_item_id: String(r.checklist_item_id),
+    response_value: String(r.response_value || ""),
+    finding_severity: String(r.finding_severity || ""),
+    comments: String(r.comments || ""),
+  }));
+
+  const reportReady =
+    String(visit?.visit_status || "").toLowerCase() === "closed" &&
+    responseRows.length > 0;
 
   return (
     <AppShell>
-      <PageHeader title="تفاصيل الزيارة" subtitle={`رقم الزيارة: ${id}`} />
+      <PageHeader
+        title="تفاصيل الزيارة"
+        subtitle={`${String(facility?.facility_name || "منشأة غير محددة")}${
+          building ? ` · ${building.building_name}` : ""
+        }`}
+      />
 
-      <div className="info-strip">
-        <div className="info-strip-card">
-          <div className="info-strip-label">الحالة</div>
-          <div className="info-strip-value" style={{ marginTop: "10px" }}>
-            <StatusBadge status={String(visit?.visit_status || "planned")} />
+      <div className="stats-grid">
+        <StatCard
+          label="الأنظمة"
+          value={systems.length}
+          hint="عدد الأنظمة داخل الزيارة"
+          icon={ShieldCheck}
+          tone="teal"
+        />
+        <StatCard
+          label="مطابق"
+          value={compliantCount}
+          hint="عدد البنود المطابقة"
+          icon={ClipboardList}
+          tone="slate"
+        />
+        <StatCard
+          label="غير مطابق"
+          value={nonCompliantCount}
+          hint="عدد البنود غير المطابقة"
+          icon={ClipboardList}
+          tone={nonCompliantCount > 0 ? "amber" : "slate"}
+        />
+        <StatCard
+          label="المخالفات المفتوحة"
+          value={openFindingsCount}
+          hint="تحتاج متابعة"
+          icon={FileCheck2}
+          tone={openFindingsCount > 0 ? "red" : "slate"}
+        />
+      </div>
+
+      <div className="visit-summary-grid">
+        <div className="card">
+          <div className="section-title">ملخص الزيارة</div>
+          <div
+            className="section-header-row"
+            style={{ marginTop: "12px" }}
+          >
+            <div className="section-header-side">
+              <StatusBadge status={String(visit?.visit_status || "planned")} />
+              <span className="badge">
+                النتيجة: {String(visit?.summary_result || "pending")}
+              </span>
+            </div>
+            <span className="badge">
+              التاريخ: {String(visit?.planned_date || visit?.visit_date || "-")}
+            </span>
+          </div>
+
+          <ComplianceProgress value={overallCompliance} />
+
+          <div className="visit-kpi-row">
+            <span className="visit-kpi-pill">مطابق: {compliantCount}</span>
+            <span className="visit-kpi-pill">
+              غير مطابق: {nonCompliantCount}
+            </span>
+            <span className="visit-kpi-pill">
+              غير منطبق: {notApplicableCount}
+            </span>
+            <span className="visit-kpi-pill">
+              الاستحقاق التالي: {String(visit?.next_due_date || "-")}
+            </span>
+          </div>
+
+          <div className="visit-card-text" style={{ marginTop: "12px" }}>
+            {String(visit?.notes || "لا توجد ملاحظات مسجلة لهذه الزيارة.")}
           </div>
         </div>
 
-        <div className="info-strip-card">
-          <div className="info-strip-label">المنشأة / المبنى</div>
-          <div className="info-strip-value">
-            {String(facility?.facility_name || "غير محدد")}
-            {building ? ` · ${building.building_name}` : ""}
+        <div className="report-ready-card">
+          <div className="report-ready-title">جاهزية التقرير</div>
+          <div className="report-ready-text">
+            {reportReady
+              ? "الزيارة مغلقة وتم تسجيل نتائج فعلية، والصفحة أصبحت جاهزة للانتقال إلى مرحلة تقرير PDF الاحترافي."
+              : "أكمل تنفيذ البنود وأغلق الزيارة أولًا حتى تصبح جاهزة بالكامل لمرحلة التقرير."}
           </div>
-        </div>
 
-        <div className="info-strip-card">
-          <div className="info-strip-label">تاريخ الزيارة</div>
-          <div className="info-strip-value">
-            {String(visit?.planned_date || visit?.visit_date || "-")}
+          <div className="visit-kpi-row">
+            <span className="badge">
+              حالة الجاهزية: {reportReady ? "جاهز" : "غير جاهز"}
+            </span>
+            <span className="badge">الإجابات المسجلة: {responseRows.length}</span>
+            <span className="badge">المخالفات: {findingRows.length}</span>
           </div>
         </div>
       </div>
 
-      <div className="card">
-        <div className="section-title">ملخص الزيارة</div>
-        <div className="section-subtitle">
-          {String(visit?.summary_result || "pending")}
-        </div>
-        <div className="visit-card-text">
-          {String(visit?.notes || "لا توجد ملاحظات")}
-        </div>
-      </div>
-
-      <div className="card">
-        <div
-          className="section-title"
-          style={{ display: "flex", gap: "8px", alignItems: "center" }}
-        >
-          <ShieldCheck size={18} />
-          <span>الأنظمة ضمن الزيارة</span>
-        </div>
+      <section className="card">
+        <div className="section-title">نتائج الأنظمة</div>
 
         {systems.length === 0 ? (
           <div style={{ marginTop: "12px" }}>
@@ -130,24 +218,16 @@ export default async function VisitDetailPage({
             />
           </div>
         ) : (
-          <div className="stack-3" style={{ marginTop: "12px" }}>
-            {systems.map((s) => (
-              <div key={String(s.visit_system_id)} className="visit-item">
-                <div className="visit-item-top">
-                  <div>
-                    <div className="visit-item-title">{String(s.system_code)}</div>
-                    <div className="visit-item-date">
-                      نسبة الامتثال: {String(s.compliance_percent || "0")}%
-                    </div>
-                  </div>
-
-                  <StatusBadge status={String(s.status || "planned")} />
-                </div>
-              </div>
+          <div className="system-summary-grid" style={{ marginTop: "12px" }}>
+            {systems.map((system) => (
+              <VisitSystemSummaryCard
+                key={String(system.visit_system_id)}
+                system={system}
+              />
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {systems.length > 0 ? (
         <VisitExecutionForm
@@ -162,14 +242,8 @@ export default async function VisitDetailPage({
         />
       ) : null}
 
-      <div className="card">
-        <div
-          className="section-title"
-          style={{ display: "flex", gap: "8px", alignItems: "center" }}
-        >
-          <ClipboardList size={18} />
-          <span>قائمة الفحص المرجعية</span>
-        </div>
+      <section className="card">
+        <div className="section-title">قائمة الفحص المرجعية</div>
 
         {executionItems.length === 0 ? (
           <div style={{ marginTop: "12px" }}>
@@ -197,7 +271,7 @@ export default async function VisitDetailPage({
             ))}
           </div>
         )}
-      </div>
+      </section>
     </AppShell>
   );
 }
