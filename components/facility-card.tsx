@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CardLinkHint } from "@/components/card-link-hint";
 
 type FacilityCardProps = {
   facility: any;
@@ -50,6 +51,8 @@ export function FacilityCard({
           <div className="info-mini-value">{systemCount}</div>
         </div>
       </div>
+
+      <CardLinkHint label="عرض المنشأة" />
     </Link>
   );
 }
