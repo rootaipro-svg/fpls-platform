@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
+import { CardLinkHint } from "@/components/card-link-hint";
 
 type VisitCardProps = {
   visit: any;
@@ -35,6 +36,8 @@ export function VisitCard({
       <div className="visit-card-sub" style={{ marginTop: "8px" }}>
         {String(visit.summary_result || visit.notes || "لا توجد ملاحظات")}
       </div>
+
+      <CardLinkHint label="فتح الزيارة" />
     </Link>
   );
 }
