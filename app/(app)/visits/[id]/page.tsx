@@ -1,4 +1,4 @@
-import { ClipboardList, FileCheck2, ShieldCheck } from "lucide-react";
+import { ClipboardList, FileCheck2, ShieldCheck, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -21,7 +21,7 @@ export default async function VisitDetailPage({
   const user = await getSessionUser();
   const workbookId = await getTenantWorkbookId(user.tenantId);
 
-  const [visits, visitSystems, facilities, buildings, responses, findings] =
+  const [visits, visitSystems, facilities, buildings, responses, findings, inspectors] =
     await Promise.all([
       readSheet(workbookId, "VISITS"),
       readSheet(workbookId, "VISIT_SYSTEMS"),
@@ -29,6 +29,7 @@ export default async function VisitDetailPage({
       readSheet(workbookId, "BUILDINGS"),
       readSheet(workbookId, "RESPONSES"),
       readSheet(workbookId, "FINDINGS"),
+      readSheet(workbookId, "INSPECTORS"),
     ]);
 
   const visit = visits.find((v) => String(v.visit_id) === id);
@@ -42,9 +43,11 @@ export default async function VisitDetailPage({
     (b) => String(b.building_id) === String(visit?.building_id || "")
   );
 
-  const visitSystemIds = new Set(
-    systems.map((s) => String(s.visit_system_id))
+  const assignedInspector = inspectors.find(
+    (i) => String(i.inspector_id) === String(visit?.assigned_inspector_id || "")
   );
+
+  const visitSystemIds = new Set(systems.map((s) => String(s.visit_system_id)));
 
   const responseRows = responses.filter((r) =>
     visitSystemIds.has(String(r.visit_system_id))
@@ -153,10 +156,8 @@ export default async function VisitDetailPage({
       <div className="visit-summary-grid">
         <div className="card">
           <div className="section-title">ملخص الزيارة</div>
-          <div
-            className="section-header-row"
-            style={{ marginTop: "12px" }}
-          >
+
+          <div className="section-header-row" style={{ marginTop: "12px" }}>
             <div className="section-header-side">
               <StatusBadge status={String(visit?.visit_status || "planned")} />
               <span className="badge">
@@ -183,6 +184,23 @@ export default async function VisitDetailPage({
             </span>
           </div>
 
+          <div className="visit-kpi-row">
+            <span className="visit-kpi-pill">
+              المفتش:{" "}
+              {String(
+                assignedInspector?.full_name_ar ||
+                  assignedInspector?.full_name ||
+                  assignedInspector?.email ||
+                  "غير محدد"
+              )}
+            </span>
+            {assignedInspector?.phone ? (
+              <span className="visit-kpi-pill">
+                الجوال: {String(assignedInspector.phone)}
+              </span>
+            ) : null}
+          </div>
+
           <div className="visit-card-text" style={{ marginTop: "12px" }}>
             {String(visit?.notes || "لا توجد ملاحظات مسجلة لهذه الزيارة.")}
           </div>
@@ -202,6 +220,17 @@ export default async function VisitDetailPage({
             </span>
             <span className="badge">الإجابات المسجلة: {responseRows.length}</span>
             <span className="badge">المخالفات: {findingRows.length}</span>
+          </div>
+
+          <div className="visit-kpi-row">
+            <span className="badge">
+              المفتش المعين:{" "}
+              {String(
+                assignedInspector?.full_name_ar ||
+                  assignedInspector?.full_name ||
+                  "غير محدد"
+              )}
+            </span>
           </div>
         </div>
       </div>
