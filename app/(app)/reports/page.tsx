@@ -83,6 +83,17 @@ export default async function ReportsPage() {
     };
   });
 
+  const orderedRows = [...reportRows].sort((a, b) => {
+    if (a.ready !== b.ready) return a.ready ? -1 : 1;
+    const aTime = new Date(
+      String(a.visit.planned_date || a.visit.visit_date || 0)
+    ).getTime();
+    const bTime = new Date(
+      String(b.visit.planned_date || b.visit.visit_date || 0)
+    ).getTime();
+    return bTime - aTime;
+  });
+
   const readyCount = reportRows.filter((r) => r.ready).length;
   const closedCount = reportRows.filter(
     (r) => String(r.visit.visit_status || "").toLowerCase() === "closed"
@@ -93,7 +104,7 @@ export default async function ReportsPage() {
     <AppShell>
       <PageHeader
         title="التقارير"
-        subtitle="مركز التقارير القابلة للطباعة والحفظ PDF"
+        subtitle="مركز التقارير الاحترافية والطباعة والحفظ PDF"
       />
 
       <div className="stats-grid">
@@ -112,15 +123,15 @@ export default async function ReportsPage() {
           tone="slate"
         />
         <StatCard
-          label="إجمالي الزيارات"
+          label="إجمالي التقارير"
           value={totalCount}
-          hint="كل الزيارات المسجلة"
+          hint="كل الزيارات القابلة للعرض كتقارير"
           icon={FileText}
           tone="slate"
         />
       </div>
 
-      {reportRows.length === 0 ? (
+      {orderedRows.length === 0 ? (
         <EmptyState
           title="لا توجد تقارير بعد"
           description="بعد إنشاء زيارات وتسجيل نتائجها ستظهر التقارير هنا."
@@ -128,7 +139,7 @@ export default async function ReportsPage() {
         />
       ) : (
         <div className="report-list-grid">
-          {reportRows.map((row) => (
+          {orderedRows.map((row) => (
             <ReportCard
               key={String(row.visit.visit_id)}
               visit={row.visit}
