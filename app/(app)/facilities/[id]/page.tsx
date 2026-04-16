@@ -249,29 +249,33 @@ export default async function FacilityDetailPage({
       </div>
 
       <CreateVisitForm
-        facilities={[
-          {
-            facility_id: String(facility?.facility_id || ""),
-            facility_name: String(facility?.facility_name || "Facility"),
-          },
-        ]}
-        buildings={facilityBuildings.map((b) => ({
-          building_id: String(b.building_id),
-          facility_id: String(b.facility_id),
-          building_name: String(b.building_name),
-        }))}
-        buildingSystems={facilityBuildingSystems.map((s) => ({
-          building_system_id: String(s.building_system_id),
-          building_id: String(s.building_id),
-          system_code: String(s.system_code),
-        }))}
-        inspectors={inspectors.map((i) => ({
-          inspector_id: String(i.inspector_id),
-          inspector_name: String(
-            i.inspector_name || i.full_name || i.email || i.inspector_id
-          ),
-        }))}
-      />
+  facilities={[
+    {
+      facility_id: String(facility?.facility_id || ""),
+      facility_name: String(facility?.facility_name || "Facility"),
+    },
+  ]}
+  buildings={facilityBuildings.map((b) => ({
+    building_id: String(b.building_id),
+    facility_id: String(b.facility_id),
+    building_name: String(b.building_name),
+  }))}
+  buildingSystems={facilityBuildingSystems.map((s) => ({
+    building_system_id: String(s.building_system_id),
+    building_id: String(s.building_id),
+    system_code: String(s.system_code),
+  }))}
+  inspectors={inspectors.map((i) => ({
+    inspector_id: String(i.inspector_id || ""),
+    inspector_name: String(
+      i.full_name_ar || i.full_name || i.email || i.inspector_id || "Inspector"
+    ),
+    email: String(i.email || ""),
+    phone: String(i.phone || ""),
+    status: String(i.status || "active"),
+    allowed_systems: String(i.allowed_systems || ""),
+  }))}
+/>
 
       <AddBuildingForm
         facilities={[
