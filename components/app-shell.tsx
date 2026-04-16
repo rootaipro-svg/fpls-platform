@@ -6,6 +6,7 @@ import {
   Building2,
   ClipboardList,
   LayoutDashboard,
+  ShieldAlert,
   UserCircle2,
 } from "lucide-react";
 
@@ -30,6 +31,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       label: "الزيارات",
       icon: ClipboardList,
       active: pathname === "/visits" || pathname.startsWith("/visits/"),
+    },
+    {
+      href: "/findings",
+      label: "المخالفات",
+      icon: ShieldAlert,
+      active: pathname === "/findings" || pathname.startsWith("/findings/"),
     },
   ];
 
