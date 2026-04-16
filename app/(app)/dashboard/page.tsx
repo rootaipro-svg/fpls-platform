@@ -34,7 +34,7 @@ export default async function DashboardPage() {
         subtitle="متابعة المنشآت والزيارات والعناصر المستحقة"
       />
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className="stats-grid">
         <StatCard
           label="المنشآت"
           value={facilities.length}
