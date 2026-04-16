@@ -7,16 +7,34 @@ import UserRoleManagerCard from "@/components/user-role-manager-card";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 
+type ManagedUserRow = {
+  app_user_id: string;
+  tenant_id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  account_status: string;
+  [key: string]: any;
+};
+
 export default async function SettingsUsersPage() {
   const actor = await requirePermission("users", "view");
   const users = await readSheet(actor.workbookId, "USERS");
 
-  const normalizedUsers = users
-    .filter((u) => String(u.tenant_id || "") === String(actor.tenantId))
-    .map((u) => ({
+  const normalizedUsers: ManagedUserRow[] = (users || [])
+    .filter(
+      (u: any) => String(u.tenant_id || "") === String(actor.tenantId)
+    )
+    .map((u: any) => ({
       ...u,
+      app_user_id: String(u.app_user_id || ""),
+      tenant_id: String(u.tenant_id || ""),
+      full_name: String(u.full_name || u.name || "مستخدم"),
+      email: String(u.email || ""),
       role: String(u.role || u.user_role || "inspector").toLowerCase(),
-      account_status: String(u.account_status || u.status || "active").toLowerCase(),
+      account_status: String(
+        u.account_status || u.status || "active"
+      ).toLowerCase(),
     }));
 
   const adminCount = normalizedUsers.filter((u) => u.role === "admin").length;
@@ -34,10 +52,34 @@ export default async function SettingsUsersPage() {
       />
 
       <div className="stats-grid">
-        <StatCard label="Admins" value={adminCount} hint="إدارة كاملة" icon={Users} tone="teal" />
-        <StatCard label="Reviewers" value={reviewerCount} hint="مراجعة وتشغيل" icon={Users} tone="slate" />
-        <StatCard label="Inspectors" value={inspectorCount} hint="تنفيذ ميداني" icon={Users} tone="slate" />
-        <StatCard label="معطل" value={disabledCount} hint="حسابات غير نشطة" icon={ShieldCheck} tone={disabledCount > 0 ? "amber" : "slate"} />
+        <StatCard
+          label="Admins"
+          value={adminCount}
+          hint="إدارة كاملة"
+          icon={Users}
+          tone="teal"
+        />
+        <StatCard
+          label="Reviewers"
+          value={reviewerCount}
+          hint="مراجعة وتشغيل"
+          icon={Users}
+          tone="slate"
+        />
+        <StatCard
+          label="Inspectors"
+          value={inspectorCount}
+          hint="تنفيذ ميداني"
+          icon={Users}
+          tone="slate"
+        />
+        <StatCard
+          label="معطل"
+          value={disabledCount}
+          hint="حسابات غير نشطة"
+          icon={ShieldCheck}
+          tone={disabledCount > 0 ? "amber" : "slate"}
+        />
       </div>
 
       <div className="permission-note-box">
