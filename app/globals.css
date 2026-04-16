@@ -2140,3 +2140,119 @@ textarea {
     height: 72px;
   }
 }
+.user-admin-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.user-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.user-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.user-card-title {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1.7;
+}
+
+.user-card-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.8;
+  word-break: break-word;
+}
+
+.user-card-meta {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-badge,
+.account-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.role-badge--admin {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.role-badge--reviewer {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.role-badge--inspector {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.role-badge--default {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.account-badge--active {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.account-badge--disabled {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.account-badge--default {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.user-form-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.permission-note-box {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #475569;
+}
+
+@media (max-width: 640px) {
+  .user-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-card-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
