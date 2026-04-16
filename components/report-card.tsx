@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CardLinkHint } from "@/components/card-link-hint";
 import { StatusBadge } from "@/components/status-badge";
+import { ReportDecisionBadge } from "@/components/report-decision-badge";
 
 type Props = {
   visit: any;
@@ -42,7 +43,17 @@ export function ReportCard({
       <div className="report-card-meta">
         <span className="badge">الامتثال: {compliancePercent}%</span>
         <span className="badge">المخالفات: {findingCount}</span>
-        <span className="badge">{ready ? "جاهز للطباعة" : "غير مكتمل"}</span>
+        <span
+          className={`report-card-ready ${
+            ready ? "report-card-ready--yes" : "report-card-ready--no"
+          }`}
+        >
+          {ready ? "جاهز للطباعة" : "يحتاج استكمال"}
+        </span>
+      </div>
+
+      <div style={{ marginTop: "12px" }}>
+        <ReportDecisionBadge value={String(visit.summary_result || "pending")} />
       </div>
 
       <CardLinkHint label="فتح التقرير" />
