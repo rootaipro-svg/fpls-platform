@@ -18,13 +18,14 @@ export default async function VisitDetailPage({
   const user = await getSessionUser();
   const workbookId = await getTenantWorkbookId(user.tenantId);
 
-  const [visits, visitSystems, facilities, buildings, responses] = await Promise.all([
-    readSheet(workbookId, "VISITS"),
-    readSheet(workbookId, "VISIT_SYSTEMS"),
-    readSheet(workbookId, "FACILITIES"),
-    readSheet(workbookId, "BUILDINGS"),
-    readSheet(workbookId, "RESPONSES"),
-  ]);
+  const [visits, visitSystems, facilities, buildings, responses] =
+    await Promise.all([
+      readSheet(workbookId, "VISITS"),
+      readSheet(workbookId, "VISIT_SYSTEMS"),
+      readSheet(workbookId, "FACILITIES"),
+      readSheet(workbookId, "BUILDINGS"),
+      readSheet(workbookId, "RESPONSES"),
+    ]);
 
   const visit = visits.find((v) => String(v.visit_id) === id);
   const systems = visitSystems.filter((vs) => String(vs.visit_id) === id);
@@ -44,7 +45,7 @@ export default async function VisitDetailPage({
         String(system.system_code)
       );
 
-      return items.map((item) => ({
+      return items.map((item: any) => ({
         visit_system_id: String(system.visit_system_id),
         building_system_id: String(system.building_system_id),
         system_code: String(system.system_code),
@@ -100,3 +101,103 @@ export default async function VisitDetailPage({
           </div>
         </div>
       </div>
+
+      <div className="card">
+        <div className="section-title">ملخص الزيارة</div>
+        <div className="section-subtitle">
+          {String(visit?.summary_result || "pending")}
+        </div>
+        <div className="visit-card-text">
+          {String(visit?.notes || "لا توجد ملاحظات")}
+        </div>
+      </div>
+
+      <div className="card">
+        <div
+          className="section-title"
+          style={{ display: "flex", gap: "8px", alignItems: "center" }}
+        >
+          <ShieldCheck size={18} />
+          <span>الأنظمة ضمن الزيارة</span>
+        </div>
+
+        {systems.length === 0 ? (
+          <div style={{ marginTop: "12px" }}>
+            <EmptyState
+              title="لا توجد أنظمة مرتبطة"
+              description="لم يتم ربط أي نظام بهذه الزيارة بعد."
+              icon={ShieldCheck}
+            />
+          </div>
+        ) : (
+          <div className="stack-3" style={{ marginTop: "12px" }}>
+            {systems.map((s) => (
+              <div key={String(s.visit_system_id)} className="visit-item">
+                <div className="visit-item-top">
+                  <div>
+                    <div className="visit-item-title">{String(s.system_code)}</div>
+                    <div className="visit-item-date">
+                      نسبة الامتثال: {String(s.compliance_percent || "0")}%
+                    </div>
+                  </div>
+
+                  <StatusBadge status={String(s.status || "planned")} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {systems.length > 0 ? (
+        <VisitExecutionForm
+          visitId={String(id)}
+          visitSystems={systems.map((s) => ({
+            visit_system_id: String(s.visit_system_id),
+            building_system_id: String(s.building_system_id),
+            system_code: String(s.system_code),
+          }))}
+          checklistItems={executionItems}
+          existingResponses={existingResponses}
+        />
+      ) : null}
+
+      <div className="card">
+        <div
+          className="section-title"
+          style={{ display: "flex", gap: "8px", alignItems: "center" }}
+        >
+          <ClipboardList size={18} />
+          <span>قائمة الفحص المرجعية</span>
+        </div>
+
+        {executionItems.length === 0 ? (
+          <div style={{ marginTop: "12px" }}>
+            <EmptyState
+              title="لا توجد قائمة فحص"
+              description="لم يتم العثور على Checklist للأنظمة المرتبطة بهذه الزيارة."
+              icon={ClipboardList}
+            />
+          </div>
+        ) : (
+          <div className="stack-3" style={{ marginTop: "12px" }}>
+            {executionItems.slice(0, 10).map((item) => (
+              <div
+                key={`${item.visit_system_id}-${item.checklist_item_id}`}
+                className="checklist-item"
+              >
+                <div className="checklist-item-section">
+                  {item.system_code} · {item.section_name || "Section"}
+                </div>
+                <div className="checklist-item-title">{item.question_text}</div>
+                <div className="checklist-item-criteria">
+                  {item.acceptance_criteria}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </AppShell>
+  );
+}
