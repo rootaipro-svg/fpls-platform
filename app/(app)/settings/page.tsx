@@ -1,19 +1,18 @@
-import { Settings } from "lucide-react";
+import Link from "next/link";
+import { Settings, Users } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { CardLinkHint } from "@/components/card-link-hint";
 import TenantProfileForm from "@/components/tenant-profile-form";
-import { getSessionUser } from "@/lib/auth";
-import { getTenantWorkbookId } from "@/lib/tenant";
+import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 
 export default async function SettingsPage() {
-  const user = await getSessionUser();
-  const workbookId = await getTenantWorkbookId(user.tenantId);
-
-  const rows = await readSheet(workbookId, "TENANT_PROFILE");
+  const actor = await requirePermission("settings", "view");
+  const rows = await readSheet(actor.workbookId, "TENANT_PROFILE");
   const profile =
-    rows.find((r) => String(r.tenant_id) === String(user.tenantId)) || {};
+    rows.find((r) => String(r.tenant_id) === String(actor.tenantId)) || {};
 
   return (
     <AppShell>
@@ -21,6 +20,14 @@ export default async function SettingsPage() {
         title="إعدادات العميل"
         subtitle="تخصيص هوية الجهة والشعار وبيانات التقرير"
       />
+
+      <Link href="/settings/users" className="quick-link-card">
+        <div className="quick-link-title">إدارة المستخدمين والصلاحيات</div>
+        <div className="quick-link-text">
+          تحكم في دور كل مستخدم وحالة الحساب داخل هذا العميل.
+        </div>
+        <CardLinkHint label="فتح إدارة المستخدمين" />
+      </Link>
 
       {!rows ? (
         <EmptyState
