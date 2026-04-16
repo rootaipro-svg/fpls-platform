@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/empty-state";
+import { CardLinkHint } from "@/components/card-link-hint";
 import { getSessionUser } from "@/lib/auth";
 import { getTenantWorkbookId } from "@/lib/tenant";
 import { readSheet } from "@/lib/sheets";
@@ -55,8 +56,10 @@ export default async function DashboardPage() {
 
   const dueItems = Array.from(latestByBuildingSystem.values()).filter((row) => {
     if (!String(row.next_due_date || "").trim()) return false;
+
     const due = new Date(String(row.next_due_date));
     due.setHours(0, 0, 0, 0);
+
     return daysBetween(today, due) <= 7;
   });
 
@@ -93,14 +96,13 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="quick-links-grid">
-        <Link href="/due" className="quick-link-card">
-          <div className="quick-link-title">فتح العناصر المستحقة</div>
-          <div className="quick-link-text">
-            اعرض الأنظمة المتأخرة أو القريبة، وأنشئ زيارات متابعة مباشرة منها.
-          </div>
-        </Link>
-      </div>
+      <Link href="/due" className="quick-link-card">
+        <div className="quick-link-title">فتح العناصر المستحقة</div>
+        <div className="quick-link-text">
+          اعرض الأنظمة المتأخرة أو القريبة، وأنشئ زيارات متابعة مباشرة منها.
+        </div>
+        <CardLinkHint label="فتح الصفحة" />
+      </Link>
 
       <section className="card">
         <div className="section-title">آخر الزيارات</div>
@@ -116,12 +118,9 @@ export default async function DashboardPage() {
         ) : (
           <div className="stack-3" style={{ marginTop: "12px" }}>
             {latestVisits.map((visit) => (
-              <div
-                key={String(visit.visit_id)}
-                className="visit-item"
-              >
+              <div key={String(visit.visit_id)} className="visit-item">
                 <div className="visit-item-top">
-                  <div className="min-w-0">
+                  <div>
                     <div className="visit-item-title">
                       {String(visit.visit_type || "زيارة")}
                     </div>
