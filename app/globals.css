@@ -816,3 +816,131 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+.execution-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.execution-system-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.execution-system-tab {
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.execution-system-tab.active {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+}
+
+.execution-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.execution-summary-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 12px;
+  text-align: center;
+}
+
+.execution-summary-value {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.execution-summary-label {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.answer-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.answer-btn {
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.answer-btn.active-pass {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #86efac;
+}
+
+.answer-btn.active-fail {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.answer-btn.active-na {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.response-panel {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: white;
+  padding: 12px;
+}
+
+.response-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.execution-footer {
+  position: sticky;
+  bottom: 84px;
+  z-index: 10;
+  background: rgba(243, 245, 248, 0.96);
+  padding-top: 10px;
+}
+
+.execution-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+@media (max-width: 640px) {
+  .execution-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .response-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
