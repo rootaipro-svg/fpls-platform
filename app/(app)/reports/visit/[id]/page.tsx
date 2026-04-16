@@ -9,6 +9,7 @@ import {
 import PrintReportButton from "@/components/print-report-button";
 import { SeverityBadge } from "@/components/severity-badge";
 import { FindingStatusBadge } from "@/components/finding-status-badge";
+import { ReportDecisionBadge } from "@/components/report-decision-badge";
 import { getSessionUser } from "@/lib/auth";
 import { getTenantWorkbookId } from "@/lib/tenant";
 import { readSheet } from "@/lib/sheets";
@@ -22,6 +23,11 @@ function toArabicSummary(value: string) {
   if (normalized === "pending") return "قيد الانتظار";
 
   return value || "غير محدد";
+}
+
+function makeReportReference(visitId: string, plannedDate: string) {
+  const year = String(plannedDate || "").slice(0, 4) || "0000";
+  return `SIR-${year}-${String(visitId).slice(-6)}`;
 }
 
 export default async function VisitReportPage({
@@ -86,7 +92,48 @@ export default async function VisitReportPage({
   const overallCompliance =
     scoredTotal > 0 ? Math.round((compliantCount / scoredTotal) * 100) : 0;
 
-  const reportRef = `RPT-${String(id)}`;
+  const reportRef = makeReportReference(
+    String(id),
+    String(visit?.planned_date || visit?.visit_date || "")
+  );
+
+  const criticalCount = visitFindings.filter(
+    (f) => String(f.severity || "").toLowerCase() === "critical"
+  ).length;
+
+  const majorCount = visitFindings.filter(
+    (f) => String(f.severity || "").toLowerCase() === "major"
+  ).length;
+
+  const minorCount = visitFindings.filter(
+    (f) => String(f.severity || "").toLowerCase() === "minor"
+  ).length;
+
+  const generalRecommendations: string[] = [];
+
+  if (criticalCount > 0) {
+    generalRecommendations.push(
+      "معالجة جميع المخالفات الحرجة فورًا قبل اعتبار الأنظمة في وضع تشغيلي مقبول."
+    );
+  }
+
+  if (majorCount > 0) {
+    generalRecommendations.push(
+      "وضع خطة تصحيحية زمنية واضحة للمخالفات المرتفعة مع تحديد المسؤول وتاريخ الإغلاق."
+    );
+  }
+
+  if (minorCount > 0) {
+    generalRecommendations.push(
+      "استكمال الملاحظات المنخفضة ضمن أعمال التحسين الوقائي والصيانة الروتينية."
+    );
+  }
+
+  if (generalRecommendations.length === 0) {
+    generalRecommendations.push(
+      "الاستمرار في الصيانة الدورية وتوثيق نتائج الفحص للحفاظ على مستوى الامتثال الحالي."
+    );
+  }
 
   return (
     <div dir="rtl" className="report-page-wrap">
@@ -111,81 +158,103 @@ export default async function VisitReportPage({
       <div className="report-paper">
         <div className="report-cover">
           <div className="report-cover-eyebrow">
-            منصة تفتيش أنظمة السلامة والحماية من الحريق
+            Fire Protection & Life Safety Inspection Report
           </div>
+
           <div className="report-cover-title">تقرير زيارة تفتيش فني</div>
+
           <div className="report-cover-subtitle">
-            تقرير قابل للطباعة والحفظ PDF لنتائج الزيارة الفنية وأنظمة الحماية من الحريق
+            تقرير فني عربي قابل للطباعة والحفظ PDF، مبني على نتائج الزيارة والأنظمة
+            والمخالفات المسجلة داخل المنصة.
           </div>
 
           <div className="report-badge-row">
             <span className="badge">رقم التقرير: {reportRef}</span>
             <span className="badge">رقم الزيارة: {String(id)}</span>
             <span className="badge">
-              النتيجة: {toArabicSummary(String(visit?.summary_result || "pending"))}
+              التاريخ: {String(visit?.planned_date || visit?.visit_date || "-")}
             </span>
             <span className="badge">
-              الحالة: {String(visit?.visit_status || "planned")}
+              نوع الزيارة: {String(visit?.visit_type || "-")}
             </span>
+          </div>
+
+          <div style={{ marginTop: "14px" }}>
+            <ReportDecisionBadge
+              value={String(visit?.summary_result || "pending")}
+            />
+          </div>
+
+          <div className="report-cover-grid">
+            <div className="report-cover-box">
+              <div className="report-cover-box-label">اسم المنشأة</div>
+              <div className="report-cover-box-value">
+                {String(facility?.facility_name || "-")}
+              </div>
+            </div>
+
+            <div className="report-cover-box">
+              <div className="report-cover-box-label">اسم المبنى</div>
+              <div className="report-cover-box-value">
+                {String(building?.building_name || "-")}
+              </div>
+            </div>
+
+            <div className="report-cover-box">
+              <div className="report-cover-box-label">العنوان</div>
+              <div className="report-cover-box-value">
+                {String(facility?.address || "-")}
+              </div>
+            </div>
+
+            <div className="report-cover-box">
+              <div className="report-cover-box-label">المدينة / الحي</div>
+              <div className="report-cover-box-value">
+                {String(facility?.city || "-")}
+                {facility?.district ? ` · ${facility.district}` : ""}
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="report-content">
           <section className="report-section">
-            <div className="report-section-title">البيانات الأساسية</div>
+            <div className="report-section-title">نطاق الفحص ومنهجية العمل</div>
             <div className="report-section-subtitle">
-              بيانات المنشأة والمبنى والزيارة الحالية
+              وصف مختصر لنطاق الزيارة وكيفية تسجيل النتائج داخل النظام
             </div>
 
-            <div className="report-grid-2">
-              <div className="report-info-box">
-                <div className="report-info-label">اسم المنشأة</div>
-                <div className="report-info-value">
-                  {String(facility?.facility_name || "-")}
+            <div className="report-scope-list">
+              <div className="report-scope-item">
+                <div className="report-scope-item-title">نطاق الفحص</div>
+                <div className="report-scope-item-text">
+                  شمل الفحص الأنظمة المرتبطة بهذه الزيارة كما هي مسجلة داخل المنصة،
+                  وتم تقييم البنود وفق قائمة الفحص المرتبطة بكل نظام.
                 </div>
               </div>
 
-              <div className="report-info-box">
-                <div className="report-info-label">اسم المبنى</div>
-                <div className="report-info-value">
-                  {String(building?.building_name || "-")}
+              <div className="report-scope-item">
+                <div className="report-scope-item-title">منهجية التقييم</div>
+                <div className="report-scope-item-text">
+                  تم تسجيل البنود كالتالي: مطابق، غير مطابق، أو غير منطبق، مع
+                  احتساب نسبة الامتثال بناءً على البنود القابلة للتقييم فقط.
                 </div>
               </div>
 
-              <div className="report-info-box">
-                <div className="report-info-label">العنوان</div>
-                <div className="report-info-value">
-                  {String(facility?.address || "-")}
-                </div>
-              </div>
-
-              <div className="report-info-box">
-                <div className="report-info-label">التاريخ المخطط / الفعلي</div>
-                <div className="report-info-value">
-                  {String(visit?.planned_date || visit?.visit_date || "-")}
-                </div>
-              </div>
-
-              <div className="report-info-box">
-                <div className="report-info-label">نوع الزيارة</div>
-                <div className="report-info-value">
-                  {String(visit?.visit_type || "-")}
-                </div>
-              </div>
-
-              <div className="report-info-box">
-                <div className="report-info-label">النتيجة العامة</div>
-                <div className="report-info-value">
-                  {toArabicSummary(String(visit?.summary_result || "pending"))}
+              <div className="report-scope-item">
+                <div className="report-scope-item-title">مخرجات الفحص</div>
+                <div className="report-scope-item-text">
+                  تم إنشاء المخالفات تلقائيًا للبنود غير المطابقة، وربطها بالإجراءات
+                  التصحيحية وحالة الإغلاق عند توفرها.
                 </div>
               </div>
             </div>
           </section>
 
           <section className="report-section">
-            <div className="report-section-title">ملخص الامتثال</div>
+            <div className="report-section-title">ملخص الامتثال العام</div>
             <div className="report-section-subtitle">
-              قراءة سريعة لمخرجات الزيارة ونسبة الامتثال الكلية
+              قراءة سريعة لحالة الزيارة ونتائجها النهائية
             </div>
 
             <div className="report-progress-wrap">
@@ -200,11 +269,28 @@ export default async function VisitReportPage({
               </div>
             </div>
 
+            <div className="report-highlight-grid">
+              <div className="report-highlight-card">
+                <div className="report-highlight-value">{compliantCount}</div>
+                <div className="report-highlight-label">بنود مطابقة</div>
+              </div>
+
+              <div className="report-highlight-card">
+                <div className="report-highlight-value">{nonCompliantCount}</div>
+                <div className="report-highlight-label">بنود غير مطابقة</div>
+              </div>
+
+              <div className="report-highlight-card">
+                <div className="report-highlight-value">{visitFindings.length}</div>
+                <div className="report-highlight-label">عدد المخالفات</div>
+              </div>
+            </div>
+
             <div className="report-badge-row">
-              <span className="badge">مطابق: {compliantCount}</span>
-              <span className="badge">غير مطابق: {nonCompliantCount}</span>
               <span className="badge">غير منطبق: {notApplicableCount}</span>
-              <span className="badge">المخالفات: {visitFindings.length}</span>
+              <span className="badge">حرج: {criticalCount}</span>
+              <span className="badge">مرتفع: {majorCount}</span>
+              <span className="badge">منخفض: {minorCount}</span>
               <span className="badge">
                 الاستحقاق التالي: {String(visit?.next_due_date || "-")}
               </span>
@@ -212,9 +298,9 @@ export default async function VisitReportPage({
           </section>
 
           <section className="report-section">
-            <div className="report-section-title">نتائج الأنظمة</div>
+            <div className="report-section-title">الأنظمة المشمولة بالفحص</div>
             <div className="report-section-subtitle">
-              ملخص نتائج الأنظمة المشمولة داخل هذه الزيارة
+              ملخص نتائج الأنظمة المشمولة بهذه الزيارة
             </div>
 
             <div className="report-table-wrap">
@@ -241,7 +327,11 @@ export default async function VisitReportPage({
                       <tr key={String(system.visit_system_id)}>
                         <td>{String(system.system_code || "-")}</td>
                         <td>{String(system.status || "-")}</td>
-                        <td>{toArabicSummary(String(system.result_summary || "pending"))}</td>
+                        <td>
+                          {toArabicSummary(
+                            String(system.result_summary || "pending")
+                          )}
+                        </td>
                         <td>{String(system.compliance_percent || 0)}%</td>
                         <td>{String(system.critical_count || 0)}</td>
                         <td>{String(system.major_count || 0)}</td>
@@ -256,14 +346,14 @@ export default async function VisitReportPage({
           </section>
 
           <section className="report-section">
-            <div className="report-section-title">المخالفات والملاحظات</div>
+            <div className="report-section-title">المخالفات والملاحظات التصحيحية</div>
             <div className="report-section-subtitle">
-              البنود غير المطابقة الناتجة عن تنفيذ الزيارة
+              جميع البنود غير المطابقة الناتجة عن هذه الزيارة
             </div>
 
             {visitFindings.length === 0 ? (
-              <div className="report-badge-row" style={{ marginTop: "12px" }}>
-                <span className="badge">لا توجد مخالفات مسجلة</span>
+              <div className="report-note-box">
+                لا توجد مخالفات مسجلة ضمن هذه الزيارة.
               </div>
             ) : (
               <div className="report-finding-list">
@@ -306,6 +396,9 @@ export default async function VisitReportPage({
                         الإغلاق المستهدف:{" "}
                         {String(finding.target_close_date || "-")}
                       </span>
+                      <span className="badge">
+                        الإغلاق الفعلي: {String(finding.actual_close_date || "-")}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -314,25 +407,34 @@ export default async function VisitReportPage({
           </section>
 
           <section className="report-section">
-            <div className="report-section-title">ملاحظات التقرير</div>
+            <div className="report-section-title">توصيات فنية عامة</div>
             <div className="report-section-subtitle">
-              ملخص إداري وفني نهائي
+              توصيات مبنية على نتائج الزيارة الحالية
             </div>
 
-            <div className="report-info-box" style={{ marginTop: "14px" }}>
-              <div className="report-info-value">
-                {String(
-                  visit?.notes ||
-                    "تم إعداد هذا التقرير بناءً على البيانات المسجلة داخل منصة التفتيش، ويجب مراجعته واعتماده قبل إرساله للعميل."
-                )}
-              </div>
+            <div className="report-recommendation-list">
+              {generalRecommendations.map((rec, index) => (
+                <div key={index} className="report-recommendation-item">
+                  <div className="report-recommendation-title">
+                    توصية {index + 1}
+                  </div>
+                  <div className="report-recommendation-text">{rec}</div>
+                </div>
+              ))}
             </div>
           </section>
 
           <section className="report-section">
-            <div className="report-section-title">الاعتماد والتوقيع</div>
+            <div className="report-section-title">حدود التقرير واعتماد المفتش</div>
             <div className="report-section-subtitle">
-              مساحة اعتماد التقرير والتوقيع النهائي
+              ملاحظات تنظيمية وإدارية خاصة بالتقرير
+            </div>
+
+            <div className="report-note-box">
+              تم إعداد هذا التقرير اعتمادًا على البيانات المدخلة في المنصة خلال
+              الزيارة الحالية، ويعكس نتائج البنود والأنظمة المشمولة فقط ضمن نطاق
+              الزيارة المسجلة. لا يمثل هذا التقرير اعتمادًا نهائيًا إلا بعد المراجعة
+              الداخلية والتوقيع النظامي من الجهة المخولة.
             </div>
 
             <div className="report-signature-grid">
@@ -347,6 +449,10 @@ export default async function VisitReportPage({
               </div>
             </div>
           </section>
+
+          <div className="report-footer-note">
+            تم إنشاء هذا التقرير من خلال منصة FPLS Inspection Platform
+          </div>
         </div>
       </div>
     </div>
