@@ -21,8 +21,8 @@ export default async function VisitDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await getSessionUser();
-  const workbookId = await getTenantWorkbookId(user.tenantId);
+  const actor = await requirePermission("visits", "view");
+const workbookId = actor.workbookId;
 
   const [visits, visitSystems, facilities, buildings, responses, findings, inspectors] =
     await Promise.all([
@@ -37,10 +37,46 @@ export default async function VisitDetailPage({
 
   const visit = visits.find((v) => String(v.visit_id) === id);
   const systems = visitSystems.filter((vs) => String(vs.visit_id) === id);
+  const currentInspector =
+  actor.role === "inspector"
+    ? await getCurrentInspector(workbookId, actor)
+    : null;
+
+if (actor.role === "inspector") {
+  if (!currentInspector) {
+    return (
+      <AppShell>
+        <PageHeader
+          title="تفاصيل الزيارة"
+          subtitle="لا يوجد ملف مفتش مرتبط بهذا الحساب"
+        />
+        <EmptyState
+          title="تعذر فتح الزيارة"
+          description="اربط هذا الحساب بسجل مفتش داخل INSPECTORS أولًا."
+          icon={UserRound}
+        />
+      </AppShell>
+    );
+  }
+
+  if (!isVisitAssignedToInspector(visit, String(currentInspector.inspector_id))) {
+    return (
+      <AppShell>
+        <PageHeader title="تفاصيل الزيارة" subtitle="غير مصرح" />
+        <EmptyState
+          title="هذه الزيارة ليست مخصصة لك"
+          description="يمكنك فقط الوصول إلى الزيارات المعيّنة لحسابك."
+          icon={UserRound}
+        />
+      </AppShell>
+    );
+  }
+}
 
   const facility = facilities.find(
     (f) => String(f.facility_id) === String(visit?.facility_id || "")
   );
+  
 
   const building = buildings.find(
     (b) => String(b.building_id) === String(visit?.building_id || "")
