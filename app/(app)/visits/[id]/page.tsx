@@ -7,8 +7,11 @@ import { StatusBadge } from "@/components/status-badge";
 import { ComplianceProgress } from "@/components/compliance-progress";
 import { VisitSystemSummaryCard } from "@/components/visit-system-summary-card";
 import VisitExecutionForm from "@/components/visit-execution-form";
-import { getSessionUser } from "@/lib/auth";
-import { getTenantWorkbookId } from "@/lib/tenant";
+import { requirePermission } from "@/lib/permissions";
+import {
+  getCurrentInspector,
+  isVisitAssignedToInspector,
+} from "@/lib/current-inspector";
 import { readSheet } from "@/lib/sheets";
 import { getChecklistForSystem } from "@/lib/checklist";
 
