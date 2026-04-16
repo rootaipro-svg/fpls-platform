@@ -10,15 +10,15 @@ export function EmptyState({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center shadow-sm">
+    <div className="empty-state">
       {Icon ? (
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-          <Icon className="h-6 w-6" />
+        <div className="empty-state-icon">
+          <Icon size={24} />
         </div>
       ) : null}
 
-      <div className="text-lg font-semibold text-slate-900">{title}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-500">{description}</div>
+      <div className="empty-state-title">{title}</div>
+      <div className="empty-state-text">{description}</div>
     </div>
   );
 }
