@@ -28,7 +28,9 @@ export default async function SettingsPage() {
         </div>
         <CardLinkHint label="فتح إدارة المستخدمين" />
       </Link>
-
+<a href="/inspectors" className="settings-link-card">
+  فتح إدارة المفتشين
+</a>
       {!rows ? (
         <EmptyState
           title="تعذر تحميل الإعدادات"
