@@ -3,8 +3,6 @@ import {
   ArrowRight,
   ClipboardList,
   FileText,
-  ShieldAlert,
-  ShieldCheck,
 } from "lucide-react";
 import PrintReportButton from "@/components/print-report-button";
 import { SeverityBadge } from "@/components/severity-badge";
@@ -40,15 +38,23 @@ export default async function VisitReportPage({
   const user = await getSessionUser();
   const workbookId = await getTenantWorkbookId(user.tenantId);
 
-  const [visits, visitSystems, responses, findings, facilities, buildings] =
-    await Promise.all([
-      readSheet(workbookId, "VISITS"),
-      readSheet(workbookId, "VISIT_SYSTEMS"),
-      readSheet(workbookId, "RESPONSES"),
-      readSheet(workbookId, "FINDINGS"),
-      readSheet(workbookId, "FACILITIES"),
-      readSheet(workbookId, "BUILDINGS"),
-    ]);
+  const [
+    visits,
+    visitSystems,
+    responses,
+    findings,
+    facilities,
+    buildings,
+    tenantProfiles,
+  ] = await Promise.all([
+    readSheet(workbookId, "VISITS"),
+    readSheet(workbookId, "VISIT_SYSTEMS"),
+    readSheet(workbookId, "RESPONSES"),
+    readSheet(workbookId, "FINDINGS"),
+    readSheet(workbookId, "FACILITIES"),
+    readSheet(workbookId, "BUILDINGS"),
+    readSheet(workbookId, "TENANT_PROFILE"),
+  ]);
 
   const visit = visits.find((v) => String(v.visit_id) === String(id));
 
@@ -75,6 +81,10 @@ export default async function VisitReportPage({
   const building = buildings.find(
     (b) => String(b.building_id) === String(visit?.building_id || "")
   );
+
+  const tenantProfile =
+    tenantProfiles.find((r) => String(r.tenant_id) === String(user.tenantId)) ||
+    {};
 
   const compliantCount = visitResponses.filter(
     (r) => String(r.response_value || "").toLowerCase() === "compliant"
@@ -135,6 +145,32 @@ export default async function VisitReportPage({
     );
   }
 
+  const brandName =
+    String(tenantProfile.report_brand_name || "") ||
+    String(tenantProfile.company_name_ar || "") ||
+    "FPLS Inspection Platform";
+
+  const brandSub =
+    String(tenantProfile.company_name_en || "") ||
+    "Fire Protection & Life Safety";
+
+  const logoUrl = String(tenantProfile.logo_url || "");
+  const brandFallback = brandName.trim().slice(0, 2).toUpperCase();
+
+  const footerNote =
+    String(tenantProfile.report_footer_note || "") ||
+    "تم إنشاء هذا التقرير من خلال منصة FPLS Inspection Platform";
+
+  const signatoryName =
+    String(tenantProfile.authorized_signatory_name || "") || "الاسم / التوقيع";
+
+  const signatoryTitle =
+    String(tenantProfile.authorized_signatory_title || "") || "المسمى الوظيفي";
+
+  const stampNote =
+    String(tenantProfile.stamp_note || "") ||
+    "الختم النظامي / الاعتماد الداخلي";
+
   return (
     <div dir="rtl" className="report-page-wrap">
       <div className="report-toolbar print-hidden">
@@ -157,8 +193,37 @@ export default async function VisitReportPage({
 
       <div className="report-paper">
         <div className="report-cover">
-          <div className="report-cover-eyebrow">
-            Fire Protection & Life Safety Inspection Report
+          <div className="report-brand-row">
+            <div className="report-logo-box">
+              {logoUrl ? (
+                <img src={logoUrl} alt="logo" />
+              ) : (
+                <span className="report-logo-fallback">{brandFallback}</span>
+              )}
+            </div>
+
+            <div className="report-brand-content">
+              <div className="report-cover-eyebrow">{brandSub}</div>
+              <div className="report-brand-name">{brandName}</div>
+              <div className="report-brand-sub">
+                {String(tenantProfile.address_line || "")}
+                {tenantProfile.city ? ` · ${tenantProfile.city}` : ""}
+                {tenantProfile.country ? ` · ${tenantProfile.country}` : ""}
+              </div>
+
+              <div className="report-brand-contact">
+                {tenantProfile.contact_phone ? (
+                  <span className="badge">
+                    {String(tenantProfile.contact_phone)}
+                  </span>
+                ) : null}
+                {tenantProfile.contact_email ? (
+                  <span className="badge">
+                    {String(tenantProfile.contact_email)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           <div className="report-cover-title">تقرير زيارة تفتيش فني</div>
@@ -183,37 +248,6 @@ export default async function VisitReportPage({
             <ReportDecisionBadge
               value={String(visit?.summary_result || "pending")}
             />
-          </div>
-
-          <div className="report-cover-grid">
-            <div className="report-cover-box">
-              <div className="report-cover-box-label">اسم المنشأة</div>
-              <div className="report-cover-box-value">
-                {String(facility?.facility_name || "-")}
-              </div>
-            </div>
-
-            <div className="report-cover-box">
-              <div className="report-cover-box-label">اسم المبنى</div>
-              <div className="report-cover-box-value">
-                {String(building?.building_name || "-")}
-              </div>
-            </div>
-
-            <div className="report-cover-box">
-              <div className="report-cover-box-label">العنوان</div>
-              <div className="report-cover-box-value">
-                {String(facility?.address || "-")}
-              </div>
-            </div>
-
-            <div className="report-cover-box">
-              <div className="report-cover-box-label">المدينة / الحي</div>
-              <div className="report-cover-box-value">
-                {String(facility?.city || "-")}
-                {facility?.district ? ` · ${facility.district}` : ""}
-              </div>
-            </div>
           </div>
         </div>
 
@@ -440,19 +474,19 @@ export default async function VisitReportPage({
             <div className="report-signature-grid">
               <div className="report-sign-box">
                 <div className="report-sign-title">إعداد التقرير</div>
-                <div className="report-sign-line">الاسم / التوقيع</div>
+                <div className="report-sign-line">
+                  {signatoryName} {signatoryTitle ? `· ${signatoryTitle}` : ""}
+                </div>
               </div>
 
               <div className="report-sign-box">
                 <div className="report-sign-title">مراجعة واعتماد</div>
-                <div className="report-sign-line">الاسم / التوقيع / الختم</div>
+                <div className="report-sign-line">{stampNote}</div>
               </div>
             </div>
           </section>
 
-          <div className="report-footer-note">
-            تم إنشاء هذا التقرير من خلال منصة FPLS Inspection Platform
-          </div>
+          <div className="report-footer-note">{footerNote}</div>
         </div>
       </div>
     </div>
