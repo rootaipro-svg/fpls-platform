@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requirePermission } from "@/lib/permissions";
+import { getSessionUser } from "@/lib/auth";
 import { getDriveClient, getSheetsClient } from "@/lib/google-auth";
 import { env } from "@/lib/env";
 import { createFolder } from "@/lib/drive";
@@ -13,7 +13,7 @@ const TEMPLATE_SHEETS = [
 
 export async function POST(req: NextRequest) {
   try {
-    await requirePermission("platform", "tenant_create");
+    await getSessionUser();
     const body = await req.json();
     const tenantId = makeId("TEN");
     const tenantCode = body.tenant_code || tenantId;
