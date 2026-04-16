@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardCheck, ShieldAlert } from "lucide-react";
+import { ClipboardCheck, CalendarDays } from "lucide-react";
 
 type VisitSystem = {
   visit_system_id: string;
@@ -57,6 +57,7 @@ export default function VisitExecutionForm({
 
   const initialResponses = useMemo(() => {
     const map: Record<string, ResponseState> = {};
+
     for (const row of existingResponses) {
       map[makeKey(String(row.visit_system_id), String(row.checklist_item_id))] = {
         response_value: String(row.response_value || ""),
@@ -65,20 +66,20 @@ export default function VisitExecutionForm({
         corrective_action: "",
       };
     }
+
     return map;
   }, [existingResponses]);
 
-  const [responses, setResponses] = useState<Record<string, ResponseState>>(initialResponses);
+  const [responses, setResponses] =
+    useState<Record<string, ResponseState>>(initialResponses);
+
   const [activeSystemId, setActiveSystemId] = useState<string>(
     String(visitSystems[0]?.visit_system_id || "")
   );
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  const activeSystem = visitSystems.find(
-    (s) => String(s.visit_system_id) === String(activeSystemId)
-  );
 
   const activeItems = checklistItems.filter(
     (item) => String(item.visit_system_id) === String(activeSystemId)
@@ -90,7 +91,11 @@ export default function VisitExecutionForm({
     let na = 0;
 
     for (const item of checklistItems) {
-      const key = makeKey(item.visit_system_id, item.checklist_item_id);
+      const key = makeKey(
+        String(item.visit_system_id),
+        String(item.checklist_item_id)
+      );
+
       const value = responses[key]?.response_value || "";
 
       if (value === "compliant") pass += 1;
@@ -107,6 +112,7 @@ export default function VisitExecutionForm({
     patch: Partial<ResponseState>
   ) {
     const key = makeKey(visitSystemId, checklistItemId);
+
     setResponses((prev) => ({
       ...prev,
       [key]: {
@@ -127,9 +133,12 @@ export default function VisitExecutionForm({
     try {
       const payloadResponses = checklistItems
         .map((item) => {
-          const key = makeKey(item.visit_system_id, item.checklist_item_id);
-          const state = responses[key];
+          const key = makeKey(
+            String(item.visit_system_id),
+            String(item.checklist_item_id)
+          );
 
+          const state = responses[key];
           if (!state?.response_value) return null;
 
           const findingFlag = state.response_value === "non_compliant";
@@ -160,8 +169,7 @@ export default function VisitExecutionForm({
         (r: any) => r.response_value === "non_compliant"
       ).length;
 
-      const summaryResult =
-        failCount === 0 ? "compliant" : failCount > 0 ? "pass_with_remarks" : "pending";
+      const summaryResult = failCount === 0 ? "compliant" : "pass_with_remarks";
 
       const res = await fetch(`/api/visits/${visitId}/responses`, {
         method: "POST",
@@ -202,10 +210,12 @@ export default function VisitExecutionForm({
           <div className="execution-summary-value">{totals.pass}</div>
           <div className="execution-summary-label">مطابق</div>
         </div>
+
         <div className="execution-summary-card">
           <div className="execution-summary-value">{totals.fail}</div>
           <div className="execution-summary-label">غير مطابق</div>
         </div>
+
         <div className="execution-summary-card">
           <div className="execution-summary-value">{totals.na}</div>
           <div className="execution-summary-label">غير منطبق</div>
@@ -218,7 +228,9 @@ export default function VisitExecutionForm({
             key={system.visit_system_id}
             type="button"
             className={`execution-system-tab ${
-              String(activeSystemId) === String(system.visit_system_id) ? "active" : ""
+              String(activeSystemId) === String(system.visit_system_id)
+                ? "active"
+                : ""
             }`}
             onClick={() => setActiveSystemId(String(system.visit_system_id))}
           >
@@ -240,7 +252,11 @@ export default function VisitExecutionForm({
       ) : (
         <div className="stack-3" style={{ marginTop: "16px" }}>
           {activeItems.map((item, index) => {
-            const key = makeKey(item.visit_system_id, item.checklist_item_id);
+            const key = makeKey(
+              String(item.visit_system_id),
+              String(item.checklist_item_id)
+            );
+
             const state = responses[key] || {
               response_value: "",
               finding_severity: "major",
@@ -267,10 +283,14 @@ export default function VisitExecutionForm({
                       state.response_value === "compliant" ? "active-pass" : ""
                     }`}
                     onClick={() =>
-                      updateResponse(item.visit_system_id, item.checklist_item_id, {
-                        response_value: "compliant",
-                        finding_severity: "",
-                      })
+                      updateResponse(
+                        String(item.visit_system_id),
+                        String(item.checklist_item_id),
+                        {
+                          response_value: "compliant",
+                          finding_severity: "",
+                        }
+                      )
                     }
                   >
                     مطابق
@@ -279,13 +299,19 @@ export default function VisitExecutionForm({
                   <button
                     type="button"
                     className={`answer-btn ${
-                      state.response_value === "non_compliant" ? "active-fail" : ""
+                      state.response_value === "non_compliant"
+                        ? "active-fail"
+                        : ""
                     }`}
                     onClick={() =>
-                      updateResponse(item.visit_system_id, item.checklist_item_id, {
-                        response_value: "non_compliant",
-                        finding_severity: state.finding_severity || "major",
-                      })
+                      updateResponse(
+                        String(item.visit_system_id),
+                        String(item.checklist_item_id),
+                        {
+                          response_value: "non_compliant",
+                          finding_severity: state.finding_severity || "major",
+                        }
+                      )
                     }
                   >
                     غير مطابق
@@ -294,13 +320,19 @@ export default function VisitExecutionForm({
                   <button
                     type="button"
                     className={`answer-btn ${
-                      state.response_value === "not_applicable" ? "active-na" : ""
+                      state.response_value === "not_applicable"
+                        ? "active-na"
+                        : ""
                     }`}
                     onClick={() =>
-                      updateResponse(item.visit_system_id, item.checklist_item_id, {
-                        response_value: "not_applicable",
-                        finding_severity: "",
-                      })
+                      updateResponse(
+                        String(item.visit_system_id),
+                        String(item.checklist_item_id),
+                        {
+                          response_value: "not_applicable",
+                          finding_severity: "",
+                        }
+                      )
                     }
                   >
                     غير منطبق
@@ -314,9 +346,13 @@ export default function VisitExecutionForm({
                         className="field"
                         value={state.finding_severity || "major"}
                         onChange={(e) =>
-                          updateResponse(item.visit_system_id, item.checklist_item_id, {
-                            finding_severity: e.target.value,
-                          })
+                          updateResponse(
+                            String(item.visit_system_id),
+                            String(item.checklist_item_id),
+                            {
+                              finding_severity: e.target.value,
+                            }
+                          )
                         }
                       >
                         <option value="critical">حرج</option>
@@ -325,7 +361,7 @@ export default function VisitExecutionForm({
                       </select>
                     ) : (
                       <div className="execution-note">
-                        اختر “غير مطابق” لتحديد شدة المخالفة والإجراء التصحيحي.
+                        اختر "غير مطابق" لتحديد شدة المخالفة والإجراء التصحيحي.
                       </div>
                     )}
 
@@ -334,9 +370,13 @@ export default function VisitExecutionForm({
                       placeholder="ملاحظات المفتش"
                       value={state.comments}
                       onChange={(e) =>
-                        updateResponse(item.visit_system_id, item.checklist_item_id, {
-                          comments: e.target.value,
-                        })
+                        updateResponse(
+                          String(item.visit_system_id),
+                          String(item.checklist_item_id),
+                          {
+                            comments: e.target.value,
+                          }
+                        )
                       }
                     />
                   </div>
@@ -348,9 +388,13 @@ export default function VisitExecutionForm({
                       placeholder="الإجراء التصحيحي المقترح"
                       value={state.corrective_action}
                       onChange={(e) =>
-                        updateResponse(item.visit_system_id, item.checklist_item_id, {
-                          corrective_action: e.target.value,
-                        })
+                        updateResponse(
+                          String(item.visit_system_id),
+                          String(item.checklist_item_id),
+                          {
+                            corrective_action: e.target.value,
+                          }
+                        )
                       }
                     />
                   ) : null}
@@ -375,7 +419,17 @@ export default function VisitExecutionForm({
 
       <div className="execution-footer">
         <div className="btn-row" style={{ marginTop: "14px" }}>
-          <button className="btn btn-grow" type="button" onClick={handleSubmit} disabled={saving}>
+          <button
+            className="btn btn-grow"
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+          >
+            <CalendarDays size={18} />
             {saving ? "جارٍ حفظ النتائج..." : "حفظ النتائج وإقفال الزيارة"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
