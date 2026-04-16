@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Building2, ClipboardList } from "lucide-react";
+import { AlertTriangle, Building2, ClipboardList, Settings } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -96,13 +96,23 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <Link href="/due" className="quick-link-card">
-        <div className="quick-link-title">فتح العناصر المستحقة</div>
-        <div className="quick-link-text">
-          اعرض الأنظمة المتأخرة أو القريبة، وأنشئ زيارات متابعة مباشرة منها.
-        </div>
-        <CardLinkHint label="فتح الصفحة" />
-      </Link>
+      <div className="quick-links-grid">
+        <Link href="/due" className="quick-link-card">
+          <div className="quick-link-title">فتح العناصر المستحقة</div>
+          <div className="quick-link-text">
+            اعرض الأنظمة المتأخرة أو القريبة، وأنشئ زيارات متابعة مباشرة منها.
+          </div>
+          <CardLinkHint label="فتح الصفحة" />
+        </Link>
+
+        <Link href="/settings" className="quick-link-card">
+          <div className="quick-link-title">إعدادات العميل</div>
+          <div className="quick-link-text">
+            خصص اسم الجهة والشعار وبيانات التوقيع لتظهر داخل التقارير.
+          </div>
+          <CardLinkHint label="فتح الإعدادات" />
+        </Link>
+      </div>
 
       <section className="card">
         <div className="section-title">آخر الزيارات</div>
