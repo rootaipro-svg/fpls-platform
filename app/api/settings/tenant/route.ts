@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/permissions";
-import { getTenantWorkbookId } from "@/lib/tenant";
 import { appendRow, readSheet, updateRowById } from "@/lib/sheets";
 import { makeId } from "@/lib/ids";
 import { nowIso } from "@/lib/dates";
 
 export async function GET() {
   try {
-    const user = await requirePermission("facilities", "view");
-    const workbookId = await getTenantWorkbookId(user.tenantId);
-    const rows = await readSheet(workbookId, "TENANT_PROFILE");
+    const actor = await requirePermission("settings", "view");
+    const rows = await readSheet(actor.workbookId, "TENANT_PROFILE");
 
     const row =
-      rows.find((r) => String(r.tenant_id) === String(user.tenantId)) || null;
+      rows.find((r) => String(r.tenant_id) === String(actor.tenantId)) || null;
 
     return NextResponse.json({ ok: true, data: row });
   } catch (error: any) {
@@ -25,18 +23,17 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const user = await requirePermission("facilities", "create");
-    const workbookId = await getTenantWorkbookId(user.tenantId);
+    const actor = await requirePermission("settings", "update");
     const body = await req.json();
 
-    const rows = await readSheet(workbookId, "TENANT_PROFILE");
+    const rows = await readSheet(actor.workbookId, "TENANT_PROFILE");
     const existing = rows.find(
-      (r) => String(r.tenant_id) === String(user.tenantId)
+      (r) => String(r.tenant_id) === String(actor.tenantId)
     );
 
     if (existing) {
       await updateRowById(
-        workbookId,
+        actor.workbookId,
         "TENANT_PROFILE",
         "profile_id",
         String(existing.profile_id),
@@ -59,9 +56,9 @@ export async function PATCH(req: NextRequest) {
         }
       );
     } else {
-      await appendRow(workbookId, "TENANT_PROFILE", {
+      await appendRow(actor.workbookId, "TENANT_PROFILE", {
         profile_id: makeId("TPR"),
-        tenant_id: user.tenantId,
+        tenant_id: actor.tenantId,
         company_name_ar: body.company_name_ar || "",
         company_name_en: body.company_name_en || "",
         report_brand_name: body.report_brand_name || "",
