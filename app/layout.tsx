@@ -3,12 +3,16 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "FPLS Inspection Platform",
-  description: "Fire protection and life safety inspection management"
+  description: "Fire protection and life safety inspection management",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" dir="ltr">
+    <html lang="ar" dir="rtl">
       <body>{children}</body>
     </html>
   );
