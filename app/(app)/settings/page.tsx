@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings, Users } from "lucide-react";
+import { Settings } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -21,16 +21,24 @@ export default async function SettingsPage() {
         subtitle="تخصيص هوية الجهة والشعار وبيانات التقرير"
       />
 
-      <Link href="/settings/users" className="quick-link-card">
-        <div className="quick-link-title">إدارة المستخدمين والصلاحيات</div>
-        <div className="quick-link-text">
-          تحكم في دور كل مستخدم وحالة الحساب داخل هذا العميل.
-        </div>
-        <CardLinkHint label="فتح إدارة المستخدمين" />
-      </Link>
-<a href="/inspectors" className="settings-link-card">
-  فتح إدارة المفتشين
-</a>
+      <div className="quick-links-grid">
+        <Link href="/settings/users" className="quick-link-card">
+          <div className="quick-link-title">إدارة المستخدمين والصلاحيات</div>
+          <div className="quick-link-text">
+            تحكم في دور كل مستخدم وحالة الحساب داخل هذا العميل.
+          </div>
+          <CardLinkHint label="فتح إدارة المستخدمين" />
+        </Link>
+
+        <Link href="/inspectors" className="quick-link-card">
+          <div className="quick-link-title">إدارة المفتشين</div>
+          <div className="quick-link-text">
+            إضافة المفتشين وربطهم بحسابات النظام وتحديد الأنظمة المسموحة لهم.
+          </div>
+          <CardLinkHint label="فتح إدارة المفتشين" />
+        </Link>
+      </div>
+
       {!rows ? (
         <EmptyState
           title="تعذر تحميل الإعدادات"
