@@ -1,13 +1,22 @@
 import Link from "next/link";
-import { AlertTriangle, Building2, ClipboardList, Settings } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  ClipboardList,
+  Settings,
+  UserRound,
+} from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/empty-state";
 import { CardLinkHint } from "@/components/card-link-hint";
-import { getSessionUser } from "@/lib/auth";
-import { getTenantWorkbookId } from "@/lib/tenant";
+import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
+import {
+  getCurrentInspector,
+  isVisitAssignedToInspector,
+} from "@/lib/current-inspector";
 
 function sortByDateDesc(rows: any[], field: string) {
   return [...rows].sort((a, b) => {
@@ -23,17 +32,32 @@ function daysBetween(today: Date, target: Date) {
 }
 
 export default async function DashboardPage() {
-  const user = await getSessionUser();
-  const workbookId = await getTenantWorkbookId(user.tenantId);
+  const actor = await requirePermission("dashboard", "view");
 
   const [facilities, visits, visitSystems] = await Promise.all([
-    readSheet(workbookId, "FACILITIES"),
-    readSheet(workbookId, "VISITS"),
-    readSheet(workbookId, "VISIT_SYSTEMS"),
+    readSheet(actor.workbookId, "FACILITIES"),
+    readSheet(actor.workbookId, "VISITS"),
+    readSheet(actor.workbookId, "VISIT_SYSTEMS"),
   ]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const todayIso = today.toISOString().slice(0, 10);
+
+  const currentInspector =
+    actor.role === "inspector"
+      ? await getCurrentInspector(actor.workbookId, actor)
+      : null;
+
+  const visibleVisits =
+    actor.role === "inspector"
+      ? visits.filter((visit: any) =>
+          isVisitAssignedToInspector(
+            visit,
+            String(currentInspector?.inspector_id || "")
+          )
+        )
+      : visits;
 
   const latestByBuildingSystem = new Map<string, any>();
 
@@ -54,16 +78,143 @@ export default async function DashboardPage() {
     }
   }
 
-  const dueItems = Array.from(latestByBuildingSystem.values()).filter((row) => {
-    if (!String(row.next_due_date || "").trim()) return false;
+  const dueItems =
+    actor.role === "inspector"
+      ? []
+      : Array.from(latestByBuildingSystem.values()).filter((row) => {
+          if (!String(row.next_due_date || "").trim()) return false;
 
-    const due = new Date(String(row.next_due_date));
-    due.setHours(0, 0, 0, 0);
+          const due = new Date(String(row.next_due_date));
+          due.setHours(0, 0, 0, 0);
 
-    return daysBetween(today, due) <= 7;
-  });
+          return daysBetween(today, due) <= 7;
+        });
 
-  const latestVisits = sortByDateDesc(visits, "planned_date").slice(0, 5);
+  const latestVisits = sortByDateDesc(visibleVisits, "planned_date").slice(0, 5);
+
+  const todaysVisits = visibleVisits.filter(
+    (visit: any) =>
+      String(visit.planned_date || visit.visit_date || "") === todayIso
+  ).length;
+
+  const overdueVisits = visibleVisits.filter((visit: any) => {
+    const status = String(visit.visit_status || "").toLowerCase();
+    const planned = String(visit.planned_date || "");
+    if (!planned) return false;
+    if (status === "closed" || status === "completed") return false;
+    return planned < todayIso;
+  }).length;
+
+  const completedVisits = visibleVisits.filter((visit: any) => {
+    const status = String(visit.visit_status || "").toLowerCase();
+    return status === "closed" || status === "completed";
+  }).length;
+
+  if (actor.role === "inspector" && !currentInspector) {
+    return (
+      <AppShell>
+        <PageHeader
+          title="لوحة المفتش"
+          subtitle="لم يتم ربط حسابك بسجل مفتش داخل INSPECTORS"
+        />
+
+        <EmptyState
+          title="لا يوجد ملف مفتش لهذا الحساب"
+          description="أضف app_user_id أو email الصحيح داخل شيت INSPECTORS لربط هذا الحساب بالمفتش."
+          icon={UserRound}
+        />
+      </AppShell>
+    );
+  }
+
+  if (actor.role === "inspector") {
+    return (
+      <AppShell>
+        <PageHeader
+          title="لوحة المفتش"
+          subtitle={`مرحبًا ${
+            currentInspector?.full_name_ar ||
+            currentInspector?.full_name ||
+            actor.email ||
+            "Inspector"
+          }`}
+        />
+
+        <div className="stats-grid">
+          <StatCard
+            label="زياراتي"
+            value={visibleVisits.length}
+            hint="كل الزيارات المعينة لك"
+            icon={ClipboardList}
+            tone="teal"
+          />
+          <StatCard
+            label="اليوم"
+            value={todaysVisits}
+            hint="زيارات اليوم"
+            icon={ClipboardList}
+            tone="slate"
+          />
+          <StatCard
+            label="متأخر"
+            value={overdueVisits}
+            hint="زيارات تحتاج تنفيذ"
+            icon={AlertTriangle}
+            tone={overdueVisits > 0 ? "amber" : "slate"}
+          />
+          <StatCard
+            label="مكتمل"
+            value={completedVisits}
+            hint="زيارات مغلقة"
+            icon={ClipboardList}
+            tone="slate"
+          />
+        </div>
+
+        <div className="quick-links-grid">
+          <Link href="/visits" className="quick-link-card">
+            <div className="quick-link-title">فتح زياراتي</div>
+            <div className="quick-link-text">
+              اعرض كل الزيارات المعيّنة لك وابدأ التنفيذ أو أكمل الزيارة.
+            </div>
+            <CardLinkHint label="فتح الزيارات" />
+          </Link>
+        </div>
+
+        <section className="card">
+          <div className="section-title">آخر الزيارات المعيّنة لك</div>
+
+          {latestVisits.length === 0 ? (
+            <div style={{ marginTop: "12px" }}>
+              <EmptyState
+                title="لا توجد زيارات مخصصة لك"
+                description="عند تعيين زيارات لك ستظهر هنا مباشرة."
+                icon={ClipboardList}
+              />
+            </div>
+          ) : (
+            <div className="stack-3" style={{ marginTop: "12px" }}>
+              {latestVisits.map((visit: any) => (
+                <Link
+                  key={String(visit.visit_id)}
+                  href={`/visits/${visit.visit_id}`}
+                  className="quick-link-card"
+                >
+                  <div className="quick-link-title">
+                    {String(visit.visit_type || "زيارة")}
+                  </div>
+                  <div className="quick-link-text">
+                    التاريخ: {String(visit.planned_date || visit.visit_date || "-")}
+                  </div>
+                  <CardLinkHint label="فتح الزيارة" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -127,7 +278,7 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="stack-3" style={{ marginTop: "12px" }}>
-            {latestVisits.map((visit) => (
+            {latestVisits.map((visit: any) => (
               <div key={String(visit.visit_id)} className="visit-item">
                 <div className="visit-item-top">
                   <div>
