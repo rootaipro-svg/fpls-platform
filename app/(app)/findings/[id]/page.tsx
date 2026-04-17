@@ -85,97 +85,105 @@ export default async function FindingDetailPage({
     (b: any) => String(b.building_id) === String(visit?.building_id || "")
   );
 
-  return (
-    <AppShell>
-      <PageHeader
-        title="تفاصيل المخالفة"
-        subtitle={`رقم المخالفة: ${String(finding?.finding_code || id)}`}
-      />
-
-      {!finding ? (
+  if (!finding) {
+    return (
+      <AppShell>
+        <PageHeader
+          title="تفاصيل المخالفة"
+          subtitle={`رقم المخالفة: ${String(id)}`}
+        />
         <EmptyState
           title="المخالفة غير موجودة"
           description="تعذر العثور على السجل المطلوب."
           icon={UserRound}
         />
-      ) : (
-        <>
-          <div className="section-header-row">
-  <div className="section-header-side">
-    <FindingStatusBadge
-      status={String(
-        finding?.closure_status || finding?.compliance_status || "open"
-      )}
-    />
-    <SeverityBadge severity={String(finding?.severity || "")} />
-  </div>
-</div>
+      </AppShell>
+    );
+  }
 
-            <div className="section-title" style={{ marginTop: "14px" }}>
-              {String(finding?.title || "مخالفة")}
-            </div>
-            <div className="section-subtitle" style={{ marginTop: "8px" }}>
-              {String(finding?.description || "لا يوجد وصف")}
-            </div>
+  return (
+    <AppShell>
+      <PageHeader
+        title="تفاصيل المخالفة"
+        subtitle={`رقم المخالفة: ${String(finding.finding_code || id)}`}
+      />
 
-            <div className="stack-3" style={{ marginTop: "18px" }}>
-              <div>
-                <div className="text-sm text-slate-500">الكود</div>
-                <div className="mt-1 font-medium">
-                  {String(finding?.finding_code || "-")}
-                </div>
-              </div>
+      <div className="card">
+        <div className="section-header-row">
+          <div className="section-header-side">
+            <FindingStatusBadge
+              status={String(
+                finding.closure_status || finding.compliance_status || "open"
+              )}
+            />
+            <SeverityBadge severity={String(finding.severity || "")} />
+          </div>
+        </div>
 
-              <div>
-                <div className="text-sm text-slate-500">النظام</div>
-                <div className="mt-1 font-medium">
-                  {String(visitSystem?.system_code || "-")}
-                </div>
-              </div>
+        <div className="section-title" style={{ marginTop: "14px" }}>
+          {String(finding.title || "مخالفة")}
+        </div>
 
-              <div>
-                <div className="text-sm text-slate-500">المنشأة / المبنى</div>
-                <div className="mt-1 font-medium">
-                  {String(facility?.facility_name || "-")}
-                  {building ? ` · ${building.building_name}` : ""}
-                </div>
-              </div>
+        <div className="section-subtitle" style={{ marginTop: "8px" }}>
+          {String(finding.description || "لا يوجد وصف")}
+        </div>
 
-              <div>
-                <div className="text-sm text-slate-500">الإجراء التصحيحي الحالي</div>
-                <div className="mt-1 font-medium">
-                  {String(finding?.corrective_action || "غير مسجل")}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm text-slate-500">المسؤول</div>
-                <div className="mt-1 font-medium">
-                  {String(finding?.responsible_party || "غير محدد")}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm text-slate-500">الإغلاق المستهدف</div>
-                <div className="mt-1 font-medium">
-                  {String(finding?.target_close_date || "-")}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm text-slate-500">الإغلاق الفعلي</div>
-                <div className="mt-1 font-medium">
-                  {String(finding?.actual_close_date || "-")}
-                </div>
-              </div>
+        <div className="stack-3" style={{ marginTop: "18px" }}>
+          <div>
+            <div className="text-sm text-slate-500">الكود</div>
+            <div className="mt-1 font-medium">
+              {String(finding.finding_code || "-")}
             </div>
           </div>
 
-          <div style={{ marginTop: "16px" }}>
-            <FindingUpdateForm finding={finding} />
+          <div>
+            <div className="text-sm text-slate-500">النظام</div>
+            <div className="mt-1 font-medium">
+              {String(visitSystem?.system_code || "-")}
+            </div>
           </div>
-        </>
-      )}
+
+          <div>
+            <div className="text-sm text-slate-500">المنشأة / المبنى</div>
+            <div className="mt-1 font-medium">
+              {String(facility?.facility_name || "-")}
+              {building ? ` · ${building.building_name}` : ""}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">الإجراء التصحيحي الحالي</div>
+            <div className="mt-1 font-medium">
+              {String(finding.corrective_action || "غير مسجل")}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">المسؤول</div>
+            <div className="mt-1 font-medium">
+              {String(finding.responsible_party || "غير محدد")}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">الإغلاق المستهدف</div>
+            <div className="mt-1 font-medium">
+              {String(finding.target_close_date || "-")}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">الإغلاق الفعلي</div>
+            <div className="mt-1 font-medium">
+              {String(finding.actual_close_date || "-")}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: "16px" }}>
+        <FindingUpdateForm finding={finding} />
+      </div>
     </AppShell>
   );
 }
