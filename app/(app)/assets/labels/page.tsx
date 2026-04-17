@@ -1,5 +1,6 @@
 import Link from "next/link";
 import QRCode from "qrcode";
+import { headers } from "next/headers";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { requirePermission } from "@/lib/permissions";
@@ -21,8 +22,19 @@ export default async function AssetLabelsPage() {
 
   const assets = await readSheet(workbookId, "ASSETS");
 
+  const hdrs = await headers();
+  const proto = hdrs.get("x-forwarded-proto") || "https";
+  const host =
+    hdrs.get("x-forwarded-host") ||
+    hdrs.get("host") ||
+    "fpls-platform.vercel.app";
+
+  const baseUrl = `${proto}://${host}`;
+
   const activeAssets = assets
-    .filter((row) => String(row.status || "active").toLowerCase() !== "inactive")
+    .filter(
+      (row) => String(row.status || "active").toLowerCase() !== "inactive"
+    )
     .sort((a, b) =>
       String(a.asset_name_ar || a.asset_name || a.asset_code || "").localeCompare(
         String(b.asset_name_ar || b.asset_name || b.asset_code || ""),
@@ -32,8 +44,11 @@ export default async function AssetLabelsPage() {
 
   const labelRows: LabelRow[] = await Promise.all(
     activeAssets.map(async (asset) => {
-      const scanUrl = `/scan/asset/${String(asset.asset_id || "")}`;
-      const qrDataUrl = await QRCode.toDataURL(scanUrl, {
+      const absoluteScanUrl = `${baseUrl}/scan/asset/${String(
+        asset.asset_id || ""
+      )}`;
+
+      const qrDataUrl = await QRCode.toDataURL(absoluteScanUrl, {
         width: 220,
         margin: 1,
       });
@@ -60,13 +75,22 @@ export default async function AssetLabelsPage() {
       <div className="card print-hidden">
         <div className="section-title">تعليمات الطباعة</div>
         <div className="section-subtitle">
-          اطبع هذه الصفحة من المتصفح، وستظهر لك بطاقات الأصول مع QR بشكل مرتب.
+          اطبع هذه الصفحة من المتصفح، وسيتم إنشاء رموز QR كاملة تفتح الأصل بعد
+          المسح مباشرة.
         </div>
 
         <div className="btn-row" style={{ marginTop: "16px" }}>
           <Link href="/assets" className="btn btn-secondary">
             العودة للأصول
           </Link>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => window.print()}
+          >
+            طباعة الملصقات
+          </button>
         </div>
       </div>
 
@@ -97,7 +121,10 @@ export default async function AssetLabelsPage() {
               {row.asset_code}
             </div>
 
-            <div className="badge-wrap" style={{ justifyContent: "center", marginTop: "10px" }}>
+            <div
+              className="badge-wrap"
+              style={{ justifyContent: "center", marginTop: "10px" }}
+            >
               <span className="badge">{row.system_code}</span>
               <span className="badge">{row.status}</span>
             </div>
