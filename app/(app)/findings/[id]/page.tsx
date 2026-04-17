@@ -100,13 +100,16 @@ export default async function FindingDetailPage({
         />
       ) : (
         <>
-          <div className="card">
-            <div className="section-header-row">
-              <div className="section-header-side">
-                <FindingStatusBadge finding={finding} />
-                <SeverityBadge severity={String(finding?.severity || "")} />
-              </div>
-            </div>
+          <div className="section-header-row">
+  <div className="section-header-side">
+    <FindingStatusBadge
+      status={String(
+        finding?.closure_status || finding?.compliance_status || "open"
+      )}
+    />
+    <SeverityBadge severity={String(finding?.severity || "")} />
+  </div>
+</div>
 
             <div className="section-title" style={{ marginTop: "14px" }}>
               {String(finding?.title || "مخالفة")}
