@@ -1,5 +1,6 @@
 import { ClipboardList, FileCheck2, ShieldCheck, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatCard } from "@/components/stat-card";
@@ -309,6 +310,19 @@ if (actor.role === "inspector") {
           existingResponses={existingResponses}
         />
       ) : null}
+
+      <section className="card">
+  <div className="section-title">الأدلة والصور</div>
+  <div className="section-subtitle">
+    افتح صفحة الأدلة الخاصة بهذه الزيارة لإضافة الصور والروابط والمرفقات.
+  </div>
+
+  <div style={{ marginTop: "14px" }}>
+    <Link href={`/visits/${id}/evidence`} className="btn btn-grow">
+      فتح صفحة الأدلة
+    </Link>
+  </div>
+</section>
 
       <section className="card">
         <div className="section-title">قائمة الفحص المرجعية</div>
