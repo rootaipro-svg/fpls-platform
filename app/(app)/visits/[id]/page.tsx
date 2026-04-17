@@ -17,10 +17,15 @@ import { getChecklistForSystem } from "@/lib/checklist";
 
 export default async function VisitDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ asset_id?: string }>;
 }) {
   const { id } = await params;
+  const search = await searchParams;
+  const requestedAssetId = String(search?.asset_id || "");
+
   const actor = await requirePermission("visits", "view");
   const workbookId = actor.workbookId;
 
@@ -33,6 +38,7 @@ export default async function VisitDetailPage({
     findings,
     inspectors,
     evidence,
+    assets,
   ] = await Promise.all([
     readSheet(workbookId, "VISITS"),
     readSheet(workbookId, "VISIT_SYSTEMS"),
@@ -42,6 +48,7 @@ export default async function VisitDetailPage({
     readSheet(workbookId, "FINDINGS"),
     readSheet(workbookId, "INSPECTORS"),
     readSheet(workbookId, "EVIDENCE"),
+    readSheet(workbookId, "ASSETS"),
   ]);
 
   const visit = visits.find((v) => String(v.visit_id) === id);
@@ -96,6 +103,9 @@ export default async function VisitDetailPage({
   );
 
   const visitSystemIds = new Set(systems.map((s) => String(s.visit_system_id)));
+  const visitBuildingSystemIds = new Set(
+    systems.map((s) => String(s.building_system_id || ""))
+  );
 
   const responseRows = responses.filter((r) =>
     visitSystemIds.has(String(r.visit_system_id))
@@ -108,6 +118,36 @@ export default async function VisitDetailPage({
   const visitEvidence = evidence.filter(
     (row) => String(row.visit_id) === String(id)
   );
+
+  let activeAsset: any = null;
+
+  if (requestedAssetId) {
+    const requestedAsset = assets.find(
+      (row) =>
+        String(row.asset_id) === requestedAssetId &&
+        visitBuildingSystemIds.has(String(row.building_system_id || ""))
+    );
+
+    if (requestedAsset) {
+      const matchedVisitSystem = systems.find(
+        (row) =>
+          String(row.building_system_id || "") ===
+          String(requestedAsset.building_system_id || "")
+      );
+
+      if (matchedVisitSystem) {
+        activeAsset = {
+          asset_id: String(requestedAsset.asset_id || ""),
+          asset_code: String(requestedAsset.asset_code || ""),
+          asset_name: String(requestedAsset.asset_name || ""),
+          asset_name_ar: String(requestedAsset.asset_name_ar || ""),
+          system_code: String(requestedAsset.system_code || ""),
+          location_note: String(requestedAsset.location_note || ""),
+          visit_system_id: String(matchedVisitSystem.visit_system_id || ""),
+        };
+      }
+    }
+  }
 
   const compliantCount = responseRows.filter(
     (r) => String(r.response_value || "").toLowerCase() === "compliant"
@@ -153,13 +193,19 @@ export default async function VisitDetailPage({
 
   const executionItems = executionItemsNested.flat();
 
-  const existingResponses = responseRows.map((r) => ({
-    visit_system_id: String(r.visit_system_id),
-    checklist_item_id: String(r.checklist_item_id),
-    response_value: String(r.response_value || ""),
-    finding_severity: String(r.finding_severity || ""),
-    comments: String(r.comments || ""),
-  }));
+  const existingResponses = responseRows
+    .filter((r) => {
+      if (!activeAsset?.asset_id) return true;
+      const rowAssetId = String(r.asset_id || "");
+      return !rowAssetId || rowAssetId === String(activeAsset.asset_id);
+    })
+    .map((r) => ({
+      visit_system_id: String(r.visit_system_id),
+      checklist_item_id: String(r.checklist_item_id),
+      response_value: String(r.response_value || ""),
+      finding_severity: String(r.finding_severity || ""),
+      comments: String(r.comments || ""),
+    }));
 
   const reportReady =
     String(visit?.visit_status || "").toLowerCase() === "closed" &&
@@ -173,6 +219,17 @@ export default async function VisitDetailPage({
           building ? ` · ${building.building_name}` : ""
         }`}
       />
+
+      {activeAsset ? (
+        <section className="card">
+          <div className="section-title">الأصل الجاري فحصه</div>
+          <div className="section-subtitle">
+            {String(activeAsset.asset_name_ar || activeAsset.asset_name || "أصل")}
+            {activeAsset.asset_code ? ` · ${String(activeAsset.asset_code)}` : ""}
+            {activeAsset.location_note ? ` · ${String(activeAsset.location_note)}` : ""}
+          </div>
+        </section>
+      ) : null}
 
       <div className="stats-grid">
         <StatCard
@@ -321,6 +378,7 @@ export default async function VisitDetailPage({
             visit_id: String(row.visit_id || ""),
             visit_system_id: String(row.visit_system_id || ""),
             checklist_item_id: String(row.checklist_item_id || ""),
+            asset_id: String(row.asset_id || ""),
             evidence_type: String(row.evidence_type || ""),
             file_url: String(row.file_url || ""),
             file_name: String(row.file_name || ""),
@@ -328,6 +386,7 @@ export default async function VisitDetailPage({
             taken_by: String(row.taken_by || ""),
             taken_at: String(row.taken_at || ""),
           }))}
+          activeAsset={activeAsset}
         />
       ) : null}
 
