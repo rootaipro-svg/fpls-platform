@@ -147,7 +147,9 @@ export default async function AssetInspectPage({
         <div className="btn-row" style={{ marginTop: "16px" }}>
           {executionVisit ? (
             <Link
-              href={`/visits/${String(executionVisit.visit_id)}`}
+              href={`/visits/${String(executionVisit.visit_id)}?asset_id=${encodeURIComponent(
+                String(id)
+              )}`}
               className="btn"
             >
               <ClipboardList size={18} />
