@@ -34,6 +34,7 @@ type EvidenceRow = {
   visit_id: string;
   visit_system_id: string;
   checklist_item_id: string;
+  asset_id?: string;
   evidence_type: string;
   file_url: string;
   file_name: string;
@@ -42,12 +43,23 @@ type EvidenceRow = {
   taken_at: string;
 };
 
+type ActiveAsset = {
+  asset_id: string;
+  asset_code: string;
+  asset_name: string;
+  asset_name_ar: string;
+  system_code: string;
+  location_note: string;
+  visit_system_id: string;
+};
+
 type Props = {
   visitId: string;
   visitSystems: VisitSystem[];
   checklistItems: ChecklistItem[];
   existingResponses: ExistingResponse[];
   existingEvidence: EvidenceRow[];
+  activeAsset?: ActiveAsset | null;
 };
 
 type ItemState = {
@@ -94,11 +106,12 @@ export default function VisitExecutionForm({
   checklistItems,
   existingResponses,
   existingEvidence,
+  activeAsset,
 }: Props) {
   const router = useRouter();
 
   const [selectedSystemId, setSelectedSystemId] = useState<string>(
-    visitSystems[0]?.visit_system_id || ""
+    activeAsset?.visit_system_id || visitSystems[0]?.visit_system_id || ""
   );
 
   const initialMap = useMemo(() => {
@@ -160,11 +173,19 @@ export default function VisitExecutionForm({
 
         return {
           visit_system_id: String(item.visit_system_id),
+          building_system_id: String(item.building_system_id || ""),
           checklist_item_id: String(item.checklist_item_id),
+          item_code: String(item.item_code || ""),
+          title: String(item.question_text || "Non-compliant item"),
           response_value: String(state.response_value || ""),
           finding_severity: String(state.finding_severity || ""),
           comments: String(state.comments || ""),
           corrective_action: String(state.corrective_action || ""),
+          asset_id:
+            activeAsset &&
+            String(activeAsset.visit_system_id) === String(item.visit_system_id)
+              ? String(activeAsset.asset_id)
+              : "",
         };
       });
 
@@ -208,7 +229,28 @@ export default function VisitExecutionForm({
         سجل نتائج الفحص لكل بند، وأضف الدليل مباشرة تحت البند نفسه.
       </div>
 
-      {visitSystems.length > 1 ? (
+      {activeAsset ? (
+        <div
+          style={{
+            marginTop: "14px",
+            border: "1px solid #e2e8f0",
+            borderRadius: "18px",
+            padding: "14px",
+            background: "#f8fafc",
+          }}
+        >
+          <div className="section-title" style={{ fontSize: "15px" }}>
+            فحص أصل محدد
+          </div>
+          <div className="section-subtitle" style={{ marginTop: "6px" }}>
+            {String(activeAsset.asset_name_ar || activeAsset.asset_name || "أصل")}
+            {activeAsset.asset_code ? ` · ${String(activeAsset.asset_code)}` : ""}
+            {activeAsset.location_note ? ` · ${String(activeAsset.location_note)}` : ""}
+          </div>
+        </div>
+      ) : null}
+
+      {!activeAsset && visitSystems.length > 1 ? (
         <div className="badge-wrap" style={{ marginTop: "14px" }}>
           {visitSystems.map((system) => {
             const active =
@@ -251,11 +293,19 @@ export default function VisitExecutionForm({
           {selectedItems.map((item, index) => {
             const state = getItemState(item.visit_system_id, item.checklist_item_id);
 
-            const itemEvidence = existingEvidence.filter(
-              (row) =>
+            const itemEvidence = existingEvidence.filter((row) => {
+              const sameItem =
                 String(row.visit_system_id) === String(item.visit_system_id) &&
-                String(row.checklist_item_id) === String(item.checklist_item_id)
-            );
+                String(row.checklist_item_id) === String(item.checklist_item_id);
+
+              if (!sameItem) return false;
+
+              if (activeAsset?.asset_id) {
+                return String(row.asset_id || "") === String(activeAsset.asset_id);
+              }
+
+              return true;
+            });
 
             const isNonCompliant =
               String(state.response_value) === "non_compliant";
@@ -416,6 +466,7 @@ export default function VisitExecutionForm({
                     visitId={visitId}
                     visitSystemId={String(item.visit_system_id)}
                     checklistItemId={String(item.checklist_item_id)}
+                    assetId={activeAsset?.asset_id || ""}
                     rows={itemEvidence}
                   />
                 </div>
