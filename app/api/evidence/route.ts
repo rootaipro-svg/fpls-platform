@@ -14,6 +14,14 @@ export async function POST(req: NextRequest) {
       throw new Error("visit_id is required");
     }
 
+    if (!String(body.visit_system_id || "").trim()) {
+      throw new Error("visit_system_id is required");
+    }
+
+    if (!String(body.checklist_item_id || "").trim()) {
+      throw new Error("checklist_item_id is required");
+    }
+
     if (!String(body.file_url || "").trim()) {
       throw new Error("file_url is required");
     }
@@ -26,6 +34,8 @@ export async function POST(req: NextRequest) {
       visit_id: String(body.visit_id || ""),
       visit_system_id: String(body.visit_system_id || ""),
       finding_id: String(body.finding_id || ""),
+      checklist_item_id: String(body.checklist_item_id || ""),
+      response_id: String(body.response_id || ""),
       evidence_type: String(body.evidence_type || "image"),
       file_url: String(body.file_url || ""),
       file_name: String(body.file_name || ""),
