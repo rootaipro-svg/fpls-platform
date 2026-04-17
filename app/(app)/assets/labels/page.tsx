@@ -1,7 +1,6 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { headers } from "next/headers";
-import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import PrintPageButton from "@/components/print-page-button";
 import { requirePermission } from "@/lib/permissions";
@@ -67,93 +66,56 @@ export default async function AssetLabelsPage() {
   );
 
   return (
-    <AppShell>
-      <PageHeader
-        title="ملصقات QR للأصول"
-        subtitle="صفحة جاهزة للطباعة والقص واللصق على الأصول والمعدات"
-      />
+    <div className="labels-page-wrap" dir="rtl">
+      <div className="labels-toolbar print-hidden">
+        <PageHeader
+          title="ملصقات QR للأصول"
+          subtitle="صفحة جاهزة للطباعة والقص واللصق على الأصول والمعدات"
+        />
 
-      <div className="card print-hidden">
-        <div className="section-title">تعليمات الطباعة</div>
-        <div className="section-subtitle">
-          اطبع هذه الصفحة من المتصفح، وسيتم إنشاء رموز QR كاملة تفتح الأصل بعد
-          المسح مباشرة.
-        </div>
+        <div className="card">
+          <div className="section-title">تعليمات الطباعة</div>
+          <div className="section-subtitle">
+            اطبع هذه الصفحة من المتصفح، وسيتم إنشاء رموز QR كاملة تفتح الأصل بعد
+            المسح مباشرة.
+          </div>
 
-        <div className="btn-row" style={{ marginTop: "16px" }}>
-          <Link href="/assets" className="btn btn-secondary">
-            العودة للأصول
-          </Link>
+          <div className="btn-row" style={{ marginTop: "16px" }}>
+            <Link href="/assets" className="btn btn-secondary">
+              العودة للأصول
+            </Link>
 
-          <PrintPageButton label="طباعة الملصقات" className="btn" />
+            <PrintPageButton label="طباعة الملصقات" className="btn" />
+          </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: "16px",
-          marginTop: "16px",
-        }}
-      >
+      <div className="asset-labels-print-grid">
         {labelRows.map((row) => (
-          <div
-            key={row.asset_id}
-            className="card"
-            style={{
-              textAlign: "center",
-              breakInside: "avoid",
-              pageBreakInside: "avoid",
-              minHeight: "360px",
-            }}
-          >
-            <div className="section-title" style={{ fontSize: "18px" }}>
+          <div key={row.asset_id} className="asset-label-card">
+            <div className="asset-label-title">
               {row.asset_name_ar || row.asset_name || "أصل"}
             </div>
 
-            <div className="section-subtitle" style={{ marginTop: "6px" }}>
-              {row.asset_code}
-            </div>
+            <div className="asset-label-code">{row.asset_code}</div>
 
-            <div
-              className="badge-wrap"
-              style={{ justifyContent: "center", marginTop: "10px" }}
-            >
+            <div className="asset-label-badges">
               <span className="badge">{row.system_code}</span>
               <span className="badge">{row.status}</span>
             </div>
 
-            <div style={{ marginTop: "18px" }}>
+            <div className="asset-label-qr-wrap">
               <img
                 src={row.qrDataUrl}
                 alt={`QR-${row.asset_code}`}
-                style={{
-                  width: "220px",
-                  height: "220px",
-                  margin: "0 auto",
-                  display: "block",
-                  background: "#fff",
-                  borderRadius: "14px",
-                  padding: "8px",
-                  border: "1px solid #e2e8f0",
-                }}
+                className="asset-label-qr"
               />
             </div>
 
-            <div
-              style={{
-                marginTop: "12px",
-                fontSize: "12px",
-                color: "#64748b",
-                wordBreak: "break-word",
-              }}
-            >
-              {row.asset_id}
-            </div>
+            <div className="asset-label-id">{row.asset_id}</div>
           </div>
         ))}
       </div>
-    </AppShell>
+    </div>
   );
 }
