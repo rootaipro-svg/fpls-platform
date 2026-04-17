@@ -1,5 +1,6 @@
 import Link from "next/link";
 import QRCode from "qrcode";
+import { headers } from "next/headers";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -30,8 +31,14 @@ export default async function AssetQrPage({
     );
   }
 
-  const qrValue = String(asset.qr_code_value || "");
-  const qrDataUrl = await QRCode.toDataURL(qrValue, {
+  const h = await headers();
+  const proto = h.get("x-forwarded-proto") || "https";
+  const host = h.get("x-forwarded-host") || h.get("host") || "";
+  const scanUrl = host
+    ? `${proto}://${host}/scan/asset/${String(id)}`
+    : `/scan/asset/${String(id)}`;
+
+  const qrDataUrl = await QRCode.toDataURL(scanUrl, {
     width: 320,
     margin: 2,
   });
@@ -46,7 +53,7 @@ export default async function AssetQrPage({
       <section className="card" style={{ textAlign: "center" }}>
         <div className="section-title">QR</div>
         <div className="section-subtitle">
-          يمكن طباعة هذه الصفحة أو حفظها كلصاقة للأصل.
+          عند مسح هذا الرمز سيتم فتح الأصل مباشرة بعد التحقق من تسجيل الدخول.
         </div>
 
         <div style={{ marginTop: "20px" }}>
@@ -74,7 +81,18 @@ export default async function AssetQrPage({
             color: "#475569",
           }}
         >
-          {qrValue}
+          {scanUrl}
+        </div>
+
+        <div
+          style={{
+            marginTop: "10px",
+            wordBreak: "break-all",
+            fontSize: "13px",
+            color: "#64748b",
+          }}
+        >
+          المعرّف الداخلي: {String(asset.qr_code_value || "-")}
         </div>
 
         <div className="btn-row" style={{ marginTop: "16px" }}>
