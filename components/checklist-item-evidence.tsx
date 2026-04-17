@@ -7,6 +7,7 @@ type EvidenceRow = {
   visit_id: string;
   visit_system_id: string;
   checklist_item_id: string;
+  asset_id?: string;
   evidence_type: string;
   file_url: string;
   file_name: string;
@@ -19,6 +20,7 @@ type Props = {
   visitId: string;
   visitSystemId: string;
   checklistItemId: string;
+  assetId?: string;
   rows: EvidenceRow[];
 };
 
@@ -107,6 +109,7 @@ export default function ChecklistItemEvidence({
   visitId,
   visitSystemId,
   checklistItemId,
+  assetId = "",
   rows,
 }: Props) {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -169,6 +172,7 @@ export default function ChecklistItemEvidence({
           visit_id: visitId,
           visit_system_id: visitSystemId,
           checklist_item_id: checklistItemId,
+          asset_id: assetId,
           evidence_type: evidenceType,
           file_url: String(uploadData.data?.file_url || ""),
           file_name: String(uploadData.data?.file_name || preparedFile.name || ""),
@@ -190,6 +194,7 @@ export default function ChecklistItemEvidence({
           visit_id: visitId,
           visit_system_id: visitSystemId,
           checklist_item_id: checklistItemId,
+          asset_id: assetId,
           evidence_type: evidenceType,
           file_url: String(uploadData.data?.file_url || ""),
           file_name: String(uploadData.data?.file_name || preparedFile.name || ""),
