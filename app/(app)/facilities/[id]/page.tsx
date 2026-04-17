@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Building2, ClipboardList, ShieldAlert, Wrench } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
@@ -207,7 +208,9 @@ export default async function FacilityDetailPage({
 
         <div className="badge-wrap" style={{ marginTop: "12px" }}>
           {facility?.city ? <span className="badge">{facility.city}</span> : null}
-          {facility?.district ? <span className="badge">{facility.district}</span> : null}
+          {facility?.district ? (
+            <span className="badge">{facility.district}</span>
+          ) : null}
           {facility?.occupancy_classification ? (
             <span className="badge">{facility.occupancy_classification}</span>
           ) : null}
@@ -399,11 +402,17 @@ export default async function FacilityDetailPage({
                             <div className="system-line-top">
                               <div>
                                 <div className="system-line-title">
-                                  {String(asset.asset_name_ar || asset.asset_name || "أصل")}
+                                  <Link href={`/assets/${String(asset.asset_id)}`}>
+                                    {String(
+                                      asset.asset_name_ar || asset.asset_name || "أصل"
+                                    )}
+                                  </Link>
                                 </div>
                                 <div className="system-line-date">
                                   {String(asset.system_code || "-")}
-                                  {asset.asset_type ? ` · ${String(asset.asset_type)}` : ""}
+                                  {asset.asset_type
+                                    ? ` · ${String(asset.asset_type)}`
+                                    : ""}
                                   {asset.location_note
                                     ? ` · ${String(asset.location_note)}`
                                     : ""}
@@ -417,6 +426,12 @@ export default async function FacilityDetailPage({
                                 <span className="badge">
                                   {String(asset.asset_code || asset.asset_id || "-")}
                                 </span>
+                                <Link
+                                  href={`/assets/${String(asset.asset_id)}/qr`}
+                                  className="badge"
+                                >
+                                  QR
+                                </Link>
                               </div>
                             </div>
                           </div>
