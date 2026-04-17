@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   ClipboardList,
-  FileText,
 } from "lucide-react";
 import PrintReportButton from "@/components/print-report-button";
 import { SeverityBadge } from "@/components/severity-badge";
@@ -28,6 +27,19 @@ function makeReportReference(visitId: string, plannedDate: string) {
   return `SIR-${year}-${String(visitId).slice(-6)}`;
 }
 
+function looksLikeImage(url: string, evidenceType: string) {
+  const u = String(url || "").toLowerCase();
+  if (String(evidenceType || "").toLowerCase() === "image") return true;
+
+  return (
+    u.endsWith(".jpg") ||
+    u.endsWith(".jpeg") ||
+    u.endsWith(".png") ||
+    u.endsWith(".webp") ||
+    u.includes("blob.vercel-storage.com")
+  );
+}
+
 export default async function VisitReportPage({
   params,
 }: {
@@ -46,6 +58,7 @@ export default async function VisitReportPage({
     facilities,
     buildings,
     tenantProfiles,
+    evidence,
   ] = await Promise.all([
     readSheet(workbookId, "VISITS"),
     readSheet(workbookId, "VISIT_SYSTEMS"),
@@ -54,6 +67,7 @@ export default async function VisitReportPage({
     readSheet(workbookId, "FACILITIES"),
     readSheet(workbookId, "BUILDINGS"),
     readSheet(workbookId, "TENANT_PROFILE"),
+    readSheet(workbookId, "EVIDENCE"),
   ]);
 
   const visit = visits.find((v) => String(v.visit_id) === String(id));
@@ -170,6 +184,19 @@ export default async function VisitReportPage({
   const stampNote =
     String(tenantProfile.stamp_note || "") ||
     "الختم النظامي / الاعتماد الداخلي";
+
+  const evidenceByFindingId = new Map<string, any[]>();
+
+  for (const row of evidence) {
+    const findingId = String(row.finding_id || "");
+    if (!findingId) continue;
+
+    if (!evidenceByFindingId.has(findingId)) {
+      evidenceByFindingId.set(findingId, []);
+    }
+
+    evidenceByFindingId.get(findingId)?.push(row);
+  }
 
   return (
     <div dir="rtl" className="report-page-wrap">
@@ -391,51 +418,131 @@ export default async function VisitReportPage({
               </div>
             ) : (
               <div className="report-finding-list">
-                {visitFindings.map((finding) => (
-                  <div
-                    key={String(finding.finding_id)}
-                    className="report-finding-item"
-                  >
-                    <div className="report-finding-title">
-                      {String(finding.title || "مخالفة")}
-                    </div>
+                {visitFindings.map((finding) => {
+                  const findingEvidence =
+                    evidenceByFindingId.get(String(finding.finding_id || "")) || [];
 
-                    <div className="report-badge-row">
-                      <SeverityBadge severity={String(finding.severity || "")} />
-                      <FindingStatusBadge
-                        status={String(
-                          finding.closure_status ||
-                            finding.compliance_status ||
-                            "open"
-                        )}
-                      />
-                      <span className="badge">
-                        الكود: {String(finding.finding_code || "-")}
-                      </span>
-                    </div>
+                  return (
+                    <div
+                      key={String(finding.finding_id)}
+                      className="report-finding-item"
+                    >
+                      <div className="report-finding-title">
+                        {String(finding.title || "مخالفة")}
+                      </div>
 
-                    <div className="report-finding-text">
-                      {String(finding.description || "لا يوجد وصف")}
-                    </div>
+                      <div className="report-badge-row">
+                        <SeverityBadge severity={String(finding.severity || "")} />
+                        <FindingStatusBadge
+                          status={String(
+                            finding.closure_status ||
+                              finding.compliance_status ||
+                              "open"
+                          )}
+                        />
+                        <span className="badge">
+                          الكود: {String(finding.finding_code || "-")}
+                        </span>
+                      </div>
 
-                    <div className="report-badge-row">
-                      <span className="badge">
-                        الإجراء التصحيحي:{" "}
-                        {String(finding.corrective_action || "غير مسجل")}
-                      </span>
-                      <span className="badge">
-                        المسؤول: {String(finding.responsible_party || "غير محدد")}
-                      </span>
-                      <span className="badge">
-                        الإغلاق المستهدف:{" "}
-                        {String(finding.target_close_date || "-")}
-                      </span>
-                      <span className="badge">
-                        الإغلاق الفعلي: {String(finding.actual_close_date || "-")}
-                      </span>
+                      <div className="report-finding-text">
+                        {String(finding.description || "لا يوجد وصف")}
+                      </div>
+
+                      <div className="report-badge-row">
+                        <span className="badge">
+                          الإجراء التصحيحي:{" "}
+                          {String(finding.corrective_action || "غير مسجل")}
+                        </span>
+                        <span className="badge">
+                          المسؤول: {String(finding.responsible_party || "غير محدد")}
+                        </span>
+                        <span className="badge">
+                          الإغلاق المستهدف:{" "}
+                          {String(finding.target_close_date || "-")}
+                        </span>
+                        <span className="badge">
+                          الإغلاق الفعلي: {String(finding.actual_close_date || "-")}
+                        </span>
+                      </div>
+
+                      {findingEvidence.length > 0 ? (
+                        <div style={{ marginTop: "16px" }}>
+                          <div className="report-section-subtitle">
+                            الأدلة المرتبطة بهذه المخالفة
+                          </div>
+
+                          <div
+                            style={{
+                              display: "grid",
+                              gap: "12px",
+                              marginTop: "12px",
+                            }}
+                          >
+                            {findingEvidence.map((ev: any) => (
+                              <div
+                                key={String(ev.evidence_id)}
+                                style={{
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: "16px",
+                                  padding: "12px",
+                                  background: "#fff",
+                                }}
+                              >
+                                <div className="report-badge-row">
+                                  <span className="badge">
+                                    {String(ev.evidence_type || "evidence")}
+                                  </span>
+                                  {ev.file_name ? (
+                                    <span className="badge">
+                                      {String(ev.file_name)}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                {looksLikeImage(
+                                  String(ev.file_url || ""),
+                                  String(ev.evidence_type || "")
+                                ) ? (
+                                  <div style={{ marginTop: "12px" }}>
+                                    <img
+                                      src={String(ev.file_url || "")}
+                                      alt={String(ev.file_name || "Evidence")}
+                                      style={{
+                                        width: "100%",
+                                        maxHeight: "360px",
+                                        objectFit: "contain",
+                                        borderRadius: "12px",
+                                        border: "1px solid #e2e8f0",
+                                        background: "#fff",
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div
+                                    className="report-note-box"
+                                    style={{ marginTop: "12px" }}
+                                  >
+                                    مرفق غير صوري: {String(ev.file_name || "ملف")}
+                                  </div>
+                                )}
+
+                                {ev.caption ? (
+                                  <div
+                                    className="report-finding-text"
+                                    style={{ marginTop: "10px" }}
+                                  >
+                                    {String(ev.caption)}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
