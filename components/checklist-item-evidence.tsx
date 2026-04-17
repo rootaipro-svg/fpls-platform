@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 
 type EvidenceRow = {
   evidence_id: string;
@@ -31,8 +32,7 @@ function looksLikeImage(url: string, evidenceType: string) {
     u.endsWith(".jpeg") ||
     u.endsWith(".png") ||
     u.endsWith(".webp") ||
-    u.includes("googleusercontent.com") ||
-    u.includes("drive.google.com")
+    u.includes("blob.vercel-storage.com")
   );
 }
 
@@ -48,6 +48,15 @@ function inferEvidenceType(file: File) {
     return "document";
   }
   return "other";
+}
+
+async function parseJsonSafe(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(text || "استجابة غير مفهومة من الخادم");
+  }
 }
 
 export default function ChecklistItemEvidence({
@@ -69,14 +78,7 @@ export default function ChecklistItemEvidence({
   function handleSelectFile(file: File | null) {
     setMessage("");
     setError("");
-
     if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      setError("حجم الملف أكبر من 10MB");
-      return;
-    }
-
     setSelectedFile(file);
   }
 
@@ -92,19 +94,15 @@ export default function ChecklistItemEvidence({
     try {
       setSaving(true);
 
-      const uploadForm = new FormData();
-      uploadForm.append("file", selectedFile);
-
-      const uploadRes = await fetch("/api/evidence/upload", {
-        method: "POST",
-        body: uploadForm,
+      const uploadedBlob = await upload(selectedFile.name, selectedFile, {
+        access: "public",
+        handleUploadUrl: "/api/evidence/upload",
+        clientPayload: {
+          visitId,
+          visitSystemId,
+          checklistItemId,
+        },
       });
-
-      const uploadData = await uploadRes.json();
-
-      if (!uploadRes.ok || !uploadData.ok) {
-        throw new Error(uploadData.message || "تعذر رفع الملف");
-      }
 
       const evidenceType = inferEvidenceType(selectedFile);
 
@@ -118,13 +116,13 @@ export default function ChecklistItemEvidence({
           visit_system_id: visitSystemId,
           checklist_item_id: checklistItemId,
           evidence_type: evidenceType,
-          file_url: String(uploadData.data?.file_url || ""),
-          file_name: String(uploadData.data?.file_name || selectedFile.name || ""),
-          caption: caption,
+          file_url: String(uploadedBlob.url || ""),
+          file_name: String(selectedFile.name || ""),
+          caption,
         }),
       });
 
-      const saveData = await saveRes.json();
+      const saveData = await parseJsonSafe(saveRes);
 
       if (!saveRes.ok || !saveData.ok) {
         throw new Error(saveData.message || "تعذر حفظ الدليل");
@@ -139,9 +137,9 @@ export default function ChecklistItemEvidence({
           visit_system_id: visitSystemId,
           checklist_item_id: checklistItemId,
           evidence_type: evidenceType,
-          file_url: String(uploadData.data?.file_url || ""),
-          file_name: String(uploadData.data?.file_name || selectedFile.name || ""),
-          caption: caption,
+          file_url: String(uploadedBlob.url || ""),
+          file_name: String(selectedFile.name || ""),
+          caption,
           taken_by: "",
           taken_at: now,
         },
@@ -227,6 +225,9 @@ export default function ChecklistItemEvidence({
           <div className="section-subtitle">
             الملف المحدد: {selectedFile.name}
           </div>
+          <div className="section-subtitle" style={{ marginTop: "6px" }}>
+            الحجم: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+          </div>
         </div>
       ) : null}
 
@@ -238,8 +239,17 @@ export default function ChecklistItemEvidence({
         style={{ marginTop: "12px" }}
       />
 
-      {message ? <div className="alert-success" style={{ marginTop: "12px" }}>{message}</div> : null}
-      {error ? <div className="alert-error" style={{ marginTop: "12px" }}>{error}</div> : null}
+      {message ? (
+        <div className="alert-success" style={{ marginTop: "12px" }}>
+          {message}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="alert-error" style={{ marginTop: "12px" }}>
+          {error}
+        </div>
+      ) : null}
 
       <div className="btn-row" style={{ marginTop: "12px" }}>
         <button
