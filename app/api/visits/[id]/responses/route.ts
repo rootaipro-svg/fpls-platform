@@ -36,13 +36,15 @@ export async function POST(
       visitSystemId: string,
       checklistItemId: string,
       responseId: string,
-      findingId: string
+      findingId: string,
+      assetId: string
     ) {
       const matchedEvidenceRows = evidence.filter(
         (row) =>
           String(row.visit_id || "") === String(id) &&
           String(row.visit_system_id || "") === String(visitSystemId) &&
-          String(row.checklist_item_id || "") === String(checklistItemId)
+          String(row.checklist_item_id || "") === String(checklistItemId) &&
+          (!assetId || String(row.asset_id || "") === String(assetId))
       );
 
       for (const ev of matchedEvidenceRows) {
@@ -54,6 +56,7 @@ export async function POST(
           {
             response_id: responseId || "",
             finding_id: findingId || "",
+            asset_id: assetId || "",
             updated_at: nowIso(),
           }
         );
@@ -68,7 +71,8 @@ export async function POST(
       const matchedResponse = existingResponses.find(
         (r) =>
           String(r.visit_system_id) === String(answer.visit_system_id) &&
-          String(r.checklist_item_id) === String(answer.checklist_item_id)
+          String(r.checklist_item_id) === String(answer.checklist_item_id) &&
+          String(r.asset_id || "") === String(answer.asset_id || "")
       );
 
       let responseId = "";
@@ -87,6 +91,7 @@ export async function POST(
             finding_severity: answer.finding_severity || "",
             finding_flag: isFinding ? "TRUE" : "FALSE",
             comments: answer.comments || "",
+            asset_id: String(answer.asset_id || ""),
             evidence_count: answer.evidence_count || 0,
             response_by: user.appUserId,
             response_at: nowIso(),
@@ -102,6 +107,7 @@ export async function POST(
           visit_system_id: answer.visit_system_id,
           building_system_id: answer.building_system_id || "",
           system_component_id: answer.system_component_id || "",
+          asset_id: String(answer.asset_id || ""),
           checklist_item_id: answer.checklist_item_id,
           response_value: answer.response_value,
           score_value: answer.score_value || "",
@@ -136,6 +142,7 @@ export async function POST(
               title: answer.title || "Non-compliant item",
               description: answer.comments || "",
               severity: answer.finding_severity || "major",
+              asset_id: String(answer.asset_id || ""),
               compliance_status: "open",
               corrective_action: answer.corrective_action || "",
               closure_status: "open",
@@ -149,6 +156,7 @@ export async function POST(
           await appendRow(workbookId, "FINDINGS", {
             finding_id: findingId,
             visit_system_id: answer.visit_system_id,
+            asset_id: String(answer.asset_id || ""),
             response_id: responseId,
             finding_code: answer.item_code || "",
             title: answer.title || "Non-compliant item",
@@ -172,7 +180,8 @@ export async function POST(
           String(answer.visit_system_id || ""),
           String(answer.checklist_item_id || ""),
           responseId,
-          findingId
+          findingId,
+          String(answer.asset_id || "")
         );
       } else {
         if (matchedFinding) {
@@ -196,7 +205,8 @@ export async function POST(
           String(answer.visit_system_id || ""),
           String(answer.checklist_item_id || ""),
           responseId,
-          ""
+          "",
+          String(answer.asset_id || "")
         );
       }
     }
