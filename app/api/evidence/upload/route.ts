@@ -1,8 +1,8 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { NextResponse } from "next/server";
+import { put } from "@vercel/blob";
+import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/permissions";
 
-const ALLOWED_CONTENT_TYPES = [
+const ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -13,43 +13,42 @@ const ALLOWED_CONTENT_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
 
-export async function POST(request: Request): Promise<NextResponse> {
-  const body = (await request.json()) as HandleUploadBody;
-
+export async function POST(req: NextRequest) {
   try {
-    const actor = await requirePermission("visits", "update");
+    await requirePermission("visits", "update");
 
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (_pathname, clientPayload) => {
-        return {
-          allowedContentTypes: ALLOWED_CONTENT_TYPES,
-          addRandomSuffix: true,
-          tokenPayload: JSON.stringify({
-            tenantId: String(actor.tenantId || ""),
-            appUserId: String(actor.appUserId || ""),
-            role: String(actor.role || ""),
-            visitId: String(clientPayload?.visitId || ""),
-            visitSystemId: String(clientPayload?.visitSystemId || ""),
-            checklistItemId: String(clientPayload?.checklistItemId || ""),
-          }),
-        };
-      },
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
-        console.log("Evidence blob upload completed", {
-          url: blob.url,
-          tokenPayload,
-        });
-      },
+    const form = await req.formData();
+    const file = form.get("file");
+
+    if (!(file instanceof File)) {
+      throw new Error("لم يتم اختيار ملف");
+    }
+
+    if (!ALLOWED_TYPES.includes(file.type || "")) {
+      throw new Error("نوع الملف غير مسموح");
+    }
+
+    const safeName = `${Date.now()}-${file.name}`;
+
+    const blob = await put(`evidence/${safeName}`, file, {
+      access: "public",
+      addRandomSuffix: true,
+      contentType: file.type || "application/octet-stream",
     });
 
-    return NextResponse.json(jsonResponse);
+    return NextResponse.json({
+      ok: true,
+      data: {
+        file_url: blob.url,
+        file_name: file.name,
+        pathname: blob.pathname,
+      },
+    });
   } catch (error: any) {
     return NextResponse.json(
       {
         ok: false,
-        message: error.message || "Failed to initialize blob upload",
+        message: error.message || "تعذر رفع الملف",
       },
       { status: 400 }
     );
