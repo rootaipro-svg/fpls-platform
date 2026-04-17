@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardCheck, CalendarDays } from "lucide-react";
+import ChecklistItemEvidence from "@/components/checklist-item-evidence";
 
 type VisitSystem = {
   visit_system_id: string;
@@ -29,22 +29,63 @@ type ExistingResponse = {
   comments: string;
 };
 
+type EvidenceRow = {
+  evidence_id: string;
+  visit_id: string;
+  visit_system_id: string;
+  checklist_item_id: string;
+  evidence_type: string;
+  file_url: string;
+  file_name: string;
+  caption: string;
+  taken_by: string;
+  taken_at: string;
+};
+
 type Props = {
   visitId: string;
   visitSystems: VisitSystem[];
   checklistItems: ChecklistItem[];
   existingResponses: ExistingResponse[];
+  existingEvidence: EvidenceRow[];
 };
 
-type ResponseState = {
+type ItemState = {
   response_value: string;
   finding_severity: string;
   comments: string;
   corrective_action: string;
 };
 
-function makeKey(visitSystemId: string, checklistItemId: string) {
+function itemKey(visitSystemId: string, checklistItemId: string) {
   return `${visitSystemId}__${checklistItemId}`;
+}
+
+function defaultItemState(): ItemState {
+  return {
+    response_value: "",
+    finding_severity: "",
+    comments: "",
+    corrective_action: "",
+  };
+}
+
+function buttonClass(active: boolean, tone: "green" | "red" | "slate") {
+  const base =
+    "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-base font-semibold transition min-w-[108px]";
+  if (!active) {
+    return `${base} border-slate-200 bg-white text-slate-800`;
+  }
+
+  if (tone === "green") {
+    return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
+  }
+
+  if (tone === "red") {
+    return `${base} border-rose-200 bg-rose-50 text-rose-700`;
+  }
+
+  return `${base} border-slate-300 bg-slate-100 text-slate-800`;
 }
 
 export default function VisitExecutionForm({
@@ -52,16 +93,21 @@ export default function VisitExecutionForm({
   visitSystems,
   checklistItems,
   existingResponses,
+  existingEvidence,
 }: Props) {
   const router = useRouter();
 
-  const initialResponses = useMemo(() => {
-    const map: Record<string, ResponseState> = {};
+  const [selectedSystemId, setSelectedSystemId] = useState<string>(
+    visitSystems[0]?.visit_system_id || ""
+  );
+
+  const initialMap = useMemo(() => {
+    const map: Record<string, ItemState> = {};
 
     for (const row of existingResponses) {
-      map[makeKey(String(row.visit_system_id), String(row.checklist_item_id))] = {
+      map[itemKey(row.visit_system_id, row.checklist_item_id)] = {
         response_value: String(row.response_value || ""),
-        finding_severity: String(row.finding_severity || "major"),
+        finding_severity: String(row.finding_severity || ""),
         comments: String(row.comments || ""),
         corrective_action: "",
       };
@@ -70,106 +116,63 @@ export default function VisitExecutionForm({
     return map;
   }, [existingResponses]);
 
-  const [responses, setResponses] =
-    useState<Record<string, ResponseState>>(initialResponses);
-
-  const [activeSystemId, setActiveSystemId] = useState<string>(
-    String(visitSystems[0]?.visit_system_id || "")
-  );
-
+  const [formMap, setFormMap] = useState<Record<string, ItemState>>(initialMap);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const activeItems = checklistItems.filter(
-    (item) => String(item.visit_system_id) === String(activeSystemId)
+  const selectedSystem = visitSystems.find(
+    (system) => String(system.visit_system_id) === String(selectedSystemId)
   );
 
-  const totals = useMemo(() => {
-    let pass = 0;
-    let fail = 0;
-    let na = 0;
+  const selectedItems = checklistItems.filter(
+    (item) => String(item.visit_system_id) === String(selectedSystemId)
+  );
 
-    for (const item of checklistItems) {
-      const key = makeKey(
-        String(item.visit_system_id),
-        String(item.checklist_item_id)
-      );
+  function getItemState(visitSystemId: string, checklistItemId: string): ItemState {
+    return formMap[itemKey(visitSystemId, checklistItemId)] || defaultItemState();
+  }
 
-      const value = responses[key]?.response_value || "";
-
-      if (value === "compliant") pass += 1;
-      if (value === "non_compliant") fail += 1;
-      if (value === "not_applicable") na += 1;
-    }
-
-    return { pass, fail, na };
-  }, [checklistItems, responses]);
-
-  function updateResponse(
+  function updateItemState(
     visitSystemId: string,
     checklistItemId: string,
-    patch: Partial<ResponseState>
+    patch: Partial<ItemState>
   ) {
-    const key = makeKey(visitSystemId, checklistItemId);
+    const key = itemKey(visitSystemId, checklistItemId);
 
-    setResponses((prev) => ({
+    setFormMap((prev) => ({
       ...prev,
       [key]: {
-        response_value: prev[key]?.response_value || "",
-        finding_severity: prev[key]?.finding_severity || "major",
-        comments: prev[key]?.comments || "",
-        corrective_action: prev[key]?.corrective_action || "",
+        ...(prev[key] || defaultItemState()),
         ...patch,
       },
     }));
   }
 
-  async function handleSubmit() {
+  async function handleSaveAndClose() {
     setSaving(true);
-    setError("");
     setMessage("");
+    setError("");
 
     try {
-      const payloadResponses = checklistItems
-        .map((item) => {
-          const key = makeKey(
-            String(item.visit_system_id),
-            String(item.checklist_item_id)
-          );
+      const rows = checklistItems.map((item) => {
+        const state = getItemState(item.visit_system_id, item.checklist_item_id);
 
-          const state = responses[key];
-          if (!state?.response_value) return null;
+        return {
+          visit_system_id: String(item.visit_system_id),
+          checklist_item_id: String(item.checklist_item_id),
+          response_value: String(state.response_value || ""),
+          finding_severity: String(state.finding_severity || ""),
+          comments: String(state.comments || ""),
+          corrective_action: String(state.corrective_action || ""),
+        };
+      });
 
-          const findingFlag = state.response_value === "non_compliant";
+      const effectiveRows = rows.filter((row) => String(row.response_value || "").trim());
 
-          return {
-            visit_system_id: item.visit_system_id,
-            building_system_id: item.building_system_id,
-            checklist_item_id: item.checklist_item_id,
-            system_component_id: "",
-            response_value: state.response_value,
-            score_value: "",
-            finding_flag: findingFlag,
-            finding_severity: findingFlag ? state.finding_severity || "major" : "",
-            comments: state.comments || "",
-            corrective_action: findingFlag ? state.corrective_action || "" : "",
-            item_code: item.item_code || item.checklist_item_id,
-            title: item.question_text || "Checklist item",
-            evidence_count: 0,
-          };
-        })
-        .filter(Boolean);
-
-      if (payloadResponses.length === 0) {
-        throw new Error("قم بتسجيل إجابة واحدة على الأقل قبل الحفظ.");
+      if (effectiveRows.length === 0) {
+        throw new Error("سجل نتيجة بند واحد على الأقل قبل الحفظ");
       }
-
-      const failCount = payloadResponses.filter(
-        (r: any) => r.response_value === "non_compliant"
-      ).length;
-
-      const summaryResult = failCount === 0 ? "compliant" : "pass_with_remarks";
 
       const res = await fetch(`/api/visits/${visitId}/responses`, {
         method: "POST",
@@ -177,9 +180,9 @@ export default function VisitExecutionForm({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          visit_date: new Date().toISOString().slice(0, 10),
-          summary_result: summaryResult,
-          responses: payloadResponses,
+          visit_id: visitId,
+          responses: effectiveRows,
+          close_visit: true,
         }),
       });
 
@@ -189,7 +192,7 @@ export default function VisitExecutionForm({
         throw new Error(data.message || "تعذر حفظ نتائج الزيارة");
       }
 
-      setMessage("تم حفظ نتائج الزيارة وإقفالها بنجاح");
+      setMessage("تم حفظ النتائج وإقفال الزيارة بنجاح");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "تعذر حفظ نتائج الزيارة");
@@ -199,205 +202,222 @@ export default function VisitExecutionForm({
   }
 
   return (
-    <div className="card">
+    <section className="card">
       <div className="section-title">تنفيذ الزيارة</div>
       <div className="section-subtitle">
-        سجل نتائج الفحص لكل بند، وسيتم إنشاء المخالفات تلقائيًا عند عدم المطابقة
+        سجل نتائج الفحص لكل بند، وأضف الدليل مباشرة تحت البند نفسه.
       </div>
 
-      <div className="execution-summary" style={{ marginTop: "14px" }}>
-        <div className="execution-summary-card">
-          <div className="execution-summary-value">{totals.pass}</div>
-          <div className="execution-summary-label">مطابق</div>
+      {visitSystems.length > 1 ? (
+        <div className="badge-wrap" style={{ marginTop: "14px" }}>
+          {visitSystems.map((system) => {
+            const active =
+              String(system.visit_system_id) === String(selectedSystemId);
+
+            return (
+              <button
+                key={system.visit_system_id}
+                type="button"
+                onClick={() => setSelectedSystemId(String(system.visit_system_id))}
+                className={active ? "badge badge-active" : "badge"}
+                style={{
+                  border: active ? "1px solid #0f766e" : "1px solid #e2e8f0",
+                  background: active ? "#0f766e" : "#ffffff",
+                  color: active ? "#ffffff" : "#0f172a",
+                  padding: "10px 18px",
+                  borderRadius: "999px",
+                  fontWeight: 700,
+                }}
+              >
+                {system.system_code}
+              </button>
+            );
+          })}
         </div>
+      ) : null}
 
-        <div className="execution-summary-card">
-          <div className="execution-summary-value">{totals.fail}</div>
-          <div className="execution-summary-label">غير مطابق</div>
+      {selectedSystem ? (
+        <div className="section-subtitle" style={{ marginTop: "12px" }}>
+          النظام الحالي: {selectedSystem.system_code}
         </div>
+      ) : null}
 
-        <div className="execution-summary-card">
-          <div className="execution-summary-value">{totals.na}</div>
-          <div className="execution-summary-label">غير منطبق</div>
-        </div>
-      </div>
-
-      <div className="execution-system-tabs" style={{ marginTop: "16px" }}>
-        {visitSystems.map((system) => (
-          <button
-            key={system.visit_system_id}
-            type="button"
-            className={`execution-system-tab ${
-              String(activeSystemId) === String(system.visit_system_id)
-                ? "active"
-                : ""
-            }`}
-            onClick={() => setActiveSystemId(String(system.visit_system_id))}
-          >
-            {system.system_code}
-          </button>
-        ))}
-      </div>
-
-      {activeItems.length === 0 ? (
-        <div style={{ marginTop: "16px" }} className="empty-state">
-          <div className="empty-state-icon">
-            <ClipboardCheck size={24} />
-          </div>
-          <div className="empty-state-title">لا توجد بنود فحص لهذا النظام</div>
-          <div className="empty-state-text">
-            لم يتم تحميل checklist لهذا النظام داخل الزيارة الحالية.
-          </div>
+      {selectedItems.length === 0 ? (
+        <div style={{ marginTop: "16px" }} className="muted-note">
+          لا توجد بنود فحص لهذا النظام داخل هذه الزيارة.
         </div>
       ) : (
         <div className="stack-3" style={{ marginTop: "16px" }}>
-          {activeItems.map((item, index) => {
-            const key = makeKey(
-              String(item.visit_system_id),
-              String(item.checklist_item_id)
+          {selectedItems.map((item, index) => {
+            const state = getItemState(item.visit_system_id, item.checklist_item_id);
+
+            const itemEvidence = existingEvidence.filter(
+              (row) =>
+                String(row.visit_system_id) === String(item.visit_system_id) &&
+                String(row.checklist_item_id) === String(item.checklist_item_id)
             );
 
-            const state = responses[key] || {
-              response_value: "",
-              finding_severity: "major",
-              comments: "",
-              corrective_action: "",
-            };
+            const isNonCompliant =
+              String(state.response_value) === "non_compliant";
 
             return (
-              <div key={key} className="checklist-item">
-                <div className="checklist-item-section">
-                  {item.section_name || "Section"} · بند {index + 1}
+              <div
+                key={`${item.visit_system_id}-${item.checklist_item_id}`}
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "24px",
+                  background: "#ffffff",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{ padding: "18px 16px 8px" }}>
+                  <div className="checklist-item-section">
+                    {item.section_name || "Section"} · بند {index + 1}
+                  </div>
+
+                  <div
+                    className="checklist-item-title"
+                    style={{ marginTop: "10px" }}
+                  >
+                    {item.question_text}
+                  </div>
+
+                  {item.acceptance_criteria ? (
+                    <div
+                      className="checklist-item-criteria"
+                      style={{ marginTop: "10px" }}
+                    >
+                      {item.acceptance_criteria}
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="checklist-item-title">{item.question_text}</div>
-
-                <div className="checklist-item-criteria">
-                  {item.acceptance_criteria || ""}
-                </div>
-
-                <div className="answer-row">
-                  <button
-                    type="button"
-                    className={`answer-btn ${
-                      state.response_value === "compliant" ? "active-pass" : ""
-                    }`}
-                    onClick={() =>
-                      updateResponse(
-                        String(item.visit_system_id),
-                        String(item.checklist_item_id),
-                        {
+                <div style={{ padding: "0 16px 18px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                      marginTop: "10px",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={buttonClass(
+                        state.response_value === "compliant",
+                        "green"
+                      )}
+                      onClick={() =>
+                        updateItemState(item.visit_system_id, item.checklist_item_id, {
                           response_value: "compliant",
                           finding_severity: "",
-                        }
-                      )
-                    }
-                  >
-                    مطابق
-                  </button>
+                        })
+                      }
+                    >
+                      مطابق
+                    </button>
 
-                  <button
-                    type="button"
-                    className={`answer-btn ${
-                      state.response_value === "non_compliant"
-                        ? "active-fail"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      updateResponse(
-                        String(item.visit_system_id),
-                        String(item.checklist_item_id),
-                        {
+                    <button
+                      type="button"
+                      className={buttonClass(
+                        state.response_value === "non_compliant",
+                        "red"
+                      )}
+                      onClick={() =>
+                        updateItemState(item.visit_system_id, item.checklist_item_id, {
                           response_value: "non_compliant",
-                          finding_severity: state.finding_severity || "major",
-                        }
-                      )
-                    }
-                  >
-                    غير مطابق
-                  </button>
+                        })
+                      }
+                    >
+                      غير مطابق
+                    </button>
 
-                  <button
-                    type="button"
-                    className={`answer-btn ${
-                      state.response_value === "not_applicable"
-                        ? "active-na"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      updateResponse(
-                        String(item.visit_system_id),
-                        String(item.checklist_item_id),
-                        {
+                    <button
+                      type="button"
+                      className={buttonClass(
+                        state.response_value === "not_applicable",
+                        "slate"
+                      )}
+                      onClick={() =>
+                        updateItemState(item.visit_system_id, item.checklist_item_id, {
                           response_value: "not_applicable",
                           finding_severity: "",
-                        }
-                      )
-                    }
-                  >
-                    غير منطبق
-                  </button>
-                </div>
+                        })
+                      }
+                    >
+                      غير منطبق
+                    </button>
+                  </div>
 
-                <div className="response-panel">
-                  <div className="response-grid-2">
-                    {state.response_value === "non_compliant" ? (
+                  {isNonCompliant ? (
+                    <div
+                      style={{
+                        marginTop: "14px",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "20px",
+                        padding: "14px",
+                        background: "#fcfcfd",
+                      }}
+                    >
                       <select
                         className="field"
-                        value={state.finding_severity || "major"}
+                        value={state.finding_severity}
                         onChange={(e) =>
-                          updateResponse(
-                            String(item.visit_system_id),
-                            String(item.checklist_item_id),
+                          updateItemState(
+                            item.visit_system_id,
+                            item.checklist_item_id,
                             {
                               finding_severity: e.target.value,
                             }
                           )
                         }
                       >
+                        <option value="">اختر الشدة</option>
                         <option value="critical">حرج</option>
                         <option value="major">مرتفع</option>
                         <option value="minor">منخفض</option>
                       </select>
-                    ) : (
-                      <div className="execution-note">
-                        اختر "غير مطابق" لتحديد شدة المخالفة والإجراء التصحيحي.
-                      </div>
-                    )}
 
-                    <input
-                      className="field"
-                      placeholder="ملاحظات المفتش"
-                      value={state.comments}
-                      onChange={(e) =>
-                        updateResponse(
-                          String(item.visit_system_id),
-                          String(item.checklist_item_id),
-                          {
-                            comments: e.target.value,
-                          }
-                        )
-                      }
-                    />
-                  </div>
+                      <textarea
+                        className="field"
+                        placeholder="ملاحظات المفتش"
+                        value={state.comments}
+                        onChange={(e) =>
+                          updateItemState(
+                            item.visit_system_id,
+                            item.checklist_item_id,
+                            {
+                              comments: e.target.value,
+                            }
+                          )
+                        }
+                        style={{ marginTop: "12px" }}
+                      />
 
-                  {state.response_value === "non_compliant" ? (
-                    <textarea
-                      className="field"
-                      style={{ marginTop: "10px" }}
-                      placeholder="الإجراء التصحيحي المقترح"
-                      value={state.corrective_action}
-                      onChange={(e) =>
-                        updateResponse(
-                          String(item.visit_system_id),
-                          String(item.checklist_item_id),
-                          {
-                            corrective_action: e.target.value,
-                          }
-                        )
-                      }
-                    />
+                      <textarea
+                        className="field"
+                        placeholder="الإجراء التصحيحي المقترح"
+                        value={state.corrective_action}
+                        onChange={(e) =>
+                          updateItemState(
+                            item.visit_system_id,
+                            item.checklist_item_id,
+                            {
+                              corrective_action: e.target.value,
+                            }
+                          )
+                        }
+                        style={{ marginTop: "12px" }}
+                      />
+                    </div>
                   ) : null}
+
+                  <ChecklistItemEvidence
+                    visitId={visitId}
+                    visitSystemId={String(item.visit_system_id)}
+                    checklistItemId={String(item.checklist_item_id)}
+                    rows={itemEvidence}
+                  />
                 </div>
               </div>
             );
@@ -406,30 +426,27 @@ export default function VisitExecutionForm({
       )}
 
       {message ? (
-        <div className="alert-success" style={{ marginTop: "14px" }}>
+        <div className="alert-success" style={{ marginTop: "16px" }}>
           {message}
         </div>
       ) : null}
 
       {error ? (
-        <div className="alert-error" style={{ marginTop: "14px" }}>
+        <div className="alert-error" style={{ marginTop: "16px" }}>
           {error}
         </div>
       ) : null}
 
-      <div className="execution-footer">
-        <div className="btn-row" style={{ marginTop: "14px" }}>
-          <button
-            className="btn btn-grow"
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-          >
-            <CalendarDays size={18} />
-            {saving ? "جارٍ حفظ النتائج..." : "حفظ النتائج وإقفال الزيارة"}
-          </button>
-        </div>
+      <div style={{ marginTop: "16px" }}>
+        <button
+          type="button"
+          className="btn btn-grow"
+          onClick={handleSaveAndClose}
+          disabled={saving}
+        >
+          {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
+        </button>
       </div>
-    </div>
+    </section>
   );
 }
