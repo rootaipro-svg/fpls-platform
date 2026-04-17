@@ -2256,3 +2256,133 @@ textarea {
     align-items: stretch;
   }
 }
+
+.labels-page-wrap {
+  padding: 16px;
+}
+
+.labels-toolbar {
+  display: grid;
+  gap: 16px;
+}
+
+.asset-labels-print-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.asset-label-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 14px;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.asset-label-title {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: #0f172a;
+}
+
+.asset-label-code {
+  margin-top: 6px;
+  font-size: 15px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.asset-label-badges {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.asset-label-qr-wrap {
+  margin-top: 12px;
+}
+
+.asset-label-qr {
+  width: 180px;
+  height: 180px;
+  margin: 0 auto;
+  display: block;
+  background: #fff;
+  border-radius: 12px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.asset-label-id {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #64748b;
+  word-break: break-word;
+}
+
+/* الطباعة */
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  /* إخفاء أي عناصر تنقل أو هيدر أو فوتر عامة إن ظهرت */
+  header,
+  nav,
+  footer {
+    display: none !important;
+  }
+
+  .labels-page-wrap {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .asset-labels-print-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10mm !important;
+    margin-top: 0 !important;
+  }
+
+  .asset-label-card {
+    border-radius: 10px !important;
+    padding: 8mm !important;
+    box-shadow: none !important;
+  }
+
+  .asset-label-title {
+    font-size: 16pt !important;
+  }
+
+  .asset-label-code {
+    font-size: 10pt !important;
+  }
+
+  .asset-label-qr {
+    width: 42mm !important;
+    height: 42mm !important;
+    border-radius: 6px !important;
+    padding: 2mm !important;
+  }
+
+  .asset-label-id {
+    font-size: 8pt !important;
+  }
+}
