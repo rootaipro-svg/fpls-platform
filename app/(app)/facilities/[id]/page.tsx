@@ -53,28 +53,27 @@ export default async function FacilityDetailPage({
   const workbookId = await getTenantWorkbookId(user.tenantId);
 
   const [
-  
-const [
-  facilities,
-  buildings,
-  buildingSystems,
-  visitSystems,
-  visits,
-  findings,
-  inspectors,
-  systemsRef,
-  assets,
-] = await Promise.all([
-  readSheet(workbookId, "FACILITIES"),
-  readSheet(workbookId, "BUILDINGS"),
-  readSheet(workbookId, "BUILDING_SYSTEMS"),
-  readSheet(workbookId, "VISIT_SYSTEMS"),
-  readSheet(workbookId, "VISITS"),
-  readSheet(workbookId, "FINDINGS"),
-  readSheet(workbookId, "INSPECTORS"),
-  readSheet(workbookId, "SYSTEMS_REF"),
-  readSheet(workbookId, "ASSETS"),
-]);
+    facilities,
+    buildings,
+    buildingSystems,
+    visitSystems,
+    visits,
+    findings,
+    inspectors,
+    systemsRef,
+    assets,
+  ] = await Promise.all([
+    readSheet(workbookId, "FACILITIES"),
+    readSheet(workbookId, "BUILDINGS"),
+    readSheet(workbookId, "BUILDING_SYSTEMS"),
+    readSheet(workbookId, "VISIT_SYSTEMS"),
+    readSheet(workbookId, "VISITS"),
+    readSheet(workbookId, "FINDINGS"),
+    readSheet(workbookId, "INSPECTORS"),
+    readSheet(workbookId, "SYSTEMS_REF"),
+    readSheet(workbookId, "ASSETS"),
+  ]);
+
   const facility = facilities.find((f) => String(f.facility_id) === id);
 
   const facilityBuildings = buildings.filter(
@@ -253,33 +252,33 @@ const [
       </div>
 
       <CreateVisitForm
-  facilities={[
-    {
-      facility_id: String(facility?.facility_id || ""),
-      facility_name: String(facility?.facility_name || "Facility"),
-    },
-  ]}
-  buildings={facilityBuildings.map((b) => ({
-    building_id: String(b.building_id),
-    facility_id: String(b.facility_id),
-    building_name: String(b.building_name),
-  }))}
-  buildingSystems={facilityBuildingSystems.map((s) => ({
-    building_system_id: String(s.building_system_id),
-    building_id: String(s.building_id),
-    system_code: String(s.system_code),
-  }))}
-  inspectors={inspectors.map((i) => ({
-    inspector_id: String(i.inspector_id || ""),
-    inspector_name: String(
-      i.full_name_ar || i.full_name || i.email || i.inspector_id || "Inspector"
-    ),
-    email: String(i.email || ""),
-    phone: String(i.phone || ""),
-    status: String(i.status || "active"),
-    allowed_systems: String(i.allowed_systems || ""),
-  }))}
-/>
+        facilities={[
+          {
+            facility_id: String(facility?.facility_id || ""),
+            facility_name: String(facility?.facility_name || "Facility"),
+          },
+        ]}
+        buildings={facilityBuildings.map((b) => ({
+          building_id: String(b.building_id),
+          facility_id: String(b.facility_id),
+          building_name: String(b.building_name),
+        }))}
+        buildingSystems={facilityBuildingSystems.map((s) => ({
+          building_system_id: String(s.building_system_id),
+          building_id: String(s.building_id),
+          system_code: String(s.system_code),
+        }))}
+        inspectors={inspectors.map((i) => ({
+          inspector_id: String(i.inspector_id || ""),
+          inspector_name: String(
+            i.full_name_ar || i.full_name || i.email || i.inspector_id || "Inspector"
+          ),
+          email: String(i.email || ""),
+          phone: String(i.phone || ""),
+          status: String(i.status || "active"),
+          allowed_systems: String(i.allowed_systems || ""),
+        }))}
+      />
 
       <AddBuildingForm
         facilities={[
@@ -298,20 +297,23 @@ const [
         }))}
         systems={systemOptions}
       />
-      <AddAssetForm
-  systems={facilityBuildingSystems.map((s) => {
-    const building = facilityBuildings.find(
-      (b) => String(b.building_id) === String(s.building_id)
-    );
 
-    return {
-      building_system_id: String(s.building_system_id || ""),
-      system_code: String(s.system_code || ""),
-      building_name: String(building?.building_name || ""),
-      label: `${String(s.system_code || "")} · ${String(building?.building_name || "")}`,
-    };
-  })}
-/>
+      <AddAssetForm
+        systems={facilityBuildingSystems.map((s) => {
+          const building = facilityBuildings.find(
+            (b) => String(b.building_id) === String(s.building_id)
+          );
+
+          return {
+            building_system_id: String(s.building_system_id || ""),
+            system_code: String(s.system_code || ""),
+            building_name: String(building?.building_name || ""),
+            label: `${String(s.system_code || "")} · ${String(
+              building?.building_name || ""
+            )}`,
+          };
+        })}
+      />
 
       <section className="card">
         <div className="section-title">المباني والأنظمة</div>
@@ -330,9 +332,10 @@ const [
               const systemsForBuilding = facilityBuildingSystems.filter(
                 (s) => String(s.building_id) === String(building.building_id)
               );
-            const assetsForBuilding = assets.filter(
-  (a) => String(a.building_id) === String(building.building_id)
-);
+
+              const assetsForBuilding = assets.filter(
+                (a) => String(a.building_id) === String(building.building_id)
+              );
 
               const dueForBuilding = dueSystems.filter(
                 (d: any) => String(d.building_id) === String(building.building_id)
@@ -356,6 +359,9 @@ const [
                         الأنظمة: {systemsForBuilding.length}
                       </span>
                       <span className="badge">
+                        الأصول: {assetsForBuilding.length}
+                      </span>
+                      <span className="badge">
                         المستحق: {dueForBuilding.length}
                       </span>
                     </div>
@@ -366,38 +372,6 @@ const [
                       الأنظمة المثبتة
                     </div>
 
-                    <div className="building-block-section">
-  <div className="building-block-section-title">الأصول المسجلة</div>
-
-  {assetsForBuilding.length === 0 ? (
-    <div className="muted-note">لا توجد أصول مسجلة لهذا المبنى بعد.</div>
-  ) : (
-    <div className="stack-3">
-      {assetsForBuilding.map((asset: any) => (
-        <div key={String(asset.asset_id)} className="system-line">
-          <div className="system-line-top">
-            <div>
-              <div className="system-line-title">
-                {String(asset.asset_name_ar || asset.asset_name || "أصل")}
-              </div>
-              <div className="system-line-date">
-                {String(asset.system_code || "-")}
-                {asset.asset_type ? ` · ${String(asset.asset_type)}` : ""}
-                {asset.location_note ? ` · ${String(asset.location_note)}` : ""}
-              </div>
-            </div>
-
-            <div className="badge-wrap">
-              <span className="badge">{String(asset.status || "active")}</span>
-              <span className="badge">{String(asset.asset_code || asset.asset_id || "-")}</span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
-
                     {systemsForBuilding.length === 0 ? (
                       <div className="muted-note">لا توجد أنظمة مرتبطة بهذا المبنى.</div>
                     ) : (
@@ -406,6 +380,46 @@ const [
                           <span key={String(s.building_system_id)} className="badge">
                             {String(s.system_code)}
                           </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="building-block-section">
+                    <div className="building-block-section-title">
+                      الأصول المسجلة
+                    </div>
+
+                    {assetsForBuilding.length === 0 ? (
+                      <div className="muted-note">لا توجد أصول مسجلة لهذا المبنى بعد.</div>
+                    ) : (
+                      <div className="stack-3">
+                        {assetsForBuilding.map((asset: any) => (
+                          <div key={String(asset.asset_id)} className="system-line">
+                            <div className="system-line-top">
+                              <div>
+                                <div className="system-line-title">
+                                  {String(asset.asset_name_ar || asset.asset_name || "أصل")}
+                                </div>
+                                <div className="system-line-date">
+                                  {String(asset.system_code || "-")}
+                                  {asset.asset_type ? ` · ${String(asset.asset_type)}` : ""}
+                                  {asset.location_note
+                                    ? ` · ${String(asset.location_note)}`
+                                    : ""}
+                                </div>
+                              </div>
+
+                              <div className="badge-wrap">
+                                <span className="badge">
+                                  {String(asset.status || "active")}
+                                </span>
+                                <span className="badge">
+                                  {String(asset.asset_code || asset.asset_id || "-")}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
