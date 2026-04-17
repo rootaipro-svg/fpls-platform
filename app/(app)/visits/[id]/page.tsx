@@ -1,6 +1,5 @@
 import { ClipboardList, FileCheck2, ShieldCheck, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatCard } from "@/components/stat-card";
@@ -23,61 +22,70 @@ export default async function VisitDetailPage({
 }) {
   const { id } = await params;
   const actor = await requirePermission("visits", "view");
-const workbookId = actor.workbookId;
+  const workbookId = actor.workbookId;
 
-  const [visits, visitSystems, facilities, buildings, responses, findings, inspectors] =
-    await Promise.all([
-      readSheet(workbookId, "VISITS"),
-      readSheet(workbookId, "VISIT_SYSTEMS"),
-      readSheet(workbookId, "FACILITIES"),
-      readSheet(workbookId, "BUILDINGS"),
-      readSheet(workbookId, "RESPONSES"),
-      readSheet(workbookId, "FINDINGS"),
-      readSheet(workbookId, "INSPECTORS"),
-    ]);
+  const [
+    visits,
+    visitSystems,
+    facilities,
+    buildings,
+    responses,
+    findings,
+    inspectors,
+    evidence,
+  ] = await Promise.all([
+    readSheet(workbookId, "VISITS"),
+    readSheet(workbookId, "VISIT_SYSTEMS"),
+    readSheet(workbookId, "FACILITIES"),
+    readSheet(workbookId, "BUILDINGS"),
+    readSheet(workbookId, "RESPONSES"),
+    readSheet(workbookId, "FINDINGS"),
+    readSheet(workbookId, "INSPECTORS"),
+    readSheet(workbookId, "EVIDENCE"),
+  ]);
 
   const visit = visits.find((v) => String(v.visit_id) === id);
   const systems = visitSystems.filter((vs) => String(vs.visit_id) === id);
+
   const currentInspector =
-  actor.role === "inspector"
-    ? await getCurrentInspector(workbookId, actor)
-    : null;
+    actor.role === "inspector"
+      ? await getCurrentInspector(workbookId, actor)
+      : null;
 
-if (actor.role === "inspector") {
-  if (!currentInspector) {
-    return (
-      <AppShell>
-        <PageHeader
-          title="تفاصيل الزيارة"
-          subtitle="لا يوجد ملف مفتش مرتبط بهذا الحساب"
-        />
-        <EmptyState
-          title="تعذر فتح الزيارة"
-          description="اربط هذا الحساب بسجل مفتش داخل INSPECTORS أولًا."
-          icon={UserRound}
-        />
-      </AppShell>
-    );
-  }
+  if (actor.role === "inspector") {
+    if (!currentInspector) {
+      return (
+        <AppShell>
+          <PageHeader
+            title="تفاصيل الزيارة"
+            subtitle="لا يوجد ملف مفتش مرتبط بهذا الحساب"
+          />
+          <EmptyState
+            title="تعذر فتح الزيارة"
+            description="اربط هذا الحساب بسجل مفتش داخل INSPECTORS أولًا."
+            icon={UserRound}
+          />
+        </AppShell>
+      );
+    }
 
-  if (!isVisitAssignedToInspector(visit, String(currentInspector.inspector_id))) {
-    return (
-      <AppShell>
-        <PageHeader title="تفاصيل الزيارة" subtitle="غير مصرح" />
-        <EmptyState
-          title="هذه الزيارة ليست مخصصة لك"
-          description="يمكنك فقط الوصول إلى الزيارات المعيّنة لحسابك."
-          icon={UserRound}
-        />
-      </AppShell>
-    );
+    if (!isVisitAssignedToInspector(visit, String(currentInspector.inspector_id))) {
+      return (
+        <AppShell>
+          <PageHeader title="تفاصيل الزيارة" subtitle="غير مصرح" />
+          <EmptyState
+            title="هذه الزيارة ليست مخصصة لك"
+            description="يمكنك فقط الوصول إلى الزيارات المعيّنة لحسابك."
+            icon={UserRound}
+          />
+        </AppShell>
+      );
+    }
   }
-}
 
   const facility = facilities.find(
     (f) => String(f.facility_id) === String(visit?.facility_id || "")
   );
-  
 
   const building = buildings.find(
     (b) => String(b.building_id) === String(visit?.building_id || "")
@@ -95,6 +103,10 @@ if (actor.role === "inspector") {
 
   const findingRows = findings.filter((f) =>
     visitSystemIds.has(String(f.visit_system_id))
+  );
+
+  const visitEvidence = evidence.filter(
+    (row) => String(row.visit_id) === String(id)
   );
 
   const compliantCount = responseRows.filter(
@@ -213,12 +225,8 @@ if (actor.role === "inspector") {
 
           <div className="visit-kpi-row">
             <span className="visit-kpi-pill">مطابق: {compliantCount}</span>
-            <span className="visit-kpi-pill">
-              غير مطابق: {nonCompliantCount}
-            </span>
-            <span className="visit-kpi-pill">
-              غير منطبق: {notApplicableCount}
-            </span>
+            <span className="visit-kpi-pill">غير مطابق: {nonCompliantCount}</span>
+            <span className="visit-kpi-pill">غير منطبق: {notApplicableCount}</span>
             <span className="visit-kpi-pill">
               الاستحقاق التالي: {String(visit?.next_due_date || "-")}
             </span>
@@ -308,21 +316,20 @@ if (actor.role === "inspector") {
           }))}
           checklistItems={executionItems}
           existingResponses={existingResponses}
+          existingEvidence={visitEvidence.map((row) => ({
+            evidence_id: String(row.evidence_id || ""),
+            visit_id: String(row.visit_id || ""),
+            visit_system_id: String(row.visit_system_id || ""),
+            checklist_item_id: String(row.checklist_item_id || ""),
+            evidence_type: String(row.evidence_type || ""),
+            file_url: String(row.file_url || ""),
+            file_name: String(row.file_name || ""),
+            caption: String(row.caption || ""),
+            taken_by: String(row.taken_by || ""),
+            taken_at: String(row.taken_at || ""),
+          }))}
         />
       ) : null}
-
-      <section className="card">
-  <div className="section-title">الأدلة والصور</div>
-  <div className="section-subtitle">
-    افتح صفحة الأدلة الخاصة بهذه الزيارة لإضافة الصور والروابط والمرفقات.
-  </div>
-
-  <div style={{ marginTop: "14px" }}>
-    <Link href={`/visits/${id}/evidence`} className="btn btn-grow">
-      فتح صفحة الأدلة
-    </Link>
-  </div>
-</section>
 
       <section className="card">
         <div className="section-title">قائمة الفحص المرجعية</div>
