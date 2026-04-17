@@ -37,6 +37,14 @@ export default async function SettingsPage() {
           </div>
           <CardLinkHint label="فتح إدارة المفتشين" />
         </Link>
+
+        <Link href="/assets" className="quick-link-card">
+          <div className="quick-link-title">إدارة الأصول وملصقات QR</div>
+          <div className="quick-link-text">
+            عرض جميع الأصول، فتح الأصل، وطباعة ملصقات QR دفعة واحدة.
+          </div>
+          <CardLinkHint label="فتح إدارة الأصول" />
+        </Link>
       </div>
 
       {!rows ? (
