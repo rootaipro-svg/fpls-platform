@@ -24,14 +24,47 @@ export async function POST(
       );
     }
 
-    const [existingResponses, existingFindings, visitSystems] =
+    const [existingResponses, existingFindings, visitSystems, evidence] =
       await Promise.all([
         readSheet(workbookId, "RESPONSES"),
         readSheet(workbookId, "FINDINGS"),
         readSheet(workbookId, "VISIT_SYSTEMS"),
+        readSheet(workbookId, "EVIDENCE"),
       ]);
 
+    async function syncEvidenceLinks(
+      visitSystemId: string,
+      checklistItemId: string,
+      responseId: string,
+      findingId: string
+    ) {
+      const matchedEvidenceRows = evidence.filter(
+        (row) =>
+          String(row.visit_id || "") === String(id) &&
+          String(row.visit_system_id || "") === String(visitSystemId) &&
+          String(row.checklist_item_id || "") === String(checklistItemId)
+      );
+
+      for (const ev of matchedEvidenceRows) {
+        await updateRowById(
+          workbookId,
+          "EVIDENCE",
+          "evidence_id",
+          String(ev.evidence_id),
+          {
+            response_id: responseId || "",
+            finding_id: findingId || "",
+            updated_at: nowIso(),
+          }
+        );
+      }
+    }
+
     for (const answer of submittedResponses) {
+      const responseValue = String(answer.response_value || "").toLowerCase();
+      const isFinding =
+        Boolean(answer.finding_flag) || responseValue === "non_compliant";
+
       const matchedResponse = existingResponses.find(
         (r) =>
           String(r.visit_system_id) === String(answer.visit_system_id) &&
@@ -52,7 +85,7 @@ export async function POST(
             response_value: answer.response_value,
             score_value: answer.score_value || "",
             finding_severity: answer.finding_severity || "",
-            finding_flag: answer.finding_flag ? "TRUE" : "FALSE",
+            finding_flag: isFinding ? "TRUE" : "FALSE",
             comments: answer.comments || "",
             evidence_count: answer.evidence_count || 0,
             response_by: user.appUserId,
@@ -67,13 +100,13 @@ export async function POST(
         await appendRow(workbookId, "RESPONSES", {
           response_id: responseId,
           visit_system_id: answer.visit_system_id,
-          building_system_id: answer.building_system_id,
+          building_system_id: answer.building_system_id || "",
           system_component_id: answer.system_component_id || "",
           checklist_item_id: answer.checklist_item_id,
           response_value: answer.response_value,
           score_value: answer.score_value || "",
           finding_severity: answer.finding_severity || "",
-          finding_flag: answer.finding_flag ? "TRUE" : "FALSE",
+          finding_flag: isFinding ? "TRUE" : "FALSE",
           comments: answer.comments || "",
           evidence_count: answer.evidence_count || 0,
           response_by: user.appUserId,
@@ -87,13 +120,17 @@ export async function POST(
         (f) => String(f.response_id) === String(responseId)
       );
 
-      if (answer.finding_flag) {
+      if (isFinding) {
+        let findingId = "";
+
         if (matchedFinding) {
+          findingId = String(matchedFinding.finding_id);
+
           await updateRowById(
             workbookId,
             "FINDINGS",
             "finding_id",
-            String(matchedFinding.finding_id),
+            findingId,
             {
               finding_code: answer.item_code || "",
               title: answer.title || "Non-compliant item",
@@ -107,8 +144,10 @@ export async function POST(
             }
           );
         } else {
+          findingId = makeId("FND");
+
           await appendRow(workbookId, "FINDINGS", {
-            finding_id: makeId("FND"),
+            finding_id: findingId,
             visit_system_id: answer.visit_system_id,
             response_id: responseId,
             finding_code: answer.item_code || "",
@@ -128,20 +167,36 @@ export async function POST(
             updated_at: nowIso(),
           });
         }
-      } else if (matchedFinding) {
-        await updateRowById(
-          workbookId,
-          "FINDINGS",
-          "finding_id",
-          String(matchedFinding.finding_id),
-          {
-            compliance_status: "closed",
-            closure_status: "closed",
-            actual_close_date: new Date().toISOString().slice(0, 10),
-            closed_by: user.appUserId,
-            closed_at: nowIso(),
-            updated_at: nowIso(),
-          }
+
+        await syncEvidenceLinks(
+          String(answer.visit_system_id || ""),
+          String(answer.checklist_item_id || ""),
+          responseId,
+          findingId
+        );
+      } else {
+        if (matchedFinding) {
+          await updateRowById(
+            workbookId,
+            "FINDINGS",
+            "finding_id",
+            String(matchedFinding.finding_id),
+            {
+              compliance_status: "closed",
+              closure_status: "closed",
+              actual_close_date: new Date().toISOString().slice(0, 10),
+              closed_by: user.appUserId,
+              closed_at: nowIso(),
+              updated_at: nowIso(),
+            }
+          );
+        }
+
+        await syncEvidenceLinks(
+          String(answer.visit_system_id || ""),
+          String(answer.checklist_item_id || ""),
+          responseId,
+          ""
         );
       }
     }
