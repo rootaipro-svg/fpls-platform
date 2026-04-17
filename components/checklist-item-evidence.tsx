@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
 
 type EvidenceRow = {
   evidence_id: string;
@@ -59,6 +58,51 @@ async function parseJsonSafe(res: Response) {
   }
 }
 
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+
+  const imageBitmap = await createImageBitmap(file);
+
+  let width = imageBitmap.width;
+  let height = imageBitmap.height;
+
+  const maxSide = 1600;
+
+  if (width > height && width > maxSide) {
+    height = Math.round((height * maxSide) / width);
+    width = maxSide;
+  } else if (height >= width && height > maxSide) {
+    width = Math.round((width * maxSide) / height);
+    height = maxSide;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+
+  ctx.drawImage(imageBitmap, 0, 0, width, height);
+
+  let quality = 0.82;
+  let blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", quality)
+  );
+
+  while (blob && blob.size > 3.8 * 1024 * 1024 && quality > 0.45) {
+    quality -= 0.08;
+    blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality)
+    );
+  }
+
+  if (!blob) return file;
+
+  const safeName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+  return new File([blob], safeName, { type: "image/jpeg" });
+}
+
 export default function ChecklistItemEvidence({
   visitId,
   visitSystemId,
@@ -94,17 +138,27 @@ export default function ChecklistItemEvidence({
     try {
       setSaving(true);
 
-      const uploadedBlob = await upload(selectedFile.name, selectedFile, {
-        access: "public",
-        handleUploadUrl: "/api/evidence/upload",
-        clientPayload: {
-          visitId,
-          visitSystemId,
-          checklistItemId,
-        },
+      const preparedFile = await compressImage(selectedFile);
+
+      if (preparedFile.size > 4.2 * 1024 * 1024) {
+        throw new Error("الملف ما زال كبيرًا جدًا بعد الضغط. اختر صورة أصغر.");
+      }
+
+      const uploadForm = new FormData();
+      uploadForm.append("file", preparedFile);
+
+      const uploadRes = await fetch("/api/evidence/upload", {
+        method: "POST",
+        body: uploadForm,
       });
 
-      const evidenceType = inferEvidenceType(selectedFile);
+      const uploadData = await parseJsonSafe(uploadRes);
+
+      if (!uploadRes.ok || !uploadData.ok) {
+        throw new Error(uploadData.message || "تعذر رفع الملف");
+      }
+
+      const evidenceType = inferEvidenceType(preparedFile);
 
       const saveRes = await fetch("/api/evidence", {
         method: "POST",
@@ -116,8 +170,8 @@ export default function ChecklistItemEvidence({
           visit_system_id: visitSystemId,
           checklist_item_id: checklistItemId,
           evidence_type: evidenceType,
-          file_url: String(uploadedBlob.url || ""),
-          file_name: String(selectedFile.name || ""),
+          file_url: String(uploadData.data?.file_url || ""),
+          file_name: String(uploadData.data?.file_name || preparedFile.name || ""),
           caption,
         }),
       });
@@ -137,8 +191,8 @@ export default function ChecklistItemEvidence({
           visit_system_id: visitSystemId,
           checklist_item_id: checklistItemId,
           evidence_type: evidenceType,
-          file_url: String(uploadedBlob.url || ""),
-          file_name: String(selectedFile.name || ""),
+          file_url: String(uploadData.data?.file_url || ""),
+          file_name: String(uploadData.data?.file_name || preparedFile.name || ""),
           caption,
           taken_by: "",
           taken_at: now,
