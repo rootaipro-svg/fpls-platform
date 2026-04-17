@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
       visit_id: String(body.visit_id || ""),
       visit_system_id: String(body.visit_system_id || ""),
       finding_id: String(body.finding_id || ""),
+      asset_id: String(body.asset_id || ""),
       checklist_item_id: String(body.checklist_item_id || ""),
       response_id: String(body.response_id || ""),
       evidence_type: String(body.evidence_type || "image"),
