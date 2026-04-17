@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { SeverityBadge } from "@/components/severity-badge";
 import { FindingStatusBadge } from "@/components/finding-status-badge";
 import FindingUpdateForm from "@/components/finding-update-form";
+import FindingEvidenceList from "@/components/finding-evidence-list";
 import { requirePermission } from "@/lib/permissions";
 import {
   getCurrentInspector,
@@ -21,20 +22,39 @@ export default async function FindingDetailPage({
   const actor = await requirePermission("findings", "view");
   const workbookId = actor.workbookId;
 
-  const [findings, visitSystems, visits, facilities, buildings] = await Promise.all([
-    readSheet(workbookId, "FINDINGS"),
-    readSheet(workbookId, "VISIT_SYSTEMS"),
-    readSheet(workbookId, "VISITS"),
-    readSheet(workbookId, "FACILITIES"),
-    readSheet(workbookId, "BUILDINGS"),
-  ]);
+  const [findings, visitSystems, visits, facilities, buildings, evidence] =
+    await Promise.all([
+      readSheet(workbookId, "FINDINGS"),
+      readSheet(workbookId, "VISIT_SYSTEMS"),
+      readSheet(workbookId, "VISITS"),
+      readSheet(workbookId, "FACILITIES"),
+      readSheet(workbookId, "BUILDINGS"),
+      readSheet(workbookId, "EVIDENCE"),
+    ]);
 
   const finding = findings.find(
     (f: any) => String(f.finding_id) === String(id)
   );
 
+  if (!finding) {
+    return (
+      <AppShell>
+        <PageHeader
+          title="تفاصيل المخالفة"
+          subtitle={`رقم المخالفة: ${String(id)}`}
+        />
+        <EmptyState
+          title="المخالفة غير موجودة"
+          description="تعذر العثور على السجل المطلوب."
+          icon={UserRound}
+        />
+      </AppShell>
+    );
+  }
+
   const visitSystem = visitSystems.find(
-    (vs: any) => String(vs.visit_system_id) === String(finding?.visit_system_id || "")
+    (vs: any) =>
+      String(vs.visit_system_id) === String(finding.visit_system_id || "")
   );
 
   const visit = visits.find(
@@ -85,21 +105,10 @@ export default async function FindingDetailPage({
     (b: any) => String(b.building_id) === String(visit?.building_id || "")
   );
 
-  if (!finding) {
-    return (
-      <AppShell>
-        <PageHeader
-          title="تفاصيل المخالفة"
-          subtitle={`رقم المخالفة: ${String(id)}`}
-        />
-        <EmptyState
-          title="المخالفة غير موجودة"
-          description="تعذر العثور على السجل المطلوب."
-          icon={UserRound}
-        />
-      </AppShell>
-    );
-  }
+  const findingEvidence = evidence.filter(
+    (row: any) =>
+      String(row.finding_id || "") === String(finding.finding_id || "")
+  );
 
   return (
     <AppShell>
@@ -179,6 +188,20 @@ export default async function FindingDetailPage({
             </div>
           </div>
         </div>
+      </div>
+
+      <div style={{ marginTop: "16px" }}>
+        <FindingEvidenceList
+          rows={findingEvidence.map((row: any) => ({
+            evidence_id: String(row.evidence_id || ""),
+            evidence_type: String(row.evidence_type || ""),
+            file_url: String(row.file_url || ""),
+            file_name: String(row.file_name || ""),
+            caption: String(row.caption || ""),
+            taken_by: String(row.taken_by || ""),
+            taken_at: String(row.taken_at || ""),
+          }))}
+        />
       </div>
 
       <div style={{ marginTop: "16px" }}>
