@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { headers } from "next/headers";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
+import PrintPageButton from "@/components/print-page-button";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 
@@ -84,13 +85,7 @@ export default async function AssetLabelsPage() {
             العودة للأصول
           </Link>
 
-          <button
-            type="button"
-            className="btn"
-            onClick={() => window.print()}
-          >
-            طباعة الملصقات
-          </button>
+          <PrintPageButton label="طباعة الملصقات" className="btn" />
         </div>
       </div>
 
