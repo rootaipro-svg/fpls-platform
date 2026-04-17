@@ -4,8 +4,13 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import EditAssetForm from "@/components/edit-asset-form";
+import { SeverityBadge } from "@/components/severity-badge";
+import { FindingStatusBadge } from "@/components/finding-status-badge";
 import { requirePermission } from "@/lib/permissions";
-import { getCurrentInspector, isVisitAssignedToInspector } from "@/lib/current-inspector";
+import {
+  getCurrentInspector,
+  isVisitAssignedToInspector,
+} from "@/lib/current-inspector";
 import { readSheet } from "@/lib/sheets";
 import { getChecklistForSystem } from "@/lib/checklist";
 
@@ -18,10 +23,49 @@ function parseAllowedSystems(value: any) {
 
 function sortVisitsDesc(rows: any[]) {
   return [...rows].sort((a, b) => {
-    const aTime = new Date(String(a?.planned_date || a?.visit_date || 0)).getTime();
-    const bTime = new Date(String(b?.planned_date || b?.visit_date || 0)).getTime();
+    const aTime = new Date(
+      String(a?.planned_date || a?.visit_date || a?.updated_at || 0)
+    ).getTime();
+    const bTime = new Date(
+      String(b?.planned_date || b?.visit_date || b?.updated_at || 0)
+    ).getTime();
     return bTime - aTime;
   });
+}
+
+function sortByStampDesc(rows: any[], ...fields: string[]) {
+  return [...rows].sort((a, b) => {
+    const aValue =
+      fields.map((f) => String(a?.[f] || "")).find(Boolean) || "0";
+    const bValue =
+      fields.map((f) => String(b?.[f] || "")).find(Boolean) || "0";
+
+    const aTime = new Date(aValue).getTime();
+    const bTime = new Date(bValue).getTime();
+
+    return bTime - aTime;
+  });
+}
+
+function toArabicResponse(value: string) {
+  const v = String(value || "").toLowerCase();
+  if (v === "compliant") return "مطابق";
+  if (v === "non_compliant") return "غير مطابق";
+  if (v === "not_applicable") return "غير منطبق";
+  return value || "-";
+}
+
+function looksLikeImage(url: string, evidenceType: string) {
+  const u = String(url || "").toLowerCase();
+  if (String(evidenceType || "").toLowerCase() === "image") return true;
+
+  return (
+    u.endsWith(".jpg") ||
+    u.endsWith(".jpeg") ||
+    u.endsWith(".png") ||
+    u.endsWith(".webp") ||
+    u.includes("blob.vercel-storage.com")
+  );
 }
 
 export default async function AssetDetailPage({
@@ -33,12 +77,24 @@ export default async function AssetDetailPage({
   const actor = await requirePermission("facilities", "view");
   const workbookId = actor.workbookId;
 
-  const [assets, facilities, buildings, visits, visitSystems] = await Promise.all([
+  const [
+    assets,
+    facilities,
+    buildings,
+    visits,
+    visitSystems,
+    responses,
+    findings,
+    evidence,
+  ] = await Promise.all([
     readSheet(workbookId, "ASSETS"),
     readSheet(workbookId, "FACILITIES"),
     readSheet(workbookId, "BUILDINGS"),
     readSheet(workbookId, "VISITS"),
     readSheet(workbookId, "VISIT_SYSTEMS"),
+    readSheet(workbookId, "RESPONSES"),
+    readSheet(workbookId, "FINDINGS"),
+    readSheet(workbookId, "EVIDENCE"),
   ]);
 
   const asset = assets.find((row) => String(row.asset_id) === String(id));
@@ -131,6 +187,38 @@ export default async function AssetDetailPage({
   const checklistItems = await getChecklistForSystem(
     workbookId,
     String(asset.system_code || "")
+  );
+
+  const checklistLookup = new Map<
+    string,
+    { question_text: string; section_name: string; acceptance_criteria: string }
+  >();
+
+  for (const item of checklistItems) {
+    checklistLookup.set(String(item.checklist_item_id || ""), {
+      question_text: String(item.question_text || "-"),
+      section_name: String(item.section_name || "Section"),
+      acceptance_criteria: String(item.acceptance_criteria || "-"),
+    });
+  }
+
+  const assetResponses = sortByStampDesc(
+    responses.filter((row) => String(row.asset_id || "") === String(id)),
+    "response_at",
+    "updated_at"
+  );
+
+  const assetFindings = sortByStampDesc(
+    findings.filter((row) => String(row.asset_id || "") === String(id)),
+    "updated_at",
+    "created_at"
+  );
+
+  const assetEvidence = sortByStampDesc(
+    evidence.filter((row) => String(row.asset_id || "") === String(id)),
+    "taken_at",
+    "updated_at",
+    "created_at"
   );
 
   return (
@@ -242,7 +330,9 @@ export default async function AssetDetailPage({
         <div className="btn-row" style={{ marginTop: "16px" }}>
           {activeVisit ? (
             <Link
-              href={`/visits/${String(activeVisit.visit_id)}`}
+              href={`/visits/${String(activeVisit.visit_id)}?asset_id=${encodeURIComponent(
+                String(id)
+              )}`}
               className="btn btn-secondary"
             >
               فتح زيارة التنفيذ
@@ -283,6 +373,183 @@ export default async function AssetDetailPage({
                 </div>
                 <div className="checklist-item-criteria">
                   {String(item.acceptance_criteria || "-")}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="section-title">آخر نتائج الفحص لهذا الأصل</div>
+        <div className="section-subtitle">
+          السجل الفعلي للبنود التي تم تقييمها على هذا الأصل
+        </div>
+
+        {assetResponses.length === 0 ? (
+          <div className="muted-note" style={{ marginTop: "14px" }}>
+            لا توجد نتائج فحص مرتبطة بهذا الأصل بعد.
+          </div>
+        ) : (
+          <div className="stack-3" style={{ marginTop: "14px" }}>
+            {assetResponses.slice(0, 10).map((row: any) => {
+              const visitSystem = assetVisitSystems.find(
+                (vs) =>
+                  String(vs.visit_system_id) === String(row.visit_system_id || "")
+              );
+
+              const visit = relatedVisits.find(
+                (v) => String(v.visit_id) === String(visitSystem?.visit_id || "")
+              );
+
+              const checklistMeta = checklistLookup.get(
+                String(row.checklist_item_id || "")
+              );
+
+              return (
+                <div key={String(row.response_id || "")} className="system-line">
+                  <div className="system-line-top">
+                    <div>
+                      <div className="system-line-title">
+                        {String(checklistMeta?.question_text || row.checklist_item_id || "-")}
+                      </div>
+                      <div className="system-line-date">
+                        {String(checklistMeta?.section_name || "Section")}
+                        {visit ? ` · زيارة ${String(visit.visit_id)}` : ""}
+                        {row.response_at ? ` · ${String(row.response_at)}` : ""}
+                      </div>
+                    </div>
+
+                    <div className="badge-wrap">
+                      <span className="badge">
+                        {toArabicResponse(String(row.response_value || ""))}
+                      </span>
+                      {row.finding_severity ? (
+                        <span className="badge">
+                          {String(row.finding_severity)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {row.comments ? (
+                    <div className="visit-card-text" style={{ marginTop: "10px" }}>
+                      {String(row.comments)}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="section-title">آخر المخالفات الخاصة بهذا الأصل</div>
+        <div className="section-subtitle">
+          المخالفات الناتجة عن فحص هذا الأصل تحديدًا
+        </div>
+
+        {assetFindings.length === 0 ? (
+          <div className="muted-note" style={{ marginTop: "14px" }}>
+            لا توجد مخالفات مرتبطة بهذا الأصل بعد.
+          </div>
+        ) : (
+          <div className="stack-3" style={{ marginTop: "14px" }}>
+            {assetFindings.slice(0, 10).map((finding: any) => (
+              <div key={String(finding.finding_id || "")} className="card">
+                <div className="section-header-row">
+                  <div className="section-header-side">
+                    <FindingStatusBadge
+                      status={String(
+                        finding.closure_status ||
+                          finding.compliance_status ||
+                          "open"
+                      )}
+                    />
+                    <SeverityBadge severity={String(finding.severity || "")} />
+                  </div>
+                </div>
+
+                <div className="section-title" style={{ marginTop: "12px" }}>
+                  {String(finding.title || "مخالفة")}
+                </div>
+
+                <div className="section-subtitle" style={{ marginTop: "8px" }}>
+                  {String(finding.description || "لا يوجد وصف")}
+                </div>
+
+                <div className="badge-wrap" style={{ marginTop: "12px" }}>
+                  <span className="badge">
+                    الكود: {String(finding.finding_code || "-")}
+                  </span>
+                  <span className="badge">
+                    الإجراء: {String(finding.corrective_action || "غير مسجل")}
+                  </span>
+                </div>
+
+                <div style={{ marginTop: "14px" }}>
+                  <Link
+                    href={`/findings/${String(finding.finding_id)}`}
+                    className="btn btn-secondary"
+                  >
+                    فتح المخالفة
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="section-title">آخر الأدلة الخاصة بهذا الأصل</div>
+        <div className="section-subtitle">
+          الصور والمرفقات المرتبطة بفحص هذا الأصل
+        </div>
+
+        {assetEvidence.length === 0 ? (
+          <div className="muted-note" style={{ marginTop: "14px" }}>
+            لا توجد أدلة مرتبطة بهذا الأصل بعد.
+          </div>
+        ) : (
+          <div className="stack-3" style={{ marginTop: "14px" }}>
+            {assetEvidence.slice(0, 10).map((row: any) => (
+              <div key={String(row.evidence_id || "")} className="card">
+                <div className="badge-wrap">
+                  <span className="badge">
+                    {String(row.evidence_type || "evidence")}
+                  </span>
+                  {row.file_name ? (
+                    <span className="badge">{String(row.file_name)}</span>
+                  ) : null}
+                </div>
+
+                {looksLikeImage(
+                  String(row.file_url || ""),
+                  String(row.evidence_type || "")
+                ) ? (
+                  <div style={{ marginTop: "12px" }}>
+                    <img
+                      src={String(row.file_url || "")}
+                      alt={String(row.file_name || "Evidence")}
+                      style={{
+                        width: "100%",
+                        borderRadius: "14px",
+                        border: "1px solid #e2e8f0",
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {row.caption ? (
+                  <div className="visit-card-text" style={{ marginTop: "10px" }}>
+                    {String(row.caption)}
+                  </div>
+                ) : null}
+
+                <div className="section-subtitle" style={{ marginTop: "10px" }}>
+                  {String(row.taken_at || "")}
                 </div>
               </div>
             ))}
