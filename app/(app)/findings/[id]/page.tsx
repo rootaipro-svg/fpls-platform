@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
@@ -22,7 +23,7 @@ export default async function FindingDetailPage({
   const actor = await requirePermission("findings", "view");
   const workbookId = actor.workbookId;
 
-  const [findings, visitSystems, visits, facilities, buildings, evidence] =
+  const [findings, visitSystems, visits, facilities, buildings, evidence, assets] =
     await Promise.all([
       readSheet(workbookId, "FINDINGS"),
       readSheet(workbookId, "VISIT_SYSTEMS"),
@@ -30,6 +31,7 @@ export default async function FindingDetailPage({
       readSheet(workbookId, "FACILITIES"),
       readSheet(workbookId, "BUILDINGS"),
       readSheet(workbookId, "EVIDENCE"),
+      readSheet(workbookId, "ASSETS"),
     ]);
 
   const finding = findings.find(
@@ -105,6 +107,10 @@ export default async function FindingDetailPage({
     (b: any) => String(b.building_id) === String(visit?.building_id || "")
   );
 
+  const asset = assets.find(
+    (a: any) => String(a.asset_id) === String(finding.asset_id || "")
+  );
+
   const findingEvidence = evidence.filter(
     (row: any) =>
       String(row.finding_id || "") === String(finding.finding_id || "")
@@ -157,6 +163,19 @@ export default async function FindingDetailPage({
             <div className="mt-1 font-medium">
               {String(facility?.facility_name || "-")}
               {building ? ` · ${building.building_name}` : ""}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">الأصل المرتبط</div>
+            <div className="mt-1 font-medium">
+              {asset ? (
+                <Link href={`/assets/${String(asset.asset_id)}`}>
+                  {String(asset.asset_name_ar || asset.asset_name || asset.asset_code || asset.asset_id)}
+                </Link>
+              ) : (
+                "غير مرتبط بأصل محدد"
+              )}
             </div>
           </div>
 
