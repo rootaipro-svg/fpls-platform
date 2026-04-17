@@ -59,6 +59,7 @@ export default async function VisitReportPage({
     buildings,
     tenantProfiles,
     evidence,
+    assets,
   ] = await Promise.all([
     readSheet(workbookId, "VISITS"),
     readSheet(workbookId, "VISIT_SYSTEMS"),
@@ -68,6 +69,7 @@ export default async function VisitReportPage({
     readSheet(workbookId, "BUILDINGS"),
     readSheet(workbookId, "TENANT_PROFILE"),
     readSheet(workbookId, "EVIDENCE"),
+    readSheet(workbookId, "ASSETS"),
   ]);
 
   const visit = visits.find((v) => String(v.visit_id) === String(id));
@@ -196,6 +198,12 @@ export default async function VisitReportPage({
     }
 
     evidenceByFindingId.get(findingId)?.push(row);
+  }
+
+  const assetById = new Map<string, any>();
+
+  for (const row of assets) {
+    assetById.set(String(row.asset_id || ""), row);
   }
 
   return (
@@ -422,6 +430,8 @@ export default async function VisitReportPage({
                   const findingEvidence =
                     evidenceByFindingId.get(String(finding.finding_id || "")) || [];
 
+                  const relatedAsset = assetById.get(String(finding.asset_id || ""));
+
                   return (
                     <div
                       key={String(finding.finding_id)}
@@ -444,6 +454,20 @@ export default async function VisitReportPage({
                           الكود: {String(finding.finding_code || "-")}
                         </span>
                       </div>
+
+                      {relatedAsset ? (
+                        <div className="report-badge-row">
+                          <span className="badge">
+                            الأصل المرتبط:{" "}
+                            {String(
+                              relatedAsset.asset_name_ar ||
+                                relatedAsset.asset_name ||
+                                relatedAsset.asset_code ||
+                                relatedAsset.asset_id
+                            )}
+                          </span>
+                        </div>
+                      ) : null}
 
                       <div className="report-finding-text">
                         {String(finding.description || "لا يوجد وصف")}
