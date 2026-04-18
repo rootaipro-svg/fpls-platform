@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Building2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
@@ -24,6 +25,21 @@ export default async function FacilitiesPage() {
         title="المنشآت"
         subtitle="إدارة المنشآت والمباني والأنظمة المرتبطة بها"
       />
+
+      <section className="card">
+        <div className="section-header-row">
+          <div>
+            <div className="section-title">اختصارات سريعة</div>
+            <div className="section-subtitle">
+              انتقال مباشر إلى لوحة الأصول وإدارة ملصقات QR
+            </div>
+          </div>
+
+          <Link href="/assets" className="btn btn-secondary">
+            فتح لوحة الأصول
+          </Link>
+        </div>
+      </section>
 
       <AddFacilityForm />
 
