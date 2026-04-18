@@ -1,9 +1,11 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  Boxes,
   Building2,
   ClipboardList,
-  Settings,
+  QrCode,
+  ShieldAlert,
   UserRound,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -31,13 +33,22 @@ function daysBetween(today: Date, target: Date) {
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
 }
 
+function parseAllowedSystems(value: any) {
+  return String(value || "")
+    .split(/[,;|\n،]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export default async function DashboardPage() {
   const actor = await requirePermission("dashboard", "view");
 
-  const [facilities, visits, visitSystems] = await Promise.all([
+  const [facilities, visits, visitSystems, assets, findings] = await Promise.all([
     readSheet(actor.workbookId, "FACILITIES"),
     readSheet(actor.workbookId, "VISITS"),
     readSheet(actor.workbookId, "VISIT_SYSTEMS"),
+    readSheet(actor.workbookId, "ASSETS"),
+    readSheet(actor.workbookId, "FINDINGS"),
   ]);
 
   const today = new Date();
@@ -127,6 +138,45 @@ export default async function DashboardPage() {
     );
   }
 
+  const allowedSystems =
+    actor.role === "inspector"
+      ? parseAllowedSystems(currentInspector?.allowed_systems)
+      : [];
+
+  const visibleAssets =
+    actor.role === "inspector"
+      ? assets.filter((asset: any) => {
+          const systemCode = String(asset.system_code || "");
+          return (
+            allowedSystems.includes("*") || allowedSystems.includes(systemCode)
+          );
+        })
+      : assets;
+
+  const visibleVisitIds = new Set(
+    visibleVisits.map((visit: any) => String(visit.visit_id))
+  );
+
+  const visibleVisitSystemIds = new Set(
+    visitSystems
+      .filter((vs: any) => visibleVisitIds.has(String(vs.visit_id)))
+      .map((vs: any) => String(vs.visit_system_id))
+  );
+
+  const visibleFindings =
+    actor.role === "inspector"
+      ? findings.filter((finding: any) =>
+          visibleVisitSystemIds.has(String(finding.visit_system_id))
+        )
+      : findings;
+
+  const openVisibleFindingsCount = visibleFindings.filter((finding: any) => {
+    const status = String(
+      finding.closure_status || finding.compliance_status || ""
+    ).toLowerCase();
+    return status !== "closed";
+  }).length;
+
   if (actor.role === "inspector") {
     return (
       <AppShell>
@@ -163,11 +213,11 @@ export default async function DashboardPage() {
             tone={overdueVisits > 0 ? "amber" : "slate"}
           />
           <StatCard
-            label="مكتمل"
-            value={completedVisits}
-            hint="زيارات مغلقة"
-            icon={ClipboardList}
-            tone="slate"
+            label="مخالفات مفتوحة"
+            value={openVisibleFindingsCount}
+            hint="تحتاج متابعة"
+            icon={ShieldAlert}
+            tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
           />
         </div>
 
@@ -179,7 +229,34 @@ export default async function DashboardPage() {
             </div>
             <CardLinkHint label="فتح الزيارات" />
           </Link>
+
+          <Link href="/assets" className="quick-link-card">
+            <div className="quick-link-title">لوحة الأصول</div>
+            <div className="quick-link-text">
+              افتح الأصول المتاحة لك، واعرض QR وابدأ الفحص مباشرة.
+            </div>
+            <CardLinkHint label="فتح الأصول" />
+          </Link>
+
+          <Link href="/findings" className="quick-link-card">
+            <div className="quick-link-title">المخالفات</div>
+            <div className="quick-link-text">
+              راجع المخالفات المفتوحة وتابع الإجراء التصحيحي والإغلاق.
+            </div>
+            <CardLinkHint label="فتح المخالفات" />
+          </Link>
         </div>
+
+        <section className="card">
+          <div className="section-title">ملخص الوصول السريع</div>
+          <div className="badge-wrap" style={{ marginTop: "12px" }}>
+            <span className="badge">الأصول المتاحة: {visibleAssets.length}</span>
+            <span className="badge">الزيارات: {visibleVisits.length}</span>
+            <span className="badge">
+              المخالفات المفتوحة: {openVisibleFindingsCount}
+            </span>
+          </div>
+        </section>
 
         <section className="card">
           <div className="section-title">آخر الزيارات المعيّنة لك</div>
@@ -232,6 +309,13 @@ export default async function DashboardPage() {
           tone="teal"
         />
         <StatCard
+          label="الأصول"
+          value={visibleAssets.length}
+          hint="إجمالي الأصول المسجلة"
+          icon={Boxes}
+          tone="slate"
+        />
+        <StatCard
           label="العناصر المستحقة"
           value={dueItems.length}
           hint="المتأخر واليوم والقريب"
@@ -239,13 +323,35 @@ export default async function DashboardPage() {
           tone={dueItems.length > 0 ? "amber" : "slate"}
         />
         <StatCard
-          label="الزيارات"
-          value={visits.length}
-          hint="إجمالي الزيارات المسجلة"
-          icon={ClipboardList}
-          tone="slate"
+          label="المخالفات المفتوحة"
+          value={openVisibleFindingsCount}
+          hint="تحتاج متابعة"
+          icon={ShieldAlert}
+          tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
         />
       </div>
+
+      <section className="card">
+        <div className="section-header-row">
+          <div>
+            <div className="section-title">اختصارات سريعة</div>
+            <div className="section-subtitle">
+              انتقال مباشر إلى الأصول وملصقات QR والمخالفات والمتابعة
+            </div>
+          </div>
+
+          <div className="badge-wrap">
+            <Link href="/assets" className="btn btn-secondary">
+              لوحة الأصول
+            </Link>
+
+            <Link href="/assets/labels" className="btn btn-secondary">
+              <QrCode size={16} />
+              ملصقات QR
+            </Link>
+          </div>
+        </div>
+      </section>
 
       <div className="quick-links-grid">
         <Link href="/due" className="quick-link-card">
@@ -256,6 +362,22 @@ export default async function DashboardPage() {
           <CardLinkHint label="فتح الصفحة" />
         </Link>
 
+        <Link href="/assets" className="quick-link-card">
+          <div className="quick-link-title">لوحة الأصول</div>
+          <div className="quick-link-text">
+            افتح الأصول، ابحث وفلتر، وابدأ الفحص أو اطبع ملصقات QR.
+          </div>
+          <CardLinkHint label="فتح الأصول" />
+        </Link>
+
+        <Link href="/findings" className="quick-link-card">
+          <div className="quick-link-title">المخالفات</div>
+          <div className="quick-link-text">
+            راجع المخالفات المفتوحة وتابع الإغلاقات والإجراءات التصحيحية.
+          </div>
+          <CardLinkHint label="فتح المخالفات" />
+        </Link>
+
         <Link href="/settings" className="quick-link-card">
           <div className="quick-link-title">إعدادات العميل</div>
           <div className="quick-link-text">
@@ -264,6 +386,18 @@ export default async function DashboardPage() {
           <CardLinkHint label="فتح الإعدادات" />
         </Link>
       </div>
+
+      <section className="card">
+        <div className="section-title">ملخص تشغيلي سريع</div>
+        <div className="badge-wrap" style={{ marginTop: "12px" }}>
+          <span className="badge">الزيارات: {visibleVisits.length}</span>
+          <span className="badge">الأصول: {visibleAssets.length}</span>
+          <span className="badge">المستحق قريبًا: {dueItems.length}</span>
+          <span className="badge">
+            المخالفات المفتوحة: {openVisibleFindingsCount}
+          </span>
+        </div>
+      </section>
 
       <section className="card">
         <div className="section-title">آخر الزيارات</div>
@@ -279,26 +413,19 @@ export default async function DashboardPage() {
         ) : (
           <div className="stack-3" style={{ marginTop: "12px" }}>
             {latestVisits.map((visit: any) => (
-              <div key={String(visit.visit_id)} className="visit-item">
-                <div className="visit-item-top">
-                  <div>
-                    <div className="visit-item-title">
-                      {String(visit.visit_type || "زيارة")}
-                    </div>
-                    <div className="visit-item-date">
-                      {String(visit.planned_date || visit.visit_date || "-")}
-                    </div>
-                  </div>
-
-                  <span className="badge">
-                    {String(visit.visit_status || "planned")}
-                  </span>
+              <Link
+                key={String(visit.visit_id)}
+                href={`/visits/${visit.visit_id}`}
+                className="quick-link-card"
+              >
+                <div className="quick-link-title">
+                  {String(visit.visit_type || "زيارة")}
                 </div>
-
-                <div className="visit-item-text">
-                  {String(visit.summary_result || visit.notes || "لا توجد ملاحظات")}
+                <div className="quick-link-text">
+                  التاريخ: {String(visit.planned_date || visit.visit_date || "-")}
                 </div>
-              </div>
+                <CardLinkHint label="فتح الزيارة" />
+              </Link>
             ))}
           </div>
         )}
