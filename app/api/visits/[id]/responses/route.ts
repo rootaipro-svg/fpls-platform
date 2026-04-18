@@ -13,6 +13,15 @@ function addDays(dateString: string, days: number) {
   return dt.toISOString().slice(0, 10);
 }
 
+function toJsonString(value: any) {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value || {});
+  } catch {
+    return "{}";
+  }
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -48,7 +57,7 @@ export async function POST(
       assetId: string
     ) {
       const matchedEvidenceRows = evidence.filter(
-        (row) =>
+        (row: any) =>
           String(row.visit_id || "") === String(id) &&
           String(row.visit_system_id || "") === String(visitSystemId) &&
           String(row.checklist_item_id || "") === String(checklistItemId) &&
@@ -72,12 +81,30 @@ export async function POST(
     }
 
     for (const answer of submittedResponses) {
-      const responseValue = String(answer.response_value || "").toLowerCase();
+      const rawResponseValue = String(answer.response_value || "").toLowerCase();
+      const autoJudgement = String(answer.auto_judgement || "").toLowerCase();
+
+      const normalizedResponseValue =
+        rawResponseValue ||
+        (autoJudgement === "pass"
+          ? "compliant"
+          : autoJudgement === "fail"
+          ? "non_compliant"
+          : "");
+
+      const normalizedSeverity =
+        String(answer.finding_severity || "").toLowerCase() ||
+        (normalizedResponseValue === "non_compliant"
+          ? String(answer.severity_default || "major").toLowerCase()
+          : "");
+
       const isFinding =
-        Boolean(answer.finding_flag) || responseValue === "non_compliant";
+        Boolean(answer.finding_flag) ||
+        normalizedResponseValue === "non_compliant" ||
+        autoJudgement === "fail";
 
       const matchedResponse = existingResponses.find(
-        (r) =>
+        (r: any) =>
           String(r.visit_system_id) === String(answer.visit_system_id) &&
           String(r.checklist_item_id) === String(answer.checklist_item_id) &&
           String(r.asset_id || "") === String(answer.asset_id || "")
@@ -94,13 +121,21 @@ export async function POST(
           "response_id",
           responseId,
           {
-            response_value: answer.response_value,
+            response_value: normalizedResponseValue,
             score_value: answer.score_value || "",
-            finding_severity: answer.finding_severity || "",
+            finding_severity: normalizedSeverity || "",
             finding_flag: isFinding ? "TRUE" : "FALSE",
             comments: answer.comments || "",
             asset_id: String(answer.asset_id || ""),
             evidence_count: answer.evidence_count || 0,
+            numeric_value: String(answer.numeric_value || ""),
+            numeric_value_2: String(answer.numeric_value_2 || ""),
+            numeric_value_3: String(answer.numeric_value_3 || ""),
+            numeric_unit: String(answer.numeric_unit || ""),
+            calc_rule: String(answer.calc_rule || ""),
+            calc_result_text: String(answer.calc_result_text || ""),
+            auto_judgement: String(answer.auto_judgement || ""),
+            calc_payload_json: toJsonString(answer.calc_payload_json || {}),
             response_by: user.appUserId,
             response_at: nowIso(),
             synced_from_mobile_at: nowIso(),
@@ -117,12 +152,20 @@ export async function POST(
           system_component_id: answer.system_component_id || "",
           asset_id: String(answer.asset_id || ""),
           checklist_item_id: answer.checklist_item_id,
-          response_value: answer.response_value,
+          response_value: normalizedResponseValue,
           score_value: answer.score_value || "",
-          finding_severity: answer.finding_severity || "",
+          finding_severity: normalizedSeverity || "",
           finding_flag: isFinding ? "TRUE" : "FALSE",
           comments: answer.comments || "",
           evidence_count: answer.evidence_count || 0,
+          numeric_value: String(answer.numeric_value || ""),
+          numeric_value_2: String(answer.numeric_value_2 || ""),
+          numeric_value_3: String(answer.numeric_value_3 || ""),
+          numeric_unit: String(answer.numeric_unit || ""),
+          calc_rule: String(answer.calc_rule || ""),
+          calc_result_text: String(answer.calc_result_text || ""),
+          auto_judgement: String(answer.auto_judgement || ""),
+          calc_payload_json: toJsonString(answer.calc_payload_json || {}),
           response_by: user.appUserId,
           response_at: nowIso(),
           synced_from_mobile_at: nowIso(),
@@ -131,8 +174,13 @@ export async function POST(
       }
 
       const matchedFinding = existingFindings.find(
-        (f) => String(f.response_id) === String(responseId)
+        (f: any) => String(f.response_id) === String(responseId)
       );
+
+      const findingDescription =
+        String(answer.calc_result_text || "").trim() ||
+        String(answer.comments || "").trim() ||
+        "Non-compliant item";
 
       if (isFinding) {
         let findingId = "";
@@ -148,8 +196,8 @@ export async function POST(
             {
               finding_code: answer.item_code || "",
               title: answer.title || "Non-compliant item",
-              description: answer.comments || "",
-              severity: answer.finding_severity || "major",
+              description: findingDescription,
+              severity: normalizedSeverity || "major",
               asset_id: String(answer.asset_id || ""),
               compliance_status: "open",
               corrective_action: answer.corrective_action || "",
@@ -168,8 +216,8 @@ export async function POST(
             response_id: responseId,
             finding_code: answer.item_code || "",
             title: answer.title || "Non-compliant item",
-            description: answer.comments || "",
-            severity: answer.finding_severity || "major",
+            description: findingDescription,
+            severity: normalizedSeverity || "major",
             compliance_status: "open",
             corrective_action: answer.corrective_action || "",
             responsible_party: "",
@@ -221,22 +269,22 @@ export async function POST(
 
     const allResponses = await readSheet(workbookId, "RESPONSES");
     const currentVisitSystems = visitSystems.filter(
-      (vs) => String(vs.visit_id) === String(id)
+      (vs: any) => String(vs.visit_id) === String(id)
     );
 
     const nextDueDates: string[] = [];
 
     for (const visitSystem of currentVisitSystems) {
       const systemResponses = allResponses.filter(
-        (r) => String(r.visit_system_id) === String(visitSystem.visit_system_id)
+        (r: any) => String(r.visit_system_id) === String(visitSystem.visit_system_id)
       );
 
       const compliantCount = systemResponses.filter(
-        (r) => String(r.response_value) === "compliant"
+        (r: any) => String(r.response_value || "").toLowerCase() === "compliant"
       ).length;
 
       const failResponses = systemResponses.filter(
-        (r) => String(r.response_value) === "non_compliant"
+        (r: any) => String(r.response_value || "").toLowerCase() === "non_compliant"
       );
 
       const scoredTotal = compliantCount + failResponses.length;
@@ -244,15 +292,15 @@ export async function POST(
         scoredTotal > 0 ? Math.round((compliantCount / scoredTotal) * 100) : 0;
 
       const criticalCount = failResponses.filter(
-        (r) => String(r.finding_severity) === "critical"
+        (r: any) => String(r.finding_severity || "").toLowerCase() === "critical"
       ).length;
 
       const majorCount = failResponses.filter(
-        (r) => String(r.finding_severity) === "major"
+        (r: any) => String(r.finding_severity || "").toLowerCase() === "major"
       ).length;
 
       const minorCount = failResponses.filter(
-        (r) => String(r.finding_severity) === "minor"
+        (r: any) => String(r.finding_severity || "").toLowerCase() === "minor"
       ).length;
 
       const resultSummary =
@@ -292,18 +340,18 @@ export async function POST(
       );
     }
 
-    const closedResponses = allResponses.filter((r) =>
+    const closedResponses = allResponses.filter((r: any) =>
       currentVisitSystems.some(
-        (vs) => String(vs.visit_system_id) === String(r.visit_system_id)
+        (vs: any) => String(vs.visit_system_id) === String(r.visit_system_id)
       )
     );
 
     const totalCritical = closedResponses.filter(
-      (r) => String(r.finding_severity) === "critical"
+      (r: any) => String(r.finding_severity || "").toLowerCase() === "critical"
     ).length;
 
     const totalFailures = closedResponses.filter(
-      (r) => String(r.response_value) === "non_compliant"
+      (r: any) => String(r.response_value || "").toLowerCase() === "non_compliant"
     ).length;
 
     const overallSummary =
@@ -329,15 +377,15 @@ export async function POST(
     });
 
     const touchedAssetIds: string[] = Array.from(
-  new Set<string>(
-    submittedResponses
-      .map((row: any): string => String(row.asset_id || "").trim())
-      .filter((value: string): boolean => value.length > 0)
-  )
-);
+      new Set<string>(
+        submittedResponses
+          .map((row: any): string => String(row.asset_id || "").trim())
+          .filter((value: string): boolean => value.length > 0)
+      )
+    );
 
     for (const assetId of touchedAssetIds) {
-      const asset = assets.find((row) => String(row.asset_id || "") === assetId);
+      const asset = assets.find((row: any) => String(row.asset_id || "") === assetId);
       if (!asset) continue;
 
       const intervalDays = Number(asset.inspection_interval_days || 0);
