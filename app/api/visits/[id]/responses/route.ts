@@ -329,12 +329,12 @@ export async function POST(
     });
 
     const touchedAssetIds = [
-      ...new Set(
-        submittedResponses
-          .map((row) => String(row.asset_id || "").trim())
-          .filter(Boolean)
-      ),
-    ];
+  ...new Set(
+    submittedResponses
+      .map((row: any) => String(row.asset_id || "").trim())
+      .filter(Boolean)
+  ),
+];
 
     for (const assetId of touchedAssetIds) {
       const asset = assets.find((row) => String(row.asset_id || "") === assetId);
