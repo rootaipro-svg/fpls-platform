@@ -1,17 +1,25 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/permissions";
-import { appendRow, readSheet } from "@/lib/sheets";
+import { appendRow, readSheet, updateRowById } from "@/lib/sheets";
 import { makeId } from "@/lib/ids";
 import { nowIso } from "@/lib/dates";
 
+function parseAllowedSystems(value: any): string[] {
+  return String(value || "")
+    .split(/[,;|\n،]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const actor = await requirePermission("visits", "create");
     const { id } = await params;
     const workbookId = actor.workbookId;
+    const body = await req.json().catch(() => ({}));
 
     if (String(actor.role || "").toLowerCase() === "inspector") {
       return NextResponse.json(
@@ -23,10 +31,11 @@ export async function POST(
       );
     }
 
-    const [assets, visits, visitSystems] = await Promise.all([
+    const [assets, visits, visitSystems, inspectors] = await Promise.all([
       readSheet(workbookId, "ASSETS"),
       readSheet(workbookId, "VISITS"),
       readSheet(workbookId, "VISIT_SYSTEMS"),
+      readSheet(workbookId, "INSPECTORS"),
     ]);
 
     const asset = assets.find(
@@ -37,6 +46,44 @@ export async function POST(
       return NextResponse.json(
         { ok: false, message: "Asset not found" },
         { status: 404 }
+      );
+    }
+
+    const selectedInspectorId = String(
+      body.assigned_inspector_id || ""
+    ).trim();
+
+    if (!selectedInspectorId) {
+      return NextResponse.json(
+        { ok: false, message: "اختر المفتش أولًا" },
+        { status: 400 }
+      );
+    }
+
+    const systemCode = String(asset.system_code || "");
+
+    const eligibleInspectors = inspectors.filter((row: any) => {
+      const status = String(row.status || "active").toLowerCase();
+      if (status !== "active") return false;
+
+      const allowedSystems = parseAllowedSystems(row.allowed_systems);
+      return (
+        allowedSystems.includes("*") || allowedSystems.includes(systemCode)
+      );
+    });
+
+    const chosenInspector = eligibleInspectors.find(
+      (row: any) =>
+        String(row.inspector_id || "") === String(selectedInspectorId)
+    );
+
+    if (!chosenInspector) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "المفتش المختار غير مؤهل لهذا النظام أو غير نشط",
+        },
+        { status: 400 }
       );
     }
 
@@ -58,6 +105,17 @@ export async function POST(
     });
 
     if (existingOpenVisit) {
+      await updateRowById(
+        workbookId,
+        "VISITS",
+        "visit_id",
+        String(existingOpenVisit.visit_id || ""),
+        {
+          assigned_inspector_id: selectedInspectorId,
+          updated_at: nowIso(),
+        }
+      );
+
       return NextResponse.json({
         ok: true,
         reused: true,
@@ -75,14 +133,17 @@ export async function POST(
       visit_id: visitId,
       facility_id: String(asset.facility_id || ""),
       building_id: String(asset.building_id || ""),
-      assigned_inspector_id: "",
+      assigned_inspector_id: selectedInspectorId,
       visit_type: "asset_followup",
       planned_date: today,
       visit_date: "",
       visit_status: "planned",
       summary_result: "pending",
       notes: `زيارة تم إنشاؤها من الأصل ${String(
-        asset.asset_name_ar || asset.asset_name || asset.asset_code || asset.asset_id
+        asset.asset_name_ar ||
+          asset.asset_name ||
+          asset.asset_code ||
+          asset.asset_id
       )}`,
       next_due_date: String(asset.next_due_date || ""),
       created_at: timestamp,
