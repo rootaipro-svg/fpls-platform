@@ -6,6 +6,13 @@ import { makeId } from "@/lib/ids";
 import { nowIso } from "@/lib/dates";
 import { calculateNextDueForVisitSystem } from "@/lib/scheduling";
 
+function addDays(dateString: string, days: number) {
+  const dt = new Date(String(dateString || ""));
+  if (Number.isNaN(dt.getTime())) return "";
+  dt.setDate(dt.getDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,12 +31,13 @@ export async function POST(
       );
     }
 
-    const [existingResponses, existingFindings, visitSystems, evidence] =
+    const [existingResponses, existingFindings, visitSystems, evidence, assets] =
       await Promise.all([
         readSheet(workbookId, "RESPONSES"),
         readSheet(workbookId, "FINDINGS"),
         readSheet(workbookId, "VISIT_SYSTEMS"),
         readSheet(workbookId, "EVIDENCE"),
+        readSheet(workbookId, "ASSETS"),
       ]);
 
     async function syncEvidenceLinks(
@@ -308,13 +316,40 @@ export async function POST(
     const earliestNextDue =
       nextDueDates.length > 0 ? [...nextDueDates].sort()[0] : "";
 
+    const effectiveVisitDate =
+      String(body.visit_date || "").trim() ||
+      new Date().toISOString().slice(0, 10);
+
     await updateRowById(workbookId, "VISITS", "visit_id", String(id), {
-      visit_date: body.visit_date || new Date().toISOString().slice(0, 10),
+      visit_date: effectiveVisitDate,
       visit_status: "closed",
       summary_result: overallSummary,
       next_due_date: earliestNextDue,
       updated_at: nowIso(),
     });
+
+    const touchedAssetIds = [
+      ...new Set(
+        submittedResponses
+          .map((row) => String(row.asset_id || "").trim())
+          .filter(Boolean)
+      ),
+    ];
+
+    for (const assetId of touchedAssetIds) {
+      const asset = assets.find((row) => String(row.asset_id || "") === assetId);
+      if (!asset) continue;
+
+      const intervalDays = Number(asset.inspection_interval_days || 0);
+      const computedNextDue =
+        intervalDays > 0 ? addDays(effectiveVisitDate, intervalDays) : "";
+
+      await updateRowById(workbookId, "ASSETS", "asset_id", assetId, {
+        last_inspected_at: effectiveVisitDate,
+        next_due_date: computedNextDue || String(asset.next_due_date || ""),
+        updated_at: nowIso(),
+      });
+    }
 
     return NextResponse.json({
       ok: true,
