@@ -231,6 +231,20 @@ export default async function DashboardPage() {
       .filter(Boolean)
   );
 
+  const unassignedOpenVisits =
+    actor.role === "inspector"
+      ? []
+      : visits.filter((visit: any) => {
+          const status = String(visit.visit_status || "").toLowerCase();
+          const assigned = String(visit.assigned_inspector_id || "").trim();
+
+          return (
+            status !== "closed" &&
+            status !== "completed" &&
+            assigned.length === 0
+          );
+        });
+
   if (actor.role === "inspector") {
     return (
       <AppShell>
@@ -412,6 +426,26 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {unassignedOpenVisits.length > 0 ? (
+        <section className="card" style={{ border: "1px solid #fecaca", background: "#fff7f7" }}>
+          <div className="section-header-row">
+            <div>
+              <div className="section-title">تنبيه تشغيلي</div>
+              <div className="section-subtitle">
+                توجد زيارات مفتوحة غير مسندة لمفتش، ويجب توزيعها حتى لا تتعطل أعمال التنفيذ.
+              </div>
+            </div>
+
+            <div className="badge-wrap">
+              <span className="badge">غير مسندة: {unassignedOpenVisits.length}</span>
+              <Link href="/unassigned-visits" className="btn btn-secondary">
+                فتح الزيارات غير المسندة
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="card">
         <div className="section-header-row">
           <div>
@@ -457,6 +491,14 @@ export default async function DashboardPage() {
             راجع المخالفات المفتوحة وتابع الإغلاقات والإجراءات التصحيحية.
           </div>
           <CardLinkHint label="فتح المخالفات" />
+        </Link>
+
+        <Link href="/unassigned-visits" className="quick-link-card">
+          <div className="quick-link-title">الزيارات غير المسندة</div>
+          <div className="quick-link-text">
+            راجع الزيارات المفتوحة التي لم تُسند بعد، وعيّن المفتش المناسب بسرعة.
+          </div>
+          <CardLinkHint label="فتح الصفحة" />
         </Link>
       </div>
 
@@ -506,6 +548,9 @@ export default async function DashboardPage() {
           <span className="badge">أصول مستحقة: {dueAssets.length}</span>
           <span className="badge">
             المخالفات المفتوحة: {openVisibleFindingsCount}
+          </span>
+          <span className="badge">
+            زيارات غير مسندة: {unassignedOpenVisits.length}
           </span>
         </div>
       </section>
