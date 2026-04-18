@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CreateAssetVisitButton from "@/components/create-asset-visit-button";
 import { ClipboardList, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
@@ -156,12 +157,11 @@ export default async function AssetInspectPage({
               فتح زيارة التنفيذ
             </Link>
           ) : (
-            <Link
-              href={`/facilities/${String(asset.facility_id || "")}`}
-              className="btn btn-secondary"
-            >
-              لا توجد زيارة نشطة، ارجع للمنشأة
-            </Link>
+            <CreateAssetVisitButton
+  assetId={String(id)}
+  className="btn btn-secondary"
+  label="لا توجد زيارة نشطة، أنشئ زيارة الآن"
+/>
           )}
 
           <Link href={`/assets/${String(id)}`} className="btn btn-secondary">
