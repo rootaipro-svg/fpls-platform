@@ -120,6 +120,7 @@ function defaultItemState(item?: ChecklistItem): ItemState {
 function buttonClass(active: boolean, tone: "green" | "red" | "slate") {
   const base =
     "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-base font-semibold transition min-w-[108px]";
+
   if (!active) {
     return `${base} border-slate-200 bg-white text-slate-800`;
   }
@@ -160,7 +161,9 @@ function targetText(item: ChecklistItem) {
   const unit = String(item.numeric_unit || "");
 
   if (hasMin && hasMax) {
-    return `المجال: ${item.target_min} - ${item.target_max}${unit ? ` ${unit}` : ""}`;
+    return `المجال: ${item.target_min} - ${item.target_max}${
+      unit ? ` ${unit}` : ""
+    }`;
   }
 
   if (hasMin) {
@@ -175,25 +178,39 @@ function targetText(item: ChecklistItem) {
 }
 
 function primaryLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") return "المدة الفعلية";
-  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل الجوكي";
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط البدء";
+  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") {
+    return "المدة الفعلية";
+  }
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") {
+    return "ضغط تشغيل الجوكي";
+  }
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") {
+    return "ضغط البدء";
+  }
   return "القراءة الفعلية";
 }
 
 function secondaryLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل المضخة الرئيسية";
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط الإيقاف";
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") {
+    return "ضغط تشغيل المضخة الرئيسية";
+  }
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") {
+    return "ضغط الإيقاف";
+  }
   return "";
 }
 
 function thirdLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "عدد مرات إعادة التشغيل";
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") {
+    return "عدد مرات إعادة التشغيل";
+  }
   return "";
 }
 
 function mergeJudgement(...values: string[]) {
-  const normalized = values.map((v) => String(v || "").toLowerCase()).filter(Boolean);
+  const normalized = values
+    .map((v) => String(v || "").toLowerCase())
+    .filter(Boolean);
 
   if (normalized.includes("fail")) return "fail";
   if (normalized.includes("check")) return "check";
@@ -251,7 +268,10 @@ export default function VisitExecutionForm({
   );
 
   function getItemState(item: ChecklistItem): ItemState {
-    return formMap[itemKey(item.visit_system_id, item.checklist_item_id)] || defaultItemState(item);
+    return (
+      formMap[itemKey(item.visit_system_id, item.checklist_item_id)] ||
+      defaultItemState(item)
+    );
   }
 
   function setItemState(item: ChecklistItem, nextState: ItemState) {
@@ -263,7 +283,10 @@ export default function VisitExecutionForm({
     }));
   }
 
-  function updateStandardItemState(item: ChecklistItem, patch: Partial<ItemState>) {
+  function updateStandardItemState(
+    item: ChecklistItem,
+    patch: Partial<ItemState>
+  ) {
     const current = getItemState(item);
 
     const nextState: ItemState = {
@@ -331,7 +354,10 @@ export default function VisitExecutionForm({
       mergedResponseValue = baselineEval.responseValue;
     }
 
-    const resultParts = [smartEval.resultTextAr, baselineEval.resultTextAr].filter(Boolean);
+    const resultParts = [
+      smartEval.resultTextAr,
+      baselineEval.resultTextAr,
+    ].filter(Boolean);
 
     nextState.response_value = String(mergedResponseValue || "");
     nextState.auto_judgement = String(mergedJudgement || "");
@@ -453,7 +479,9 @@ export default function VisitExecutionForm({
           <div className="section-subtitle" style={{ marginTop: "6px" }}>
             {String(activeAsset.asset_name_ar || activeAsset.asset_name || "أصل")}
             {activeAsset.asset_code ? ` · ${String(activeAsset.asset_code)}` : ""}
-            {activeAsset.location_note ? ` · ${String(activeAsset.location_note)}` : ""}
+            {activeAsset.location_note
+              ? ` · ${String(activeAsset.location_note)}`
+              : ""}
           </div>
         </div>
       ) : null}
@@ -570,7 +598,8 @@ export default function VisitExecutionForm({
 
                     {baselineRow ? (
                       <span className="badge">
-                        Baseline: {baselineRow.metric_name_ar || baselineRow.metric_code}
+                        Baseline:{" "}
+                        {baselineRow.metric_name_ar || baselineRow.metric_code}
                       </span>
                     ) : null}
                   </div>
@@ -588,13 +617,310 @@ export default function VisitExecutionForm({
                         lineHeight: 1.8,
                       }}
                     >
-                      مرجع الأصل: {baselineRow.metric_name_ar || baselineRow.metric_code}
-                      {baselineRow.ref_value ? ` · القيمة المرجعية 1: ${baselineRow.ref_value}` : ""}
-                      {baselineRow.ref_value_2 ? ` · القيمة المرجعية 2: ${baselineRow.ref_value_2}` : ""}
-                      {baselineRow.ref_value_3 ? ` · القيمة المرجعية 3: ${baselineRow.ref_value_3}` : ""}
-                      {baselineRow.metric_unit ? ` · الوحدة: ${baselineRow.metric_unit}` : ""}
-                      {baselineRow.baseline_date ? ` · التاريخ: ${baselineRow.baseline_date}` : ""}
+                      مرجع الأصل:{" "}
+                      {baselineRow.metric_name_ar || baselineRow.metric_code}
+                      {baselineRow.ref_value
+                        ? ` · القيمة المرجعية 1: ${baselineRow.ref_value}`
+                        : ""}
+                      {baselineRow.ref_value_2
+                        ? ` · القيمة المرجعية 2: ${baselineRow.ref_value_2}`
+                        : ""}
+                      {baselineRow.ref_value_3
+                        ? ` · القيمة المرجعية 3: ${baselineRow.ref_value_3}`
+                        : ""}
+                      {baselineRow.metric_unit
+                        ? ` · الوحدة: ${baselineRow.metric_unit}`
+                        : ""}
+                      {baselineRow.baseline_date
+                        ? ` · التاريخ: ${baselineRow.baseline_date}`
+                        : ""}
                     </div>
                   ) : null}
 
-                  {item
+                  {item.ui_hint_ar ? (
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        border: "1px solid #dbeafe",
+                        background: "#eff6ff",
+                        color: "#1e3a8a",
+                        borderRadius: "16px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        lineHeight: 1.8,
+                      }}
+                    >
+                      {item.ui_hint_ar}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={{ padding: "0 16px 18px" }}>
+                  {!smart ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        marginTop: "10px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className={buttonClass(
+                          state.response_value === "compliant",
+                          "green"
+                        )}
+                        onClick={() =>
+                          updateStandardItemState(item, {
+                            response_value: "compliant",
+                            finding_severity: "",
+                          })
+                        }
+                      >
+                        مطابق
+                      </button>
+
+                      <button
+                        type="button"
+                        className={buttonClass(
+                          state.response_value === "non_compliant",
+                          "red"
+                        )}
+                        onClick={() =>
+                          updateStandardItemState(item, {
+                            response_value: "non_compliant",
+                            finding_severity:
+                              state.finding_severity ||
+                              item.severity_default ||
+                              "major",
+                          })
+                        }
+                      >
+                        غير مطابق
+                      </button>
+
+                      <button
+                        type="button"
+                        className={buttonClass(
+                          state.response_value === "not_applicable",
+                          "slate"
+                        )}
+                        onClick={() =>
+                          updateStandardItemState(item, {
+                            response_value: "not_applicable",
+                            finding_severity: "",
+                          })
+                        }
+                      >
+                        غير منطبق
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "20px",
+                        padding: "14px",
+                        background: "#fcfcfd",
+                      }}
+                    >
+                      <input
+                        className="field"
+                        type="number"
+                        inputMode="decimal"
+                        placeholder={primaryLabel(item)}
+                        value={state.numeric_value}
+                        onChange={(e) =>
+                          updateSmartItemState(item, {
+                            numeric_value: e.target.value,
+                          })
+                        }
+                      />
+
+                      {secondaryLabel(item) ? (
+                        <input
+                          className="field"
+                          type="number"
+                          inputMode="decimal"
+                          placeholder={secondaryLabel(item)}
+                          value={state.numeric_value_2}
+                          onChange={(e) =>
+                            updateSmartItemState(item, {
+                              numeric_value_2: e.target.value,
+                            })
+                          }
+                          style={{ marginTop: "12px" }}
+                        />
+                      ) : null}
+
+                      {thirdLabel(item) ? (
+                        <input
+                          className="field"
+                          type="number"
+                          inputMode="decimal"
+                          placeholder={thirdLabel(item)}
+                          value={state.numeric_value_3}
+                          onChange={(e) =>
+                            updateSmartItemState(item, {
+                              numeric_value_3: e.target.value,
+                            })
+                          }
+                          style={{ marginTop: "12px" }}
+                        />
+                      ) : null}
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                          marginTop: "12px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className={buttonClass(
+                            state.response_value === "not_applicable",
+                            "slate"
+                          )}
+                          onClick={() =>
+                            updateSmartItemState(item, {
+                              response_value: "not_applicable",
+                            })
+                          }
+                        >
+                          غير منطبق
+                        </button>
+
+                        <button
+                          type="button"
+                          className={buttonClass(false, "slate")}
+                          onClick={() =>
+                            setItemState(item, defaultItemState(item))
+                          }
+                        >
+                          مسح القراءة
+                        </button>
+                      </div>
+
+                      {state.calc_result_text ? (
+                        <div
+                          style={{
+                            marginTop: "12px",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "16px",
+                            padding: "12px",
+                            background:
+                              state.auto_judgement === "fail"
+                                ? "#fef2f2"
+                                : state.auto_judgement === "pass"
+                                ? "#ecfdf5"
+                                : "#f8fafc",
+                            color:
+                              state.auto_judgement === "fail"
+                                ? "#b91c1c"
+                                : state.auto_judgement === "pass"
+                                ? "#047857"
+                                : "#334155",
+                            fontSize: "14px",
+                            lineHeight: 1.8,
+                          }}
+                        >
+                          {state.calc_result_text}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {isNonCompliant ? (
+                    <div
+                      style={{
+                        marginTop: "14px",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "20px",
+                        padding: "14px",
+                        background: "#fcfcfd",
+                      }}
+                    >
+                      <select
+                        className="field"
+                        value={state.finding_severity}
+                        onChange={(e) =>
+                          updateStandardItemState(item, {
+                            finding_severity: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">اختر الشدة</option>
+                        <option value="critical">حرج</option>
+                        <option value="major">مرتفع</option>
+                        <option value="minor">منخفض</option>
+                      </select>
+
+                      <textarea
+                        className="field"
+                        placeholder="ملاحظات المفتش"
+                        value={state.comments}
+                        onChange={(e) =>
+                          updateStandardItemState(item, {
+                            comments: e.target.value,
+                          })
+                        }
+                        style={{ marginTop: "12px" }}
+                      />
+
+                      <textarea
+                        className="field"
+                        placeholder="الإجراء التصحيحي المقترح"
+                        value={state.corrective_action}
+                        onChange={(e) =>
+                          updateStandardItemState(item, {
+                            corrective_action: e.target.value,
+                          })
+                        }
+                        style={{ marginTop: "12px" }}
+                      />
+                    </div>
+                  ) : null}
+
+                  <ChecklistItemEvidence
+                    visitId={visitId}
+                    visitSystemId={String(item.visit_system_id)}
+                    checklistItemId={String(item.checklist_item_id)}
+                    assetId={activeAsset?.asset_id || ""}
+                    rows={itemEvidence}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {message ? (
+        <div className="alert-success" style={{ marginTop: "16px" }}>
+          {message}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="alert-error" style={{ marginTop: "16px" }}>
+          {error}
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: "16px" }}>
+        <button
+          type="button"
+          className="btn btn-grow"
+          onClick={handleSaveAndClose}
+          disabled={saving}
+        >
+          {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
+        </button>
+      </div>
+    </section>
+  );
+}
