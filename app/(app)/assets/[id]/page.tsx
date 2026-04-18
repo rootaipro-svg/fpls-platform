@@ -1,8 +1,16 @@
 import Link from "next/link";
-import { ClipboardList, QrCode, UserRound } from "lucide-react";
+import {
+  ClipboardList,
+  FileImage,
+  FileWarning,
+  QrCode,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { StatCard } from "@/components/stat-card";
 import EditAssetForm from "@/components/edit-asset-form";
 import { SeverityBadge } from "@/components/severity-badge";
 import { FindingStatusBadge } from "@/components/finding-status-badge";
@@ -66,6 +74,18 @@ function looksLikeImage(url: string, evidenceType: string) {
     u.endsWith(".webp") ||
     u.includes("blob.vercel-storage.com")
   );
+}
+
+function daysBetween(today: Date, target: Date) {
+  const ms = target.getTime() - today.getTime();
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
+
+function getDueState(daysDiff: number) {
+  if (daysDiff < 0) return "متأخر";
+  if (daysDiff === 0) return "اليوم";
+  if (daysDiff <= 7) return "قريب";
+  return "مستقبلي";
 }
 
 export default async function AssetDetailPage({
@@ -221,12 +241,190 @@ export default async function AssetDetailPage({
     "created_at"
   );
 
+  const compliantCount = assetResponses.filter(
+    (r) => String(r.response_value || "").toLowerCase() === "compliant"
+  ).length;
+
+  const nonCompliantCount = assetResponses.filter(
+    (r) => String(r.response_value || "").toLowerCase() === "non_compliant"
+  ).length;
+
+  const notApplicableCount = assetResponses.filter(
+    (r) => String(r.response_value || "").toLowerCase() === "not_applicable"
+  ).length;
+
+  const scoredTotal = compliantCount + nonCompliantCount;
+  const assetCompliance =
+    scoredTotal > 0 ? Math.round((compliantCount / scoredTotal) * 100) : 0;
+
+  const openFindingsCount = assetFindings.filter(
+    (f) =>
+      String(f.closure_status || f.compliance_status || "").toLowerCase() !==
+      "closed"
+  ).length;
+
+  const latestVisit = relatedVisits[0] || null;
+  const latestResponse = assetResponses[0] || null;
+  const latestFinding = assetFindings[0] || null;
+
+  const inspectionIntervalDays = Number(asset.inspection_interval_days || 0);
+  const lastInspectedAt = String(asset.last_inspected_at || "");
+  const nextDueDate = String(asset.next_due_date || "");
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let dueDaysDiff: number | null = null;
+  let dueState = "غير محدد";
+
+  if (nextDueDate) {
+    const due = new Date(nextDueDate);
+    due.setHours(0, 0, 0, 0);
+    dueDaysDiff = daysBetween(today, due);
+    dueState = getDueState(dueDaysDiff);
+  }
+
   return (
     <AppShell>
       <PageHeader
         title={String(asset.asset_name_ar || asset.asset_name || "تفاصيل الأصل")}
         subtitle={`الأصل: ${String(asset.asset_code || asset.asset_id || "-")}`}
       />
+
+      <div className="stats-grid">
+        <StatCard
+          label="الزيارات المرتبطة"
+          value={relatedVisits.length}
+          hint="كل الزيارات المرتبطة بالنظام/المبنى"
+          icon={ClipboardList}
+          tone="teal"
+        />
+        <StatCard
+          label="نتائج الفحص"
+          value={assetResponses.length}
+          hint="إجمالي البنود المفحوصة لهذا الأصل"
+          icon={ShieldCheck}
+          tone="slate"
+        />
+        <StatCard
+          label="المخالفات المفتوحة"
+          value={openFindingsCount}
+          hint="تحتاج متابعة"
+          icon={FileWarning}
+          tone={openFindingsCount > 0 ? "red" : "slate"}
+        />
+        <StatCard
+          label="الأدلة"
+          value={assetEvidence.length}
+          hint="صور ومرفقات مرتبطة بالأصل"
+          icon={FileImage}
+          tone="slate"
+        />
+      </div>
+
+      <section className="card">
+        <div className="section-title">لوحة مؤشرات الأصل</div>
+        <div className="section-subtitle">
+          قراءة سريعة للحالة الحالية والسجل المرتبط بهذا الأصل
+        </div>
+
+        <div className="stack-3" style={{ marginTop: "14px" }}>
+          <div>
+            <div className="text-sm text-slate-500">نسبة الامتثال الخاصة بالأصل</div>
+            <div className="mt-1 font-medium">{assetCompliance}%</div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">آخر زيارة</div>
+            <div className="mt-1 font-medium">
+              {latestVisit
+                ? `${String(latestVisit.visit_id || "-")} · ${String(
+                    latestVisit.planned_date ||
+                      latestVisit.visit_date ||
+                      latestVisit.updated_at ||
+                      "-"
+                  )}`
+                : "لا توجد زيارة مرتبطة حتى الآن"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">آخر نتيجة مسجلة</div>
+            <div className="mt-1 font-medium">
+              {latestResponse
+                ? `${toArabicResponse(String(latestResponse.response_value || ""))}${
+                    latestResponse.response_at
+                      ? ` · ${String(latestResponse.response_at)}`
+                      : ""
+                  }`
+                : "لا توجد نتائج مسجلة بعد"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">آخر مخالفة</div>
+            <div className="mt-1 font-medium">
+              {latestFinding
+                ? `${String(latestFinding.title || "مخالفة")} · ${String(
+                    latestFinding.severity || "-"
+                  )}`
+                : "لا توجد مخالفات مرتبطة بهذا الأصل"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">الحالة الحالية للأصل</div>
+            <div className="mt-1 font-medium">
+              {String(asset.status || "active")}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="section-title">جدول استحقاق الأصل</div>
+        <div className="section-subtitle">
+          الدورة والفحص الأخير والاستحقاق التالي لهذا الأصل نفسه
+        </div>
+
+        <div className="stack-3" style={{ marginTop: "14px" }}>
+          <div>
+            <div className="text-sm text-slate-500">دورة الفحص بالأيام</div>
+            <div className="mt-1 font-medium">
+              {inspectionIntervalDays > 0 ? inspectionIntervalDays : "غير محددة"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">آخر فحص</div>
+            <div className="mt-1 font-medium">
+              {lastInspectedAt || "غير مسجل"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">الاستحقاق التالي</div>
+            <div className="mt-1 font-medium">
+              {nextDueDate || "غير مسجل"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">حالة الاستحقاق</div>
+            <div className="mt-1 font-medium">
+              {dueState}
+              {dueDaysDiff !== null ? ` · ${dueDaysDiff} يوم` : ""}
+            </div>
+          </div>
+        </div>
+
+        {!nextDueDate ? (
+          <div className="report-note-box" style={{ marginTop: "16px" }}>
+            لم يتم ضبط جدول الاستحقاق لهذا الأصل بعد. استخدم نموذج التعديل أسفل
+            الصفحة لإدخال دورة الفحص وآخر فحص.
+          </div>
+        ) : null}
+      </section>
 
       <section className="card">
         <div className="section-title">بيانات الأصل</div>
@@ -324,6 +522,11 @@ export default async function AssetDetailPage({
           <div>
             <div className="text-sm text-slate-500">إجمالي الزيارات المرتبطة</div>
             <div className="mt-1 font-medium">{relatedVisits.length}</div>
+          </div>
+
+          <div>
+            <div className="text-sm text-slate-500">بنود قائمة الفحص</div>
+            <div className="mt-1 font-medium">{checklistItems.length}</div>
           </div>
         </div>
 
@@ -566,6 +769,9 @@ export default async function AssetDetailPage({
           asset_type: String(asset.asset_type || ""),
           location_note: String(asset.location_note || ""),
           status: String(asset.status || "active"),
+          inspection_interval_days: String(asset.inspection_interval_days || ""),
+          last_inspected_at: String(asset.last_inspected_at || ""),
+          next_due_date: String(asset.next_due_date || ""),
         }}
       />
     </AppShell>
