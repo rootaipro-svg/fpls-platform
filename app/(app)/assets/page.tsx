@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { AlertTriangle, Boxes, FileImage, Wrench } from "lucide-react";
+import {
+  AlertTriangle,
+  Boxes,
+  FileImage,
+  ShieldAlert,
+  Wrench,
+} from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -75,10 +81,16 @@ export default async function AssetsPage() {
   const totalAssets = rows.length;
   const assetsWithOpenFindings = rows.filter((r) =>
     openFindingAssetIds.has(String(r.asset_id))
-  ).length;
+  );
   const assetsWithoutEvidence = rows.filter(
     (r) => !evidenceAssetIds.has(String(r.asset_id))
-  ).length;
+  );
+  const inactiveAssets = rows.filter((r) =>
+    ["inactive", "out_of_service", "retired"].includes(
+      String(r.status || "").toLowerCase()
+    )
+  );
+
   const coveredSystemsCount = new Set(
     rows.map((r) => String(r.system_code || "")).filter(Boolean)
   ).size;
@@ -100,17 +112,17 @@ export default async function AssetsPage() {
         />
         <StatCard
           label="عليها مخالفات مفتوحة"
-          value={assetsWithOpenFindings}
+          value={assetsWithOpenFindings.length}
           hint="أصول تحتاج متابعة"
           icon={AlertTriangle}
-          tone={assetsWithOpenFindings > 0 ? "red" : "slate"}
+          tone={assetsWithOpenFindings.length > 0 ? "red" : "slate"}
         />
         <StatCard
           label="بلا أدلة"
-          value={assetsWithoutEvidence}
+          value={assetsWithoutEvidence.length}
           hint="لا توجد صور أو مرفقات مرتبطة"
           icon={FileImage}
-          tone={assetsWithoutEvidence > 0 ? "amber" : "slate"}
+          tone={assetsWithoutEvidence.length > 0 ? "amber" : "slate"}
         />
         <StatCard
           label="الأنظمة المغطاة"
@@ -144,7 +156,193 @@ export default async function AssetsPage() {
           />
         </section>
       ) : (
-        <AssetsBrowser rows={rows} />
+        <>
+          <section className="card">
+            <div className="section-title">الأصول عالية الأولوية</div>
+            <div className="section-subtitle">
+              أهم العناصر التي تحتاج انتباهًا سريعًا من الناحية التشغيلية
+            </div>
+
+            <div className="stack-3" style={{ marginTop: "14px" }}>
+              <div className="card" style={{ background: "#fffaf5" }}>
+                <div className="section-header-row">
+                  <div>
+                    <div className="section-title" style={{ fontSize: "18px" }}>
+                      أصول عليها مخالفات مفتوحة
+                    </div>
+                    <div className="section-subtitle">
+                      هذه الأصول مرتبطة بملاحظات أو مخالفات لم يتم إغلاقها بعد
+                    </div>
+                  </div>
+                  <span className="badge">
+                    {assetsWithOpenFindings.length}
+                  </span>
+                </div>
+
+                {assetsWithOpenFindings.length === 0 ? (
+                  <div className="muted-note" style={{ marginTop: "12px" }}>
+                    لا توجد أصول عليها مخالفات مفتوحة حاليًا.
+                  </div>
+                ) : (
+                  <div className="stack-3" style={{ marginTop: "12px" }}>
+                    {assetsWithOpenFindings.slice(0, 5).map((asset) => (
+                      <div key={asset.asset_id} className="system-line">
+                        <div className="system-line-top">
+                          <div>
+                            <div className="system-line-title">
+                              {asset.asset_name_ar ||
+                                asset.asset_name ||
+                                asset.asset_code ||
+                                asset.asset_id}
+                            </div>
+                            <div className="system-line-date">
+                              {asset.asset_code}
+                              {asset.system_code ? ` · ${asset.system_code}` : ""}
+                              {asset.facility_name ? ` · ${asset.facility_name}` : ""}
+                            </div>
+                          </div>
+
+                          <div className="btn-row">
+                            <Link
+                              href={`/assets/${asset.asset_id}`}
+                              className="btn btn-secondary"
+                            >
+                              فتح الأصل
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="card" style={{ background: "#fffef7" }}>
+                <div className="section-header-row">
+                  <div>
+                    <div className="section-title" style={{ fontSize: "18px" }}>
+                      أصول بلا أدلة
+                    </div>
+                    <div className="section-subtitle">
+                      أصول لا يوجد لها صور أو مرفقات مرتبطة حتى الآن
+                    </div>
+                  </div>
+                  <span className="badge">{assetsWithoutEvidence.length}</span>
+                </div>
+
+                {assetsWithoutEvidence.length === 0 ? (
+                  <div className="muted-note" style={{ marginTop: "12px" }}>
+                    جميع الأصول الحالية لديها أدلة أو مرفقات.
+                  </div>
+                ) : (
+                  <div className="stack-3" style={{ marginTop: "12px" }}>
+                    {assetsWithoutEvidence.slice(0, 5).map((asset) => (
+                      <div key={asset.asset_id} className="system-line">
+                        <div className="system-line-top">
+                          <div>
+                            <div className="system-line-title">
+                              {asset.asset_name_ar ||
+                                asset.asset_name ||
+                                asset.asset_code ||
+                                asset.asset_id}
+                            </div>
+                            <div className="system-line-date">
+                              {asset.asset_code}
+                              {asset.system_code ? ` · ${asset.system_code}` : ""}
+                              {asset.facility_name ? ` · ${asset.facility_name}` : ""}
+                            </div>
+                          </div>
+
+                          <div className="btn-row">
+                            <Link
+                              href={`/assets/${asset.asset_id}`}
+                              className="btn btn-secondary"
+                            >
+                              فتح الأصل
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="card" style={{ background: "#f8fafc" }}>
+                <div className="section-header-row">
+                  <div>
+                    <div className="section-title" style={{ fontSize: "18px" }}>
+                      أصول غير نشطة أو خارج الخدمة
+                    </div>
+                    <div className="section-subtitle">
+                      لمراجعة حالتها أو تحديث بياناتها التشغيلية
+                    </div>
+                  </div>
+                  <span className="badge">{inactiveAssets.length}</span>
+                </div>
+
+                {inactiveAssets.length === 0 ? (
+                  <div className="muted-note" style={{ marginTop: "12px" }}>
+                    لا توجد أصول غير نشطة حاليًا.
+                  </div>
+                ) : (
+                  <div className="stack-3" style={{ marginTop: "12px" }}>
+                    {inactiveAssets.slice(0, 5).map((asset) => (
+                      <div key={asset.asset_id} className="system-line">
+                        <div className="system-line-top">
+                          <div>
+                            <div className="system-line-title">
+                              {asset.asset_name_ar ||
+                                asset.asset_name ||
+                                asset.asset_code ||
+                                asset.asset_id}
+                            </div>
+                            <div className="system-line-date">
+                              {asset.asset_code}
+                              {asset.system_code ? ` · ${asset.system_code}` : ""}
+                              {asset.status ? ` · ${asset.status}` : ""}
+                            </div>
+                          </div>
+
+                          <div className="btn-row">
+                            <Link
+                              href={`/assets/${asset.asset_id}`}
+                              className="btn btn-secondary"
+                            >
+                              فتح الأصل
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="section-header-row">
+              <div>
+                <div className="section-title">تشغيل سريع</div>
+                <div className="section-subtitle">
+                  انتقال مباشر إلى الأصول والمخالفات وملصقات QR
+                </div>
+              </div>
+
+              <div className="badge-wrap">
+                <Link href="/findings" className="badge">
+                  المخالفات
+                </Link>
+                <Link href="/assets/labels" className="badge">
+                  ملصقات QR
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <AssetsBrowser rows={rows} />
+        </>
       )}
     </AppShell>
   );
