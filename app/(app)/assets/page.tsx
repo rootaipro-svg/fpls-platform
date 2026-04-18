@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import AssetsBrowser from "@/components/assets-browser";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 
@@ -15,12 +16,40 @@ export default async function AssetsPage() {
     readSheet(workbookId, "BUILDINGS"),
   ]);
 
-  const rows = [...assets].sort((a, b) =>
-    String(a.asset_name_ar || a.asset_name || a.asset_code || "").localeCompare(
-      String(b.asset_name_ar || b.asset_name || b.asset_code || ""),
-      "ar"
-    )
-  );
+  const rows = [...assets]
+    .map((asset) => {
+      const facility = facilities.find(
+        (f) => String(f.facility_id) === String(asset.facility_id || "")
+      );
+
+      const building = buildings.find(
+        (b) => String(b.building_id) === String(asset.building_id || "")
+      );
+
+      return {
+        asset_id: String(asset.asset_id || ""),
+        asset_code: String(asset.asset_code || ""),
+        asset_name: String(asset.asset_name || ""),
+        asset_name_ar: String(asset.asset_name_ar || ""),
+        system_code: String(asset.system_code || ""),
+        status: String(asset.status || "active"),
+        facility_id: String(asset.facility_id || ""),
+        facility_name: String(facility?.facility_name || ""),
+        building_id: String(asset.building_id || ""),
+        building_name: String(building?.building_name || ""),
+        location_note: String(asset.location_note || ""),
+      };
+    })
+    .sort((a, b) =>
+      String(
+        a.asset_name_ar || a.asset_name || a.asset_code || a.asset_id || ""
+      ).localeCompare(
+        String(
+          b.asset_name_ar || b.asset_name || b.asset_code || b.asset_id || ""
+        ),
+        "ar"
+      )
+    );
 
   return (
     <AppShell>
@@ -32,9 +61,9 @@ export default async function AssetsPage() {
       <section className="card">
         <div className="section-header-row">
           <div>
-            <div className="section-title">جميع الأصول</div>
+            <div className="section-title">لوحة الأصول</div>
             <div className="section-subtitle">
-              يمكنك فتح الأصل أو طباعة ملصقات QR لكل الأصول
+              عرض الأصول، البحث والتصفية، والطباعة الجماعية لملصقات QR
             </div>
           </div>
 
@@ -42,65 +71,18 @@ export default async function AssetsPage() {
             طباعة ملصقات QR
           </Link>
         </div>
-
-        {rows.length === 0 ? (
-          <div style={{ marginTop: "14px" }}>
-            <EmptyState
-              title="لا توجد أصول"
-              description="أضف أصلًا من صفحة المنشأة أولًا."
-            />
-          </div>
-        ) : (
-          <div className="stack-3" style={{ marginTop: "14px" }}>
-            {rows.map((asset) => {
-              const facility = facilities.find(
-                (f) => String(f.facility_id) === String(asset.facility_id || "")
-              );
-
-              const building = buildings.find(
-                (b) => String(b.building_id) === String(asset.building_id || "")
-              );
-
-              return (
-                <div key={String(asset.asset_id)} className="system-line">
-                  <div className="system-line-top">
-                    <div>
-                      <div className="system-line-title">
-                        <Link href={`/assets/${String(asset.asset_id)}`}>
-                          {String(
-                            asset.asset_name_ar ||
-                              asset.asset_name ||
-                              asset.asset_code ||
-                              asset.asset_id
-                          )}
-                        </Link>
-                      </div>
-
-                      <div className="system-line-date">
-                        {String(asset.system_code || "-")}
-                        {facility ? ` · ${String(facility.facility_name || "")}` : ""}
-                        {building ? ` · ${String(building.building_name || "")}` : ""}
-                      </div>
-                    </div>
-
-                    <div className="badge-wrap">
-                      <span className="badge">
-                        {String(asset.status || "active")}
-                      </span>
-                      <Link
-                        href={`/assets/${String(asset.asset_id)}/qr`}
-                        className="badge"
-                      >
-                        QR
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </section>
+
+      {rows.length === 0 ? (
+        <section className="card">
+          <EmptyState
+            title="لا توجد أصول"
+            description="أضف أصلًا من صفحة المنشأة أولًا، ثم سيظهر هنا."
+          />
+        </section>
+      ) : (
+        <AssetsBrowser rows={rows} />
+      )}
     </AppShell>
   );
 }
