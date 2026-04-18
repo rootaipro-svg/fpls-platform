@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChecklistItemEvidence from "@/components/checklist-item-evidence";
+import { evaluateSmartChecklist } from "@/lib/smart-checklist";
 
 type VisitSystem = {
   visit_system_id: string;
@@ -19,6 +20,15 @@ type ChecklistItem = {
   section_name: string;
   question_text: string;
   acceptance_criteria: string;
+  response_type_v2: string;
+  numeric_unit: string;
+  target_min: string;
+  target_max: string;
+  calc_rule: string;
+  ui_hint_ar: string;
+  severity_default: string;
+  evidence_required: boolean;
+  photo_required: boolean;
 };
 
 type ExistingResponse = {
@@ -27,6 +37,13 @@ type ExistingResponse = {
   response_value: string;
   finding_severity: string;
   comments: string;
+  numeric_value?: string;
+  numeric_value_2?: string;
+  numeric_value_3?: string;
+  numeric_unit?: string;
+  calc_rule?: string;
+  calc_result_text?: string;
+  auto_judgement?: string;
 };
 
 type EvidenceRow = {
@@ -67,18 +84,30 @@ type ItemState = {
   finding_severity: string;
   comments: string;
   corrective_action: string;
+  numeric_value: string;
+  numeric_value_2: string;
+  numeric_value_3: string;
+  numeric_unit: string;
+  auto_judgement: string;
+  calc_result_text: string;
 };
 
 function itemKey(visitSystemId: string, checklistItemId: string) {
   return `${visitSystemId}__${checklistItemId}`;
 }
 
-function defaultItemState(): ItemState {
+function defaultItemState(item?: ChecklistItem): ItemState {
   return {
     response_value: "",
     finding_severity: "",
     comments: "",
     corrective_action: "",
+    numeric_value: "",
+    numeric_value_2: "",
+    numeric_value_3: "",
+    numeric_unit: String(item?.numeric_unit || ""),
+    auto_judgement: "",
+    calc_result_text: "",
   };
 }
 
@@ -98,6 +127,61 @@ function buttonClass(active: boolean, tone: "green" | "red" | "slate") {
   }
 
   return `${base} border-slate-300 bg-slate-100 text-slate-800`;
+}
+
+function isSmartItem(item: ChecklistItem) {
+  return Boolean(String(item.calc_rule || "").trim()) ||
+    String(item.response_type_v2 || "").toLowerCase() === "numeric_range";
+}
+
+function smartBadgeText(item: ChecklistItem) {
+  if (String(item.calc_rule || "").trim()) {
+    return `قاعدة ذكية: ${String(item.calc_rule)}`;
+  }
+
+  if (String(item.response_type_v2 || "").toLowerCase() === "numeric_range") {
+    return "إدخال رقمي";
+  }
+
+  return "";
+}
+
+function targetText(item: ChecklistItem) {
+  const hasMin = String(item.target_min || "").trim() !== "";
+  const hasMax = String(item.target_max || "").trim() !== "";
+  const unit = String(item.numeric_unit || "");
+
+  if (hasMin && hasMax) {
+    return `المجال: ${item.target_min} - ${item.target_max}${unit ? ` ${unit}` : ""}`;
+  }
+
+  if (hasMin) {
+    return `الحد الأدنى: ${item.target_min}${unit ? ` ${unit}` : ""}`;
+  }
+
+  if (hasMax) {
+    return `الحد الأعلى: ${item.target_max}${unit ? ` ${unit}` : ""}`;
+  }
+
+  return "";
+}
+
+function primaryLabel(item: ChecklistItem) {
+  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") return "المدة الفعلية";
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل الجوكي";
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط البدء";
+  return "القراءة الفعلية";
+}
+
+function secondaryLabel(item: ChecklistItem) {
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل المضخة الرئيسية";
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط الإيقاف";
+  return "";
+}
+
+function thirdLabel(item: ChecklistItem) {
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "عدد مرات إعادة التشغيل";
+  return "";
 }
 
 export default function VisitExecutionForm({
@@ -123,6 +207,12 @@ export default function VisitExecutionForm({
         finding_severity: String(row.finding_severity || ""),
         comments: String(row.comments || ""),
         corrective_action: "",
+        numeric_value: String(row.numeric_value || ""),
+        numeric_value_2: String(row.numeric_value_2 || ""),
+        numeric_value_3: String(row.numeric_value_3 || ""),
+        numeric_unit: String(row.numeric_unit || ""),
+        auto_judgement: String(row.auto_judgement || ""),
+        calc_result_text: String(row.calc_result_text || ""),
       };
     }
 
@@ -142,24 +232,80 @@ export default function VisitExecutionForm({
     (item) => String(item.visit_system_id) === String(selectedSystemId)
   );
 
-  function getItemState(visitSystemId: string, checklistItemId: string): ItemState {
-    return formMap[itemKey(visitSystemId, checklistItemId)] || defaultItemState();
+  function getItemState(item: ChecklistItem): ItemState {
+    return formMap[itemKey(item.visit_system_id, item.checklist_item_id)] || defaultItemState(item);
   }
 
-  function updateItemState(
-    visitSystemId: string,
-    checklistItemId: string,
-    patch: Partial<ItemState>
-  ) {
-    const key = itemKey(visitSystemId, checklistItemId);
+  function setItemState(item: ChecklistItem, nextState: ItemState) {
+    const key = itemKey(item.visit_system_id, item.checklist_item_id);
 
     setFormMap((prev) => ({
       ...prev,
-      [key]: {
-        ...(prev[key] || defaultItemState()),
-        ...patch,
-      },
+      [key]: nextState,
     }));
+  }
+
+  function updateStandardItemState(
+    item: ChecklistItem,
+    patch: Partial<ItemState>
+  ) {
+    const current = getItemState(item);
+
+    const nextState: ItemState = {
+      ...current,
+      ...patch,
+    };
+
+    if (String(nextState.response_value || "") !== "non_compliant") {
+      nextState.finding_severity = "";
+    }
+
+    setItemState(item, nextState);
+  }
+
+  function updateSmartItemState(
+    item: ChecklistItem,
+    patch: Partial<ItemState>
+  ) {
+    const current = getItemState(item);
+
+    const nextState: ItemState = {
+      ...current,
+      ...patch,
+      numeric_unit: String(item.numeric_unit || current.numeric_unit || ""),
+    };
+
+    if (String(nextState.response_value || "") === "not_applicable") {
+      nextState.auto_judgement = "";
+      nextState.calc_result_text = "تم تحديد البند كغير منطبق.";
+      nextState.finding_severity = "";
+      setItemState(item, nextState);
+      return;
+    }
+
+    const evaluation = evaluateSmartChecklist({
+      responseType: item.response_type_v2,
+      calcRule: item.calc_rule,
+      numericUnit: item.numeric_unit,
+      targetMin: item.target_min,
+      targetMax: item.target_max,
+      numericValue: nextState.numeric_value,
+      numericValue2: nextState.numeric_value_2,
+      numericValue3: nextState.numeric_value_3,
+    });
+
+    nextState.response_value = String(evaluation.responseValue || "");
+    nextState.auto_judgement = String(evaluation.autoJudgement || "");
+    nextState.calc_result_text = String(evaluation.resultTextAr || "");
+
+    if (String(nextState.response_value) === "non_compliant") {
+      nextState.finding_severity =
+        nextState.finding_severity || item.severity_default || "major";
+    } else {
+      nextState.finding_severity = "";
+    }
+
+    setItemState(item, nextState);
   }
 
   async function handleSaveAndClose() {
@@ -169,7 +315,7 @@ export default function VisitExecutionForm({
 
     try {
       const rows = checklistItems.map((item) => {
-        const state = getItemState(item.visit_system_id, item.checklist_item_id);
+        const state = getItemState(item);
 
         return {
           visit_system_id: String(item.visit_system_id),
@@ -178,9 +324,30 @@ export default function VisitExecutionForm({
           item_code: String(item.item_code || ""),
           title: String(item.question_text || "Non-compliant item"),
           response_value: String(state.response_value || ""),
-          finding_severity: String(state.finding_severity || ""),
+          finding_severity:
+            String(state.finding_severity || "") ||
+            (String(state.response_value) === "non_compliant"
+              ? String(item.severity_default || "major")
+              : ""),
           comments: String(state.comments || ""),
           corrective_action: String(state.corrective_action || ""),
+          numeric_value: String(state.numeric_value || ""),
+          numeric_value_2: String(state.numeric_value_2 || ""),
+          numeric_value_3: String(state.numeric_value_3 || ""),
+          numeric_unit: String(item.numeric_unit || state.numeric_unit || ""),
+          calc_rule: String(item.calc_rule || ""),
+          calc_result_text: String(state.calc_result_text || ""),
+          auto_judgement: String(state.auto_judgement || ""),
+          severity_default: String(item.severity_default || "major"),
+          calc_payload_json: {
+            numeric_value: String(state.numeric_value || ""),
+            numeric_value_2: String(state.numeric_value_2 || ""),
+            numeric_value_3: String(state.numeric_value_3 || ""),
+            numeric_unit: String(item.numeric_unit || state.numeric_unit || ""),
+            calc_rule: String(item.calc_rule || ""),
+            auto_judgement: String(state.auto_judgement || ""),
+            calc_result_text: String(state.calc_result_text || ""),
+          },
           asset_id:
             activeAsset &&
             String(activeAsset.visit_system_id) === String(item.visit_system_id)
@@ -189,7 +356,9 @@ export default function VisitExecutionForm({
         };
       });
 
-      const effectiveRows = rows.filter((row) => String(row.response_value || "").trim());
+      const effectiveRows = rows.filter(
+        (row) => String(row.response_value || "").trim() !== ""
+      );
 
       if (effectiveRows.length === 0) {
         throw new Error("سجل نتيجة بند واحد على الأقل قبل الحفظ");
@@ -291,7 +460,7 @@ export default function VisitExecutionForm({
       ) : (
         <div className="stack-3" style={{ marginTop: "16px" }}>
           {selectedItems.map((item, index) => {
-            const state = getItemState(item.visit_system_id, item.checklist_item_id);
+            const state = getItemState(item);
 
             const itemEvidence = existingEvidence.filter((row) => {
               const sameItem =
@@ -307,6 +476,7 @@ export default function VisitExecutionForm({
               return true;
             });
 
+            const smart = isSmartItem(item);
             const isNonCompliant =
               String(state.response_value) === "non_compliant";
 
@@ -340,64 +510,217 @@ export default function VisitExecutionForm({
                       {item.acceptance_criteria}
                     </div>
                   ) : null}
+
+                  <div className="badge-wrap" style={{ marginTop: "10px" }}>
+                    {smartBadgeText(item) ? (
+                      <span className="badge">{smartBadgeText(item)}</span>
+                    ) : null}
+
+                    {item.numeric_unit ? (
+                      <span className="badge">الوحدة: {item.numeric_unit}</span>
+                    ) : null}
+
+                    {targetText(item) ? (
+                      <span className="badge">{targetText(item)}</span>
+                    ) : null}
+                  </div>
+
+                  {item.ui_hint_ar ? (
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        border: "1px solid #dbeafe",
+                        background: "#eff6ff",
+                        color: "#1e3a8a",
+                        borderRadius: "16px",
+                        padding: "12px",
+                        fontSize: "14px",
+                        lineHeight: 1.8,
+                      }}
+                    >
+                      {item.ui_hint_ar}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div style={{ padding: "0 16px 18px" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                      marginTop: "10px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className={buttonClass(
-                        state.response_value === "compliant",
-                        "green"
-                      )}
-                      onClick={() =>
-                        updateItemState(item.visit_system_id, item.checklist_item_id, {
-                          response_value: "compliant",
-                          finding_severity: "",
-                        })
-                      }
+                  {!smart ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        flexWrap: "wrap",
+                        marginTop: "10px",
+                      }}
                     >
-                      مطابق
-                    </button>
+                      <button
+                        type="button"
+                        className={buttonClass(
+                          state.response_value === "compliant",
+                          "green"
+                        )}
+                        onClick={() =>
+                          updateStandardItemState(item, {
+                            response_value: "compliant",
+                            finding_severity: "",
+                          })
+                        }
+                      >
+                        مطابق
+                      </button>
 
-                    <button
-                      type="button"
-                      className={buttonClass(
-                        state.response_value === "non_compliant",
-                        "red"
-                      )}
-                      onClick={() =>
-                        updateItemState(item.visit_system_id, item.checklist_item_id, {
-                          response_value: "non_compliant",
-                        })
-                      }
-                    >
-                      غير مطابق
-                    </button>
+                      <button
+                        type="button"
+                        className={buttonClass(
+                          state.response_value === "non_compliant",
+                          "red"
+                        )}
+                        onClick={() =>
+                          updateStandardItemState(item, {
+                            response_value: "non_compliant",
+                            finding_severity:
+                              state.finding_severity ||
+                              item.severity_default ||
+                              "major",
+                          })
+                        }
+                      >
+                        غير مطابق
+                      </button>
 
-                    <button
-                      type="button"
-                      className={buttonClass(
-                        state.response_value === "not_applicable",
-                        "slate"
-                      )}
-                      onClick={() =>
-                        updateItemState(item.visit_system_id, item.checklist_item_id, {
-                          response_value: "not_applicable",
-                          finding_severity: "",
-                        })
-                      }
+                      <button
+                        type="button"
+                        className={buttonClass(
+                          state.response_value === "not_applicable",
+                          "slate"
+                        )}
+                        onClick={() =>
+                          updateStandardItemState(item, {
+                            response_value: "not_applicable",
+                            finding_severity: "",
+                          })
+                        }
+                      >
+                        غير منطبق
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "20px",
+                        padding: "14px",
+                        background: "#fcfcfd",
+                      }}
                     >
-                      غير منطبق
-                    </button>
-                  </div>
+                      <input
+                        className="field"
+                        type="number"
+                        inputMode="decimal"
+                        placeholder={primaryLabel(item)}
+                        value={state.numeric_value}
+                        onChange={(e) =>
+                          updateSmartItemState(item, {
+                            numeric_value: e.target.value,
+                          })
+                        }
+                      />
+
+                      {secondaryLabel(item) ? (
+                        <input
+                          className="field"
+                          type="number"
+                          inputMode="decimal"
+                          placeholder={secondaryLabel(item)}
+                          value={state.numeric_value_2}
+                          onChange={(e) =>
+                            updateSmartItemState(item, {
+                              numeric_value_2: e.target.value,
+                            })
+                          }
+                          style={{ marginTop: "12px" }}
+                        />
+                      ) : null}
+
+                      {thirdLabel(item) ? (
+                        <input
+                          className="field"
+                          type="number"
+                          inputMode="decimal"
+                          placeholder={thirdLabel(item)}
+                          value={state.numeric_value_3}
+                          onChange={(e) =>
+                            updateSmartItemState(item, {
+                              numeric_value_3: e.target.value,
+                            })
+                          }
+                          style={{ marginTop: "12px" }}
+                        />
+                      ) : null}
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                          marginTop: "12px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className={buttonClass(
+                            state.response_value === "not_applicable",
+                            "slate"
+                          )}
+                          onClick={() =>
+                            updateSmartItemState(item, {
+                              response_value: "not_applicable",
+                            })
+                          }
+                        >
+                          غير منطبق
+                        </button>
+
+                        <button
+                          type="button"
+                          className={buttonClass(false, "slate")}
+                          onClick={() =>
+                            setItemState(item, defaultItemState(item))
+                          }
+                        >
+                          مسح القراءة
+                        </button>
+                      </div>
+
+                      {state.calc_result_text ? (
+                        <div
+                          style={{
+                            marginTop: "12px",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "16px",
+                            padding: "12px",
+                            background:
+                              state.auto_judgement === "fail"
+                                ? "#fef2f2"
+                                : state.auto_judgement === "pass"
+                                ? "#ecfdf5"
+                                : "#f8fafc",
+                            color:
+                              state.auto_judgement === "fail"
+                                ? "#b91c1c"
+                                : state.auto_judgement === "pass"
+                                ? "#047857"
+                                : "#334155",
+                            fontSize: "14px",
+                            lineHeight: 1.8,
+                          }}
+                        >
+                          {state.calc_result_text}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
 
                   {isNonCompliant ? (
                     <div
@@ -413,13 +736,9 @@ export default function VisitExecutionForm({
                         className="field"
                         value={state.finding_severity}
                         onChange={(e) =>
-                          updateItemState(
-                            item.visit_system_id,
-                            item.checklist_item_id,
-                            {
-                              finding_severity: e.target.value,
-                            }
-                          )
+                          updateStandardItemState(item, {
+                            finding_severity: e.target.value,
+                          })
                         }
                       >
                         <option value="">اختر الشدة</option>
@@ -433,13 +752,9 @@ export default function VisitExecutionForm({
                         placeholder="ملاحظات المفتش"
                         value={state.comments}
                         onChange={(e) =>
-                          updateItemState(
-                            item.visit_system_id,
-                            item.checklist_item_id,
-                            {
-                              comments: e.target.value,
-                            }
-                          )
+                          updateStandardItemState(item, {
+                            comments: e.target.value,
+                          })
                         }
                         style={{ marginTop: "12px" }}
                       />
@@ -449,13 +764,9 @@ export default function VisitExecutionForm({
                         placeholder="الإجراء التصحيحي المقترح"
                         value={state.corrective_action}
                         onChange={(e) =>
-                          updateItemState(
-                            item.visit_system_id,
-                            item.checklist_item_id,
-                            {
-                              corrective_action: e.target.value,
-                            }
-                          )
+                          updateStandardItemState(item, {
+                            corrective_action: e.target.value,
+                          })
                         }
                         style={{ marginTop: "12px" }}
                       />
