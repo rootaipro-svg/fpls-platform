@@ -14,6 +14,7 @@ import {
 } from "@/lib/current-inspector";
 import { readSheet } from "@/lib/sheets";
 import { getChecklistForSystem } from "@/lib/checklist";
+import type { AssetBaselineRow } from "@/lib/asset-baseline";
 
 export default async function VisitDetailPage({
   params,
@@ -39,6 +40,7 @@ export default async function VisitDetailPage({
     inspectors,
     evidence,
     assets,
+    assetBaselinesRows,
   ] = await Promise.all([
     readSheet(workbookId, "VISITS"),
     readSheet(workbookId, "VISIT_SYSTEMS"),
@@ -49,6 +51,7 @@ export default async function VisitDetailPage({
     readSheet(workbookId, "INSPECTORS"),
     readSheet(workbookId, "EVIDENCE"),
     readSheet(workbookId, "ASSETS"),
+    readSheet(workbookId, "ASSET_BASELINES"),
   ]);
 
   const visit = visits.find((v: any) => String(v.visit_id) === id);
@@ -148,6 +151,39 @@ export default async function VisitDetailPage({
       }
     }
   }
+
+  const activeAssetBaselines: AssetBaselineRow[] = activeAsset
+    ? assetBaselinesRows
+        .filter(
+          (row: any) =>
+            String(row.asset_id || "") === String(activeAsset.asset_id || "") &&
+            String(row.is_active || "true").toLowerCase() !== "false"
+        )
+        .map((row: any) => ({
+          baseline_id: String(row.baseline_id || ""),
+          tenant_id: String(row.tenant_id || ""),
+          asset_id: String(row.asset_id || ""),
+          system_code: String(row.system_code || ""),
+          baseline_profile_code: String(row.baseline_profile_code || ""),
+          metric_code: String(row.metric_code || ""),
+          metric_name_ar: String(row.metric_name_ar || ""),
+          metric_unit: String(row.metric_unit || ""),
+          ref_value: String(row.ref_value || ""),
+          ref_value_2: String(row.ref_value_2 || ""),
+          ref_value_3: String(row.ref_value_3 || ""),
+          low_limit: String(row.low_limit || ""),
+          high_limit: String(row.high_limit || ""),
+          allowed_dev_abs: String(row.allowed_dev_abs || ""),
+          allowed_dev_pct: String(row.allowed_dev_pct || ""),
+          compare_mode: String(row.compare_mode || ""),
+          baseline_date: String(row.baseline_date || ""),
+          baseline_source: String(row.baseline_source || ""),
+          is_active: String(row.is_active || "true").toLowerCase() !== "false",
+          notes: String(row.notes || ""),
+          created_at: String(row.created_at || ""),
+          updated_at: String(row.updated_at || ""),
+        }))
+    : [];
 
   const compliantCount = responseRows.filter(
     (r: any) => String(r.response_value || "").toLowerCase() === "compliant"
@@ -403,6 +439,7 @@ export default async function VisitDetailPage({
             taken_at: String(row.taken_at || ""),
           }))}
           activeAsset={activeAsset}
+          assetBaselines={activeAssetBaselines}
         />
       ) : null}
 
