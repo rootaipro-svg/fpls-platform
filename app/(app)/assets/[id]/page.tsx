@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CreateAssetVisitButton from "@/components/create-asset-visit-button";
 import {
   ClipboardList,
   FileImage,
@@ -541,12 +542,11 @@ export default async function AssetDetailPage({
               فتح زيارة التنفيذ
             </Link>
           ) : (
-            <Link
-              href={`/facilities/${String(asset.facility_id || "")}`}
-              className="btn btn-secondary"
-            >
-              الرجوع للمنشأة وإنشاء زيارة
-            </Link>
+            <CreateAssetVisitButton
+  assetId={String(id)}
+  className="btn btn-secondary"
+  label="إنشاء زيارة لهذا الأصل"
+/>
           )}
         </div>
       </section>
