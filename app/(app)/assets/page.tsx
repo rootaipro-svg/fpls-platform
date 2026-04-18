@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { AlertTriangle, Boxes, FileImage, Wrench } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { StatCard } from "@/components/stat-card";
 import AssetsBrowser from "@/components/assets-browser";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
@@ -10,10 +12,12 @@ export default async function AssetsPage() {
   const actor = await requirePermission("facilities", "view");
   const workbookId = actor.workbookId;
 
-  const [assets, facilities, buildings] = await Promise.all([
+  const [assets, facilities, buildings, findings, evidence] = await Promise.all([
     readSheet(workbookId, "ASSETS"),
     readSheet(workbookId, "FACILITIES"),
     readSheet(workbookId, "BUILDINGS"),
+    readSheet(workbookId, "FINDINGS"),
+    readSheet(workbookId, "EVIDENCE"),
   ]);
 
   const rows = [...assets]
@@ -51,19 +55,78 @@ export default async function AssetsPage() {
       )
     );
 
+  const openFindingAssetIds = new Set(
+    findings
+      .filter(
+        (f) =>
+          String(f.asset_id || "").trim() &&
+          String(f.closure_status || f.compliance_status || "").toLowerCase() !==
+            "closed"
+      )
+      .map((f) => String(f.asset_id))
+  );
+
+  const evidenceAssetIds = new Set(
+    evidence
+      .filter((e) => String(e.asset_id || "").trim())
+      .map((e) => String(e.asset_id))
+  );
+
+  const totalAssets = rows.length;
+  const assetsWithOpenFindings = rows.filter((r) =>
+    openFindingAssetIds.has(String(r.asset_id))
+  ).length;
+  const assetsWithoutEvidence = rows.filter(
+    (r) => !evidenceAssetIds.has(String(r.asset_id))
+  ).length;
+  const coveredSystemsCount = new Set(
+    rows.map((r) => String(r.system_code || "")).filter(Boolean)
+  ).size;
+
   return (
     <AppShell>
       <PageHeader
-        title="الأصول"
-        subtitle="قائمة جميع الأصول والمكونات المسجلة في هذا العميل"
+        title="لوحة الأصول"
+        subtitle="عرض الأصول، البحث والتصفية، والطباعة الجماعية لملصقات QR"
       />
+
+      <div className="stats-grid">
+        <StatCard
+          label="إجمالي الأصول"
+          value={totalAssets}
+          hint="كل الأصول المسجلة في العميل"
+          icon={Boxes}
+          tone="teal"
+        />
+        <StatCard
+          label="عليها مخالفات مفتوحة"
+          value={assetsWithOpenFindings}
+          hint="أصول تحتاج متابعة"
+          icon={AlertTriangle}
+          tone={assetsWithOpenFindings > 0 ? "red" : "slate"}
+        />
+        <StatCard
+          label="بلا أدلة"
+          value={assetsWithoutEvidence}
+          hint="لا توجد صور أو مرفقات مرتبطة"
+          icon={FileImage}
+          tone={assetsWithoutEvidence > 0 ? "amber" : "slate"}
+        />
+        <StatCard
+          label="الأنظمة المغطاة"
+          value={coveredSystemsCount}
+          hint="عدد أنواع الأنظمة داخل الأصول"
+          icon={Wrench}
+          tone="slate"
+        />
+      </div>
 
       <section className="card">
         <div className="section-header-row">
           <div>
             <div className="section-title">لوحة الأصول</div>
             <div className="section-subtitle">
-              عرض الأصول، البحث والتصفية، والطباعة الجماعية لملصقات QR
+              فتح الأصل، البحث والتصفية، والطباعة الجماعية لملصقات QR
             </div>
           </div>
 
