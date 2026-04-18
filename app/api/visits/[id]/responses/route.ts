@@ -328,13 +328,13 @@ export async function POST(
       updated_at: nowIso(),
     });
 
-    const touchedAssetIds = [
-  ...new Set(
+    const touchedAssetIds: string[] = Array.from(
+  new Set<string>(
     submittedResponses
-      .map((row: any) => String(row.asset_id || "").trim())
-      .filter(Boolean)
-  ),
-];
+      .map((row: any): string => String(row.asset_id || "").trim())
+      .filter((value: string): boolean => value.length > 0)
+  )
+);
 
     for (const assetId of touchedAssetIds) {
       const asset = assets.find((row) => String(row.asset_id || "") === assetId);
