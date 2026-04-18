@@ -156,12 +156,19 @@ export default async function AssetInspectPage({
               <ClipboardList size={18} />
               فتح زيارة التنفيذ
             </Link>
+          ) : String(actor.role || "").toLowerCase() === "inspector" ? (
+            <Link
+              href={`/facilities/${String(asset.facility_id || "")}`}
+              className="btn btn-secondary"
+            >
+              لا توجد زيارة نشطة، ارجع للمنشأة
+            </Link>
           ) : (
             <CreateAssetVisitButton
-  assetId={String(id)}
-  className="btn btn-secondary"
-  label="لا توجد زيارة نشطة، أنشئ زيارة الآن"
-/>
+              assetId={String(id)}
+              className="btn btn-secondary"
+              label="لا توجد زيارة نشطة، أنشئ زيارة الآن"
+            />
           )}
 
           <Link href={`/assets/${String(id)}`} className="btn btn-secondary">
