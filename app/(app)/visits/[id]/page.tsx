@@ -51,8 +51,8 @@ export default async function VisitDetailPage({
     readSheet(workbookId, "ASSETS"),
   ]);
 
-  const visit = visits.find((v) => String(v.visit_id) === id);
-  const systems = visitSystems.filter((vs) => String(vs.visit_id) === id);
+  const visit = visits.find((v: any) => String(v.visit_id) === id);
+  const systems = visitSystems.filter((vs: any) => String(vs.visit_id) === id);
 
   const currentInspector =
     actor.role === "inspector"
@@ -91,46 +91,46 @@ export default async function VisitDetailPage({
   }
 
   const facility = facilities.find(
-    (f) => String(f.facility_id) === String(visit?.facility_id || "")
+    (f: any) => String(f.facility_id) === String(visit?.facility_id || "")
   );
 
   const building = buildings.find(
-    (b) => String(b.building_id) === String(visit?.building_id || "")
+    (b: any) => String(b.building_id) === String(visit?.building_id || "")
   );
 
   const assignedInspector = inspectors.find(
-    (i) => String(i.inspector_id) === String(visit?.assigned_inspector_id || "")
+    (i: any) => String(i.inspector_id) === String(visit?.assigned_inspector_id || "")
   );
 
-  const visitSystemIds = new Set(systems.map((s) => String(s.visit_system_id)));
+  const visitSystemIds = new Set(systems.map((s: any) => String(s.visit_system_id)));
   const visitBuildingSystemIds = new Set(
-    systems.map((s) => String(s.building_system_id || ""))
+    systems.map((s: any) => String(s.building_system_id || ""))
   );
 
-  const responseRows = responses.filter((r) =>
+  const responseRows = responses.filter((r: any) =>
     visitSystemIds.has(String(r.visit_system_id))
   );
 
-  const findingRows = findings.filter((f) =>
+  const findingRows = findings.filter((f: any) =>
     visitSystemIds.has(String(f.visit_system_id))
   );
 
   const visitEvidence = evidence.filter(
-    (row) => String(row.visit_id) === String(id)
+    (row: any) => String(row.visit_id) === String(id)
   );
 
   let activeAsset: any = null;
 
   if (requestedAssetId) {
     const requestedAsset = assets.find(
-      (row) =>
+      (row: any) =>
         String(row.asset_id) === requestedAssetId &&
         visitBuildingSystemIds.has(String(row.building_system_id || ""))
     );
 
     if (requestedAsset) {
       const matchedVisitSystem = systems.find(
-        (row) =>
+        (row: any) =>
           String(row.building_system_id || "") ===
           String(requestedAsset.building_system_id || "")
       );
@@ -150,15 +150,15 @@ export default async function VisitDetailPage({
   }
 
   const compliantCount = responseRows.filter(
-    (r) => String(r.response_value || "").toLowerCase() === "compliant"
+    (r: any) => String(r.response_value || "").toLowerCase() === "compliant"
   ).length;
 
   const nonCompliantCount = responseRows.filter(
-    (r) => String(r.response_value || "").toLowerCase() === "non_compliant"
+    (r: any) => String(r.response_value || "").toLowerCase() === "non_compliant"
   ).length;
 
   const notApplicableCount = responseRows.filter(
-    (r) => String(r.response_value || "").toLowerCase() === "not_applicable"
+    (r: any) => String(r.response_value || "").toLowerCase() === "not_applicable"
   ).length;
 
   const scoredTotal = compliantCount + nonCompliantCount;
@@ -166,13 +166,13 @@ export default async function VisitDetailPage({
     scoredTotal > 0 ? Math.round((compliantCount / scoredTotal) * 100) : 0;
 
   const openFindingsCount = findingRows.filter(
-    (f) =>
+    (f: any) =>
       String(f.closure_status || f.compliance_status || "").toLowerCase() !==
       "closed"
   ).length;
 
   const executionItemsNested = await Promise.all(
-    systems.map(async (system) => {
+    systems.map(async (system: any) => {
       const items = await getChecklistForSystem(
         workbookId,
         String(system.system_code)
@@ -187,6 +187,15 @@ export default async function VisitDetailPage({
         section_name: String(item.section_name || ""),
         question_text: String(item.question_text || ""),
         acceptance_criteria: String(item.acceptance_criteria || ""),
+        response_type_v2: String(item.response_type_v2 || "pass_fail_na"),
+        numeric_unit: String(item.numeric_unit || ""),
+        target_min: String(item.target_min ?? ""),
+        target_max: String(item.target_max ?? ""),
+        calc_rule: String(item.calc_rule || ""),
+        ui_hint_ar: String(item.ui_hint_ar || ""),
+        severity_default: String(item.severity_default || "major"),
+        evidence_required: Boolean(item.evidence_required),
+        photo_required: Boolean(item.photo_required),
       }));
     })
   );
@@ -194,17 +203,24 @@ export default async function VisitDetailPage({
   const executionItems = executionItemsNested.flat();
 
   const existingResponses = responseRows
-    .filter((r) => {
+    .filter((r: any) => {
       if (!activeAsset?.asset_id) return true;
       const rowAssetId = String(r.asset_id || "");
       return !rowAssetId || rowAssetId === String(activeAsset.asset_id);
     })
-    .map((r) => ({
+    .map((r: any) => ({
       visit_system_id: String(r.visit_system_id),
       checklist_item_id: String(r.checklist_item_id),
       response_value: String(r.response_value || ""),
       finding_severity: String(r.finding_severity || ""),
       comments: String(r.comments || ""),
+      numeric_value: String(r.numeric_value || ""),
+      numeric_value_2: String(r.numeric_value_2 || ""),
+      numeric_value_3: String(r.numeric_value_3 || ""),
+      numeric_unit: String(r.numeric_unit || ""),
+      calc_rule: String(r.calc_rule || ""),
+      calc_result_text: String(r.calc_result_text || ""),
+      auto_judgement: String(r.auto_judgement || ""),
     }));
 
   const reportReady =
@@ -353,7 +369,7 @@ export default async function VisitDetailPage({
           </div>
         ) : (
           <div className="system-summary-grid" style={{ marginTop: "12px" }}>
-            {systems.map((system) => (
+            {systems.map((system: any) => (
               <VisitSystemSummaryCard
                 key={String(system.visit_system_id)}
                 system={system}
@@ -366,14 +382,14 @@ export default async function VisitDetailPage({
       {systems.length > 0 ? (
         <VisitExecutionForm
           visitId={String(id)}
-          visitSystems={systems.map((s) => ({
+          visitSystems={systems.map((s: any) => ({
             visit_system_id: String(s.visit_system_id),
             building_system_id: String(s.building_system_id),
             system_code: String(s.system_code),
           }))}
           checklistItems={executionItems}
           existingResponses={existingResponses}
-          existingEvidence={visitEvidence.map((row) => ({
+          existingEvidence={visitEvidence.map((row: any) => ({
             evidence_id: String(row.evidence_id || ""),
             visit_id: String(row.visit_id || ""),
             visit_system_id: String(row.visit_system_id || ""),
@@ -403,7 +419,7 @@ export default async function VisitDetailPage({
           </div>
         ) : (
           <div className="stack-3" style={{ marginTop: "12px" }}>
-            {executionItems.slice(0, 10).map((item) => (
+            {executionItems.slice(0, 10).map((item: any) => (
               <div
                 key={`${item.visit_system_id}-${item.checklist_item_id}`}
                 className="checklist-item"
@@ -415,6 +431,11 @@ export default async function VisitDetailPage({
                 <div className="checklist-item-criteria">
                   {item.acceptance_criteria}
                 </div>
+                {item.ui_hint_ar ? (
+                  <div className="section-subtitle" style={{ marginTop: "8px" }}>
+                    {item.ui_hint_ar}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
