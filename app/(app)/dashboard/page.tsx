@@ -4,6 +4,7 @@ import {
   Boxes,
   Building2,
   ClipboardList,
+  Clock3,
   QrCode,
   ShieldAlert,
   UserRound,
@@ -38,6 +39,21 @@ function parseAllowedSystems(value: any) {
     .split(/[,;|\n،]+/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function sortByDueDateAsc(rows: any[]) {
+  return [...rows].sort((a, b) => {
+    const aTime = new Date(String(a?.next_due_date || 0)).getTime();
+    const bTime = new Date(String(b?.next_due_date || 0)).getTime();
+    return aTime - bTime;
+  });
+}
+
+function getDueLabel(daysDiff: number) {
+  if (daysDiff < 0) return "متأخر";
+  if (daysDiff === 0) return "اليوم";
+  if (daysDiff <= 7) return "قريب";
+  return "مستقبلي";
 }
 
 export default async function DashboardPage() {
@@ -177,6 +193,44 @@ export default async function DashboardPage() {
     return status !== "closed";
   }).length;
 
+  const visibleFacilities =
+    actor.role === "inspector"
+      ? facilities.filter((facility: any) =>
+          visibleAssets.some(
+            (asset: any) =>
+              String(asset.facility_id || "") === String(facility.facility_id || "")
+          )
+        )
+      : facilities;
+
+  const dueAssets = sortByDueDateAsc(
+    visibleAssets
+      .map((asset: any) => {
+        const nextDueDate = String(asset.next_due_date || "");
+        if (!nextDueDate) return null;
+
+        const due = new Date(nextDueDate);
+        if (Number.isNaN(due.getTime())) return null;
+
+        due.setHours(0, 0, 0, 0);
+        const daysDiff = daysBetween(today, due);
+
+        if (daysDiff > 7) return null;
+
+        return {
+          asset_id: String(asset.asset_id || ""),
+          asset_code: String(asset.asset_code || ""),
+          asset_name: String(asset.asset_name || ""),
+          asset_name_ar: String(asset.asset_name_ar || ""),
+          system_code: String(asset.system_code || ""),
+          next_due_date: nextDueDate,
+          due_days_diff: daysDiff,
+          due_label: getDueLabel(daysDiff),
+        };
+      })
+      .filter(Boolean)
+  );
+
   if (actor.role === "inspector") {
     return (
       <AppShell>
@@ -206,11 +260,11 @@ export default async function DashboardPage() {
             tone="slate"
           />
           <StatCard
-            label="متأخر"
-            value={overdueVisits}
-            hint="زيارات تحتاج تنفيذ"
-            icon={AlertTriangle}
-            tone={overdueVisits > 0 ? "amber" : "slate"}
+            label="أصول مستحقة"
+            value={dueAssets.length}
+            hint="متأخر واليوم والقريب"
+            icon={Clock3}
+            tone={dueAssets.length > 0 ? "amber" : "slate"}
           />
           <StatCard
             label="مخالفات مفتوحة"
@@ -248,14 +302,41 @@ export default async function DashboardPage() {
         </div>
 
         <section className="card">
-          <div className="section-title">ملخص الوصول السريع</div>
-          <div className="badge-wrap" style={{ marginTop: "12px" }}>
-            <span className="badge">الأصول المتاحة: {visibleAssets.length}</span>
-            <span className="badge">الزيارات: {visibleVisits.length}</span>
-            <span className="badge">
-              المخالفات المفتوحة: {openVisibleFindingsCount}
-            </span>
-          </div>
+          <div className="section-title">الأصول المستحقة الآن</div>
+
+          {dueAssets.length === 0 ? (
+            <div style={{ marginTop: "12px" }}>
+              <EmptyState
+                title="لا توجد أصول مستحقة حاليًا"
+                description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
+                icon={Clock3}
+              />
+            </div>
+          ) : (
+            <div className="stack-3" style={{ marginTop: "12px" }}>
+              {dueAssets.slice(0, 5).map((asset: any) => (
+                <Link
+                  key={String(asset.asset_id)}
+                  href={`/assets/${String(asset.asset_id)}`}
+                  className="quick-link-card"
+                >
+                  <div className="quick-link-title">
+                    {String(
+                      asset.asset_name_ar ||
+                        asset.asset_name ||
+                        asset.asset_code ||
+                        asset.asset_id
+                    )}
+                  </div>
+                  <div className="quick-link-text">
+                    {String(asset.system_code || "-")} · الاستحقاق:{" "}
+                    {String(asset.next_due_date || "-")} · {String(asset.due_label)}
+                  </div>
+                  <CardLinkHint label="فتح الأصل" />
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="card">
@@ -303,7 +384,7 @@ export default async function DashboardPage() {
       <div className="stats-grid">
         <StatCard
           label="المنشآت"
-          value={facilities.length}
+          value={visibleFacilities.length}
           hint="إجمالي المنشآت المسجلة"
           icon={Building2}
           tone="teal"
@@ -316,11 +397,11 @@ export default async function DashboardPage() {
           tone="slate"
         />
         <StatCard
-          label="العناصر المستحقة"
-          value={dueItems.length}
-          hint="المتأخر واليوم والقريب"
-          icon={AlertTriangle}
-          tone={dueItems.length > 0 ? "amber" : "slate"}
+          label="أصول مستحقة"
+          value={dueAssets.length}
+          hint="متأخر واليوم والقريب"
+          icon={Clock3}
+          tone={dueAssets.length > 0 ? "amber" : "slate"}
         />
         <StatCard
           label="المخالفات المفتوحة"
@@ -377,22 +458,52 @@ export default async function DashboardPage() {
           </div>
           <CardLinkHint label="فتح المخالفات" />
         </Link>
-
-        <Link href="/settings" className="quick-link-card">
-          <div className="quick-link-title">إعدادات العميل</div>
-          <div className="quick-link-text">
-            خصص اسم الجهة والشعار وبيانات التوقيع لتظهر داخل التقارير.
-          </div>
-          <CardLinkHint label="فتح الإعدادات" />
-        </Link>
       </div>
+
+      <section className="card">
+        <div className="section-title">الأصول المستحقة الآن</div>
+
+        {dueAssets.length === 0 ? (
+          <div style={{ marginTop: "12px" }}>
+            <EmptyState
+              title="لا توجد أصول مستحقة حاليًا"
+              description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
+              icon={Clock3}
+            />
+          </div>
+        ) : (
+          <div className="stack-3" style={{ marginTop: "12px" }}>
+            {dueAssets.slice(0, 6).map((asset: any) => (
+              <Link
+                key={String(asset.asset_id)}
+                href={`/assets/${String(asset.asset_id)}`}
+                className="quick-link-card"
+              >
+                <div className="quick-link-title">
+                  {String(
+                    asset.asset_name_ar ||
+                      asset.asset_name ||
+                      asset.asset_code ||
+                      asset.asset_id
+                  )}
+                </div>
+                <div className="quick-link-text">
+                  {String(asset.system_code || "-")} · الاستحقاق:{" "}
+                  {String(asset.next_due_date || "-")} · {String(asset.due_label)}
+                </div>
+                <CardLinkHint label="فتح الأصل" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="card">
         <div className="section-title">ملخص تشغيلي سريع</div>
         <div className="badge-wrap" style={{ marginTop: "12px" }}>
           <span className="badge">الزيارات: {visibleVisits.length}</span>
           <span className="badge">الأصول: {visibleAssets.length}</span>
-          <span className="badge">المستحق قريبًا: {dueItems.length}</span>
+          <span className="badge">أصول مستحقة: {dueAssets.length}</span>
           <span className="badge">
             المخالفات المفتوحة: {openVisibleFindingsCount}
           </span>
