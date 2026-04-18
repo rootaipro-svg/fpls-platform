@@ -483,10 +483,25 @@ export default async function AssetDetailPage({
         </div>
 
         <div className="btn-row" style={{ marginTop: "16px" }}>
-          <Link href={`/assets/${id}/inspect`} className="btn">
-            <ClipboardList size={18} />
-            بدء فحص الأصل
-          </Link>
+          {activeVisit ? (
+            <Link href={`/assets/${id}/inspect`} className="btn">
+              <ClipboardList size={18} />
+              بدء فحص الأصل
+            </Link>
+          ) : String(actor.role || "").toLowerCase() === "inspector" ? (
+            <Link
+              href={`/facilities/${String(asset.facility_id || "")}`}
+              className="btn"
+            >
+              لا توجد زيارة نشطة
+            </Link>
+          ) : (
+            <CreateAssetVisitButton
+              assetId={String(id)}
+              className="btn"
+              label="إنشاء زيارة وبدء الفحص"
+            />
+          )}
 
           <Link href={`/assets/${id}/qr`} className="btn btn-secondary">
             <QrCode size={18} />
@@ -541,12 +556,19 @@ export default async function AssetDetailPage({
             >
               فتح زيارة التنفيذ
             </Link>
+          ) : String(actor.role || "").toLowerCase() === "inspector" ? (
+            <Link
+              href={`/facilities/${String(asset.facility_id || "")}`}
+              className="btn btn-secondary"
+            >
+              لا توجد زيارة نشطة، الرجوع للمنشأة
+            </Link>
           ) : (
             <CreateAssetVisitButton
-  assetId={String(id)}
-  className="btn btn-secondary"
-  label="إنشاء زيارة لهذا الأصل"
-/>
+              assetId={String(id)}
+              className="btn btn-secondary"
+              label="إنشاء زيارة لهذا الأصل"
+            />
           )}
         </div>
       </section>
@@ -614,7 +636,11 @@ export default async function AssetDetailPage({
                   <div className="system-line-top">
                     <div>
                       <div className="system-line-title">
-                        {String(checklistMeta?.question_text || row.checklist_item_id || "-")}
+                        {String(
+                          checklistMeta?.question_text ||
+                            row.checklist_item_id ||
+                            "-"
+                        )}
                       </div>
                       <div className="system-line-date">
                         {String(checklistMeta?.section_name || "Section")}
