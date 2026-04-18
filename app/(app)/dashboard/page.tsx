@@ -6,8 +6,10 @@ import {
   ClipboardList,
   Clock3,
   QrCode,
+  Settings,
   ShieldAlert,
   UserRound,
+  Users,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
@@ -56,6 +58,99 @@ function getDueLabel(daysDiff: number) {
   return "مستقبلي";
 }
 
+function ShortcutCard({
+  href,
+  title,
+  text,
+  hint,
+  icon: Icon,
+  tone = "teal",
+}: {
+  href: string;
+  title: string;
+  text: string;
+  hint: string;
+  icon: any;
+  tone?: "teal" | "amber" | "red" | "slate";
+}) {
+  const toneMap: Record<string, { bg: string; color: string; border: string }> = {
+    teal: {
+      bg: "#ecfeff",
+      color: "#0f766e",
+      border: "1px solid #ccfbf1",
+    },
+    amber: {
+      bg: "#fffbeb",
+      color: "#b45309",
+      border: "1px solid #fde68a",
+    },
+    red: {
+      bg: "#fef2f2",
+      color: "#b91c1c",
+      border: "1px solid #fecaca",
+    },
+    slate: {
+      bg: "#f8fafc",
+      color: "#334155",
+      border: "1px solid #e2e8f0",
+    },
+  };
+
+  const theme = toneMap[tone] || toneMap.teal;
+
+  return (
+    <Link href={href} className="quick-link-card">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          marginBottom: "12px",
+        }}
+      >
+        <div
+          style={{
+            width: "44px",
+            height: "44px",
+            borderRadius: "14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: theme.bg,
+            color: theme.color,
+            border: theme.border,
+            flexShrink: 0,
+          }}
+        >
+          <Icon size={20} />
+        </div>
+
+        <div className="quick-link-title" style={{ margin: 0 }}>
+          {title}
+        </div>
+      </div>
+
+      <div className="quick-link-text">{text}</div>
+      <CardLinkHint label={hint} />
+    </Link>
+  );
+}
+
+function SectionTitle({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div style={{ marginBottom: "12px" }}>
+      <div className="section-title">{title}</div>
+      <div className="section-subtitle">{subtitle}</div>
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   const actor = await requirePermission("dashboard", "view");
 
@@ -85,37 +180,6 @@ export default async function DashboardPage() {
           )
         )
       : visits;
-
-  const latestByBuildingSystem = new Map<string, any>();
-
-  for (const row of visitSystems) {
-    const key = String(row.building_system_id || "");
-    if (!key) continue;
-
-    const current = latestByBuildingSystem.get(key);
-    const rowStamp = String(
-      row.updated_at || row.actual_end_time || row.next_due_date || ""
-    );
-    const currentStamp = String(
-      current?.updated_at || current?.actual_end_time || current?.next_due_date || ""
-    );
-
-    if (!current || rowStamp > currentStamp) {
-      latestByBuildingSystem.set(key, row);
-    }
-  }
-
-  const dueItems =
-    actor.role === "inspector"
-      ? []
-      : Array.from(latestByBuildingSystem.values()).filter((row) => {
-          if (!String(row.next_due_date || "").trim()) return false;
-
-          const due = new Date(String(row.next_due_date));
-          due.setHours(0, 0, 0, 0);
-
-          return daysBetween(today, due) <= 7;
-        });
 
   const latestVisits = sortByDateDesc(visibleVisits, "planned_date").slice(0, 5);
 
@@ -231,6 +295,10 @@ export default async function DashboardPage() {
       .filter(Boolean)
   );
 
+  const overdueDueAssetsCount = dueAssets.filter(
+    (asset: any) => Number(asset.due_days_diff) < 0
+  ).length;
+
   const unassignedOpenVisits =
     actor.role === "inspector"
       ? []
@@ -270,15 +338,15 @@ export default async function DashboardPage() {
             label="اليوم"
             value={todaysVisits}
             hint="زيارات اليوم"
-            icon={ClipboardList}
+            icon={Clock3}
             tone="slate"
           />
           <StatCard
-            label="أصول مستحقة"
-            value={dueAssets.length}
-            hint="متأخر واليوم والقريب"
-            icon={Clock3}
-            tone={dueAssets.length > 0 ? "amber" : "slate"}
+            label="متأخر"
+            value={overdueVisits}
+            hint="زيارات تحتاج تنفيذ"
+            icon={AlertTriangle}
+            tone={overdueVisits > 0 ? "amber" : "slate"}
           />
           <StatCard
             label="مخالفات مفتوحة"
@@ -289,43 +357,54 @@ export default async function DashboardPage() {
           />
         </div>
 
-        <div className="quick-links-grid">
-          <Link href="/visits" className="quick-link-card">
-            <div className="quick-link-title">فتح زياراتي</div>
-            <div className="quick-link-text">
-              اعرض كل الزيارات المعيّنة لك وابدأ التنفيذ أو أكمل الزيارة.
-            </div>
-            <CardLinkHint label="فتح الزيارات" />
-          </Link>
+        <section className="card">
+          <SectionTitle
+            title="البدء السريع"
+            subtitle="كل ما يحتاجه المفتش لبدء التنفيذ والمتابعة الميدانية"
+          />
 
-          <Link href="/assets" className="quick-link-card">
-            <div className="quick-link-title">لوحة الأصول</div>
-            <div className="quick-link-text">
-              افتح الأصول المتاحة لك، واعرض QR وابدأ الفحص مباشرة.
-            </div>
-            <CardLinkHint label="فتح الأصول" />
-          </Link>
+          <div className="quick-links-grid">
+            <ShortcutCard
+              href="/visits"
+              title="زياراتي"
+              text="اعرض كل الزيارات المسندة لك وابدأ التنفيذ أو أكمل الزيارة."
+              hint="فتح الزيارات"
+              icon={ClipboardList}
+              tone="teal"
+            />
 
-          <Link href="/findings" className="quick-link-card">
-            <div className="quick-link-title">المخالفات</div>
-            <div className="quick-link-text">
-              راجع المخالفات المفتوحة وتابع الإجراء التصحيحي والإغلاق.
-            </div>
-            <CardLinkHint label="فتح المخالفات" />
-          </Link>
-        </div>
+            <ShortcutCard
+              href="/assets"
+              title="لوحة الأصول"
+              text="افتح الأصول المسموح لك بها، وراجع QR وابدأ الفحص من الأصل."
+              hint="فتح الأصول"
+              icon={Boxes}
+              tone="slate"
+            />
+
+            <ShortcutCard
+              href="/findings"
+              title="المخالفات"
+              text="راجع المخالفات المفتوحة وتابع الإجراء التصحيحي والإغلاق."
+              hint="فتح المخالفات"
+              icon={ShieldAlert}
+              tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
+            />
+          </div>
+        </section>
 
         <section className="card">
-          <div className="section-title">الأصول المستحقة الآن</div>
+          <SectionTitle
+            title="الأصول المستحقة الآن"
+            subtitle="أصول تحتاج اهتمامًا قريبًا أو فوريًا ضمن الأنظمة المسموح لك بها"
+          />
 
           {dueAssets.length === 0 ? (
-            <div style={{ marginTop: "12px" }}>
-              <EmptyState
-                title="لا توجد أصول مستحقة حاليًا"
-                description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
-                icon={Clock3}
-              />
-            </div>
+            <EmptyState
+              title="لا توجد أصول مستحقة حاليًا"
+              description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
+              icon={Clock3}
+            />
           ) : (
             <div className="stack-3" style={{ marginTop: "12px" }}>
               {dueAssets.slice(0, 5).map((asset: any) => (
@@ -354,16 +433,17 @@ export default async function DashboardPage() {
         </section>
 
         <section className="card">
-          <div className="section-title">آخر الزيارات المعيّنة لك</div>
+          <SectionTitle
+            title="آخر الزيارات المعيّنة لك"
+            subtitle="وصول سريع إلى أحدث الزيارات التي تعمل عليها"
+          />
 
           {latestVisits.length === 0 ? (
-            <div style={{ marginTop: "12px" }}>
-              <EmptyState
-                title="لا توجد زيارات مخصصة لك"
-                description="عند تعيين زيارات لك ستظهر هنا مباشرة."
-                icon={ClipboardList}
-              />
-            </div>
+            <EmptyState
+              title="لا توجد زيارات مخصصة لك"
+              description="عند تعيين زيارات لك ستظهر هنا مباشرة."
+              icon={ClipboardList}
+            />
           ) : (
             <div className="stack-3" style={{ marginTop: "12px" }}>
               {latestVisits.map((visit: any) => (
@@ -392,7 +472,7 @@ export default async function DashboardPage() {
     <AppShell>
       <PageHeader
         title="لوحة التحكم"
-        subtitle="متابعة المنشآت والزيارات والعناصر المستحقة"
+        subtitle="متابعة المنشآت والأصول والزيارات والمخالفات والتوزيع التشغيلي"
       />
 
       <div className="stats-grid">
@@ -411,11 +491,11 @@ export default async function DashboardPage() {
           tone="slate"
         />
         <StatCard
-          label="أصول مستحقة"
-          value={dueAssets.length}
-          hint="متأخر واليوم والقريب"
-          icon={Clock3}
-          tone={dueAssets.length > 0 ? "amber" : "slate"}
+          label="زيارات غير مسندة"
+          value={unassignedOpenVisits.length}
+          hint="تحتاج توزيعًا سريعًا"
+          icon={Users}
+          tone={unassignedOpenVisits.length > 0 ? "amber" : "slate"}
         />
         <StatCard
           label="المخالفات المفتوحة"
@@ -427,10 +507,16 @@ export default async function DashboardPage() {
       </div>
 
       {unassignedOpenVisits.length > 0 ? (
-        <section className="card" style={{ border: "1px solid #fecaca", background: "#fff7f7" }}>
+        <section
+          className="card"
+          style={{
+            border: "1px solid #fecaca",
+            background: "#fff7f7",
+          }}
+        >
           <div className="section-header-row">
             <div>
-              <div className="section-title">تنبيه تشغيلي</div>
+              <div className="section-title">تنبيه تشغيلي مهم</div>
               <div className="section-subtitle">
                 توجد زيارات مفتوحة غير مسندة لمفتش، ويجب توزيعها حتى لا تتعطل أعمال التنفيذ.
               </div>
@@ -447,125 +533,190 @@ export default async function DashboardPage() {
       ) : null}
 
       <section className="card">
-        <div className="section-header-row">
-          <div>
-            <div className="section-title">اختصارات سريعة</div>
-            <div className="section-subtitle">
-              انتقال مباشر إلى الأصول وملصقات QR والمخالفات والمتابعة
-            </div>
-          </div>
+        <SectionTitle
+          title="مركز التشغيل اليومي"
+          subtitle="أهم الصفحات اليومية الخاصة بالمتابعة والتوزيع والتنفيذ"
+        />
 
-          <div className="badge-wrap">
-            <Link href="/assets" className="btn btn-secondary">
-              لوحة الأصول
-            </Link>
+        <div className="quick-links-grid">
+          <ShortcutCard
+            href="/unassigned-visits"
+            title="الزيارات غير المسندة"
+            text="راجع الزيارات المفتوحة التي لم تُسند بعد، وعيّن المفتش المناسب بسرعة."
+            hint="فتح الصفحة"
+            icon={Users}
+            tone={unassignedOpenVisits.length > 0 ? "amber" : "slate"}
+          />
 
-            <Link href="/assets/labels" className="btn btn-secondary">
-              <QrCode size={16} />
-              ملصقات QR
-            </Link>
-          </div>
+          <ShortcutCard
+            href="/due"
+            title="العناصر المستحقة"
+            text="اعرض العناصر والأنظمة المتأخرة أو القريبة، وأنشئ زيارات متابعة مباشرة."
+            hint="فتح الصفحة"
+            icon={Clock3}
+            tone={dueAssets.length > 0 ? "amber" : "slate"}
+          />
+
+          <ShortcutCard
+            href="/visits"
+            title="الزيارات"
+            text="افتح كل الزيارات المجدولة أو الجارية وتابع التنفيذ والحالة الحالية."
+            hint="فتح الزيارات"
+            icon={ClipboardList}
+            tone="teal"
+          />
+
+          <ShortcutCard
+            href="/findings"
+            title="المخالفات"
+            text="راجع المخالفات المفتوحة وتابع الإغلاقات والإجراءات التصحيحية."
+            hint="فتح المخالفات"
+            icon={ShieldAlert}
+            tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
+          />
+
+          <ShortcutCard
+            href="/assets"
+            title="لوحة الأصول"
+            text="استعرض الأصول، وابحث وفلتر، وابدأ الفحص وراجع الاستحقاقات."
+            hint="فتح الأصول"
+            icon={Boxes}
+            tone="slate"
+          />
+
+          <ShortcutCard
+            href="/assets/labels"
+            title="ملصقات QR"
+            text="اطبع الملصقات الجماعية للأصول لاستخدامها ميدانيًا وربطها بالمسح."
+            hint="فتح الملصقات"
+            icon={QrCode}
+            tone="slate"
+          />
         </div>
       </section>
 
-      <div className="quick-links-grid">
-        <Link href="/due" className="quick-link-card">
-          <div className="quick-link-title">فتح العناصر المستحقة</div>
-          <div className="quick-link-text">
-            اعرض الأنظمة المتأخرة أو القريبة، وأنشئ زيارات متابعة مباشرة منها.
-          </div>
-          <CardLinkHint label="فتح الصفحة" />
-        </Link>
+      <section className="card">
+        <SectionTitle
+          title="الإدارة والتهيئة"
+          subtitle="الوظائف الإدارية الخاصة بالمنشآت والمفتشين والمستخدمين والإعدادات"
+        />
 
-        <Link href="/assets" className="quick-link-card">
-          <div className="quick-link-title">لوحة الأصول</div>
-          <div className="quick-link-text">
-            افتح الأصول، ابحث وفلتر، وابدأ الفحص أو اطبع ملصقات QR.
-          </div>
-          <CardLinkHint label="فتح الأصول" />
-        </Link>
+        <div className="quick-links-grid">
+          <ShortcutCard
+            href="/facilities"
+            title="المنشآت"
+            text="إدارة المنشآت والمباني والأنظمة المثبتة وربط الأصول بها."
+            hint="فتح المنشآت"
+            icon={Building2}
+            tone="teal"
+          />
 
-        <Link href="/findings" className="quick-link-card">
-          <div className="quick-link-title">المخالفات</div>
-          <div className="quick-link-text">
-            راجع المخالفات المفتوحة وتابع الإغلاقات والإجراءات التصحيحية.
-          </div>
-          <CardLinkHint label="فتح المخالفات" />
-        </Link>
+          <ShortcutCard
+            href="/inspectors"
+            title="إدارة المفتشين"
+            text="إضافة المفتشين وربطهم بالحسابات وتحديد الأنظمة المسموحة لهم."
+            hint="فتح إدارة المفتشين"
+            icon={UserRound}
+            tone="slate"
+          />
 
-        <Link href="/unassigned-visits" className="quick-link-card">
-          <div className="quick-link-title">الزيارات غير المسندة</div>
-          <div className="quick-link-text">
-            راجع الزيارات المفتوحة التي لم تُسند بعد، وعيّن المفتش المناسب بسرعة.
-          </div>
-          <CardLinkHint label="فتح الصفحة" />
-        </Link>
-      </div>
+          <ShortcutCard
+            href="/settings/users"
+            title="المستخدمون والصلاحيات"
+            text="تحكم في الأدوار والصلاحيات وحالة الحسابات داخل هذا العميل."
+            hint="فتح المستخدمين"
+            icon={Users}
+            tone="slate"
+          />
+
+          <ShortcutCard
+            href="/settings"
+            title="إعدادات العميل"
+            text="تخصيص اسم الجهة والشعار وبيانات التقرير والهوية العامة."
+            hint="فتح الإعدادات"
+            icon={Settings}
+            tone="slate"
+          />
+        </div>
+      </section>
 
       <section className="card">
-        <div className="section-title">الأصول المستحقة الآن</div>
+        <SectionTitle
+          title="الأصول المستحقة الآن"
+          subtitle="أهم الأصول التي تحتاج متابعة مباشرة أو قريبة حسب تاريخ الاستحقاق"
+        />
 
         {dueAssets.length === 0 ? (
-          <div style={{ marginTop: "12px" }}>
-            <EmptyState
-              title="لا توجد أصول مستحقة حاليًا"
-              description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
-              icon={Clock3}
-            />
-          </div>
+          <EmptyState
+            title="لا توجد أصول مستحقة حاليًا"
+            description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
+            icon={Clock3}
+          />
         ) : (
-          <div className="stack-3" style={{ marginTop: "12px" }}>
-            {dueAssets.slice(0, 6).map((asset: any) => (
-              <Link
-                key={String(asset.asset_id)}
-                href={`/assets/${String(asset.asset_id)}`}
-                className="quick-link-card"
-              >
-                <div className="quick-link-title">
-                  {String(
-                    asset.asset_name_ar ||
-                      asset.asset_name ||
-                      asset.asset_code ||
-                      asset.asset_id
-                  )}
-                </div>
-                <div className="quick-link-text">
-                  {String(asset.system_code || "-")} · الاستحقاق:{" "}
-                  {String(asset.next_due_date || "-")} · {String(asset.due_label)}
-                </div>
-                <CardLinkHint label="فتح الأصل" />
-              </Link>
-            ))}
-          </div>
+          <>
+            <div className="badge-wrap" style={{ marginTop: "12px", marginBottom: "12px" }}>
+              <span className="badge">المستحقة الآن: {dueAssets.length}</span>
+              <span className="badge">المتأخرة: {overdueDueAssetsCount}</span>
+            </div>
+
+            <div className="stack-3">
+              {dueAssets.slice(0, 6).map((asset: any) => (
+                <Link
+                  key={String(asset.asset_id)}
+                  href={`/assets/${String(asset.asset_id)}`}
+                  className="quick-link-card"
+                >
+                  <div className="quick-link-title">
+                    {String(
+                      asset.asset_name_ar ||
+                        asset.asset_name ||
+                        asset.asset_code ||
+                        asset.asset_id
+                    )}
+                  </div>
+                  <div className="quick-link-text">
+                    {String(asset.system_code || "-")} · الاستحقاق:{" "}
+                    {String(asset.next_due_date || "-")} · {String(asset.due_label)}
+                  </div>
+                  <CardLinkHint label="فتح الأصل" />
+                </Link>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
       <section className="card">
-        <div className="section-title">ملخص تشغيلي سريع</div>
+        <SectionTitle
+          title="ملخص تشغيلي سريع"
+          subtitle="لقطة سريعة عن الوضع التشغيلي الحالي داخل النظام"
+        />
+
         <div className="badge-wrap" style={{ marginTop: "12px" }}>
           <span className="badge">الزيارات: {visibleVisits.length}</span>
           <span className="badge">الأصول: {visibleAssets.length}</span>
           <span className="badge">أصول مستحقة: {dueAssets.length}</span>
           <span className="badge">
-            المخالفات المفتوحة: {openVisibleFindingsCount}
+            زيارات غير مسندة: {unassignedOpenVisits.length}
           </span>
           <span className="badge">
-            زيارات غير مسندة: {unassignedOpenVisits.length}
+            المخالفات المفتوحة: {openVisibleFindingsCount}
           </span>
         </div>
       </section>
 
       <section className="card">
-        <div className="section-title">آخر الزيارات</div>
+        <SectionTitle
+          title="آخر الزيارات"
+          subtitle="آخر الزيارات المجدولة أو الجارية لسرعة الوصول والمتابعة"
+        />
 
         {latestVisits.length === 0 ? (
-          <div style={{ marginTop: "12px" }}>
-            <EmptyState
-              title="لا توجد زيارات حتى الآن"
-              description="بعد إنشاء زيارة جديدة ستظهر هنا آخر الزيارات المنفذة أو المجدولة."
-              icon={ClipboardList}
-            />
-          </div>
+          <EmptyState
+            title="لا توجد زيارات حتى الآن"
+            description="بعد إنشاء زيارة جديدة ستظهر هنا آخر الزيارات المنفذة أو المجدولة."
+            icon={ClipboardList}
+          />
         ) : (
           <div className="stack-3" style={{ marginTop: "12px" }}>
             {latestVisits.map((visit: any) => (
