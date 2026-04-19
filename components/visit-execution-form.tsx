@@ -83,6 +83,7 @@ type Props = {
   existingEvidence: EvidenceRow[];
   activeAsset?: ActiveAsset | null;
   assetBaselines: AssetBaselineRow[];
+  isReadOnly?: boolean;
 };
 
 type ItemState = {
@@ -315,6 +316,29 @@ function itemHintText(item: ChecklistItem) {
   return "اختر مطابق أو غير مطابق أو غير منطبق. أضف ملاحظة فقط عند الحاجة.";
 }
 
+function toArabicResponseValue(value: string) {
+  const v = String(value || "").toLowerCase();
+
+  if (v === "compliant") return "مطابق";
+  if (v === "non_compliant") return "غير مطابق";
+  if (v === "not_applicable") return "غير منطبق";
+
+  return value || "-";
+}
+
+function looksLikeImage(url: string, evidenceType: string) {
+  const u = String(url || "").toLowerCase();
+  if (String(evidenceType || "").toLowerCase() === "image") return true;
+
+  return (
+    u.endsWith(".jpg") ||
+    u.endsWith(".jpeg") ||
+    u.endsWith(".png") ||
+    u.endsWith(".webp") ||
+    u.includes("blob.vercel-storage.com")
+  );
+}
+
 export default function VisitExecutionForm({
   visitId,
   visitSystems,
@@ -323,6 +347,7 @@ export default function VisitExecutionForm({
   existingEvidence,
   activeAsset,
   assetBaselines,
+  isReadOnly = false,
 }: Props) {
   const router = useRouter();
 
@@ -420,10 +445,6 @@ export default function VisitExecutionForm({
   const activeSection =
     sectionGroups.find((group) => group.key === selectedSectionKey) || null;
 
-  const activeSectionIndex = sectionGroups.findIndex(
-    (group) => group.key === selectedSectionKey
-  );
-
   const visibleItems = activeSection?.items || [];
 
   const totalCompleted = sectionGroups.reduce(
@@ -452,6 +473,8 @@ export default function VisitExecutionForm({
     item: ChecklistItem,
     patch: Partial<ItemState>
   ) {
+    if (isReadOnly) return;
+
     const current = getItemState(item);
 
     const nextState: ItemState = {
@@ -467,6 +490,8 @@ export default function VisitExecutionForm({
   }
 
   function updateSmartItemState(item: ChecklistItem, patch: Partial<ItemState>) {
+    if (isReadOnly) return;
+
     const current = getItemState(item);
 
     const nextState: ItemState = {
@@ -539,6 +564,8 @@ export default function VisitExecutionForm({
   }
 
   async function handleSaveAndClose() {
+    if (isReadOnly) return;
+
     setSaving(true);
     setMessage("");
     setError("");
@@ -631,65 +658,10 @@ export default function VisitExecutionForm({
     <section className="card">
       <div className="section-title">تنفيذ الفحص</div>
       <div className="section-subtitle">
-        اختر القسم ثم نفّذ البنود. هذه الصفحة مخصصة للعمل الميداني فقط.
+        {isReadOnly
+          ? "هذه الزيارة مغلقة. يمكنك مراجعة النتائج فقط."
+          : "اختر قسمًا واحدًا ثم نفّذ البنود. الصفحة مخصصة للعمل الميداني فقط."}
       </div>
-
-      {activeAsset ? (
-        <div
-          style={{
-            marginTop: "14px",
-            border: "1px solid #e2e8f0",
-            borderRadius: "18px",
-            padding: "14px",
-            background: "#f8fafc",
-          }}
-        >
-          <div className="section-title" style={{ fontSize: "15px" }}>
-            الأصل الجاري فحصه
-          </div>
-          <div className="section-subtitle" style={{ marginTop: "6px" }}>
-            {String(activeAsset.asset_name_ar || activeAsset.asset_name || "أصل")}
-            {activeAsset.asset_code ? ` · ${String(activeAsset.asset_code)}` : ""}
-            {activeAsset.location_note
-              ? ` · ${String(activeAsset.location_note)}`
-              : ""}
-          </div>
-        </div>
-      ) : null}
-
-      {!activeAsset && visitSystems.length > 1 ? (
-        <div style={{ marginTop: "16px" }}>
-          <div className="section-title" style={{ fontSize: "16px" }}>
-            اختيار النظام
-          </div>
-
-          <div className="badge-wrap" style={{ marginTop: "12px" }}>
-            {visitSystems.map((system) => {
-              const active =
-                String(system.visit_system_id) === String(selectedSystemId);
-
-              return (
-                <button
-                  key={system.visit_system_id}
-                  type="button"
-                  onClick={() => setSelectedSystemId(String(system.visit_system_id))}
-                  className={active ? "badge badge-active" : "badge"}
-                  style={{
-                    border: active ? "1px solid #0f766e" : "1px solid #e2e8f0",
-                    background: active ? "#0f766e" : "#ffffff",
-                    color: active ? "#ffffff" : "#0f172a",
-                    padding: "10px 18px",
-                    borderRadius: "999px",
-                    fontWeight: 700,
-                  }}
-                >
-                  {system.system_code}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
 
       <div className="badge-wrap" style={{ marginTop: "14px" }}>
         <span className="badge">النظام الحالي: {selectedSystem?.system_code || "-"}</span>
@@ -704,15 +676,17 @@ export default function VisitExecutionForm({
             أقسام الفحص
           </div>
           <div className="section-subtitle" style={{ marginTop: "4px" }}>
-            اختر قسمًا واحدًا فقط ليظهر لك، حتى تبقى الصفحة قصيرة وواضحة.
+            تبويبات صغيرة للتنقل السريع بين الأقسام.
           </div>
 
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-              gap: "10px",
-              marginTop: "12px",
+              display: "flex",
+              gap: "8px",
+              overflowX: "auto",
+              paddingTop: "12px",
+              paddingBottom: "4px",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             {sectionGroups.map((group) => {
@@ -724,37 +698,34 @@ export default function VisitExecutionForm({
                   type="button"
                   onClick={() => setSelectedSectionKey(group.key)}
                   style={{
+                    flex: "0 0 auto",
+                    minWidth: "150px",
                     textAlign: "right",
                     border: active ? "1px solid #0f766e" : "1px solid #e2e8f0",
-                    borderRadius: "18px",
-                    padding: "12px",
+                    borderRadius: "16px",
+                    padding: "10px 12px",
                     background: active ? "#f0fdfa" : "#ffffff",
-                    boxShadow: active ? "0 0 0 1px rgba(15,118,110,.06)" : "none",
+                    color: "#0f172a",
                   }}
                 >
                   <div
                     style={{
                       fontSize: "14px",
                       fontWeight: 800,
-                      color: "#0f172a",
-                      lineHeight: 1.6,
+                      lineHeight: 1.5,
                     }}
                   >
                     {group.label}
                   </div>
                   <div
                     style={{
-                      marginTop: "8px",
-                      fontSize: "13px",
+                      marginTop: "6px",
+                      fontSize: "12px",
                       color: "#64748b",
-                      lineHeight: 1.7,
+                      lineHeight: 1.6,
                     }}
                   >
-                    البنود: {group.total}
-                    <br />
-                    المكتمل: {group.completedCount}
-                    <br />
-                    الذكية: {group.smartCount}
+                    {group.completedCount}/{group.total}
                   </div>
                 </button>
               );
@@ -790,39 +761,16 @@ export default function VisitExecutionForm({
                 البنود: {activeSection.total} · المكتمل: {activeSection.completedCount}
               </div>
             </div>
-
-            <div className="badge-wrap">
-              {activeSectionIndex > 0 ? (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() =>
-                    setSelectedSectionKey(sectionGroups[activeSectionIndex - 1].key)
-                  }
-                >
-                  السابق
-                </button>
-              ) : null}
-
-              {activeSectionIndex < sectionGroups.length - 1 ? (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() =>
-                    setSelectedSectionKey(sectionGroups[activeSectionIndex + 1].key)
-                  }
-                >
-                  التالي
-                </button>
-              ) : null}
-            </div>
           </div>
 
           <div className="stack-3" style={{ marginTop: "16px" }}>
             {visibleItems.map((item, index) => {
               const state = getItemState(item);
-              const itemId = itemKey(item.visit_system_id, item.checklist_item_id);
-              const isOpenEvidence = openEvidenceKey === itemId;
+              const currentItemKey = itemKey(
+                item.visit_system_id,
+                item.checklist_item_id
+              );
+              const isOpenEvidence = openEvidenceKey === currentItemKey;
 
               const baselineRow = findAssetBaseline(
                 assetBaselines,
@@ -850,10 +798,10 @@ export default function VisitExecutionForm({
 
               return (
                 <div
-                  key={itemId}
+                  key={currentItemKey}
                   style={{
                     border: "1px solid #e2e8f0",
-                    borderRadius: "22px",
+                    borderRadius: "20px",
                     background: "#ffffff",
                     padding: "14px",
                   }}
@@ -862,7 +810,7 @@ export default function VisitExecutionForm({
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      gap: "12px",
+                      gap: "10px",
                       alignItems: "center",
                       flexWrap: "wrap",
                     }}
@@ -870,28 +818,19 @@ export default function VisitExecutionForm({
                     <div className="badge-wrap">
                       <span className="badge">{smart ? "بند ذكي" : "بند بصري"}</span>
                       <span className="badge">بند {index + 1}</span>
-                      {item.numeric_unit ? (
-                        <span className="badge">الوحدة: {item.numeric_unit}</span>
-                      ) : null}
                     </div>
 
-                    {String(state.response_value || "").trim() ? (
-                      <span className="badge">
-                        الحالة:{" "}
-                        {state.response_value === "compliant"
-                          ? "مطابق"
-                          : state.response_value === "non_compliant"
-                          ? "غير مطابق"
-                          : state.response_value === "not_applicable"
-                          ? "غير منطبق"
-                          : state.response_value}
-                      </span>
-                    ) : null}
+                    <span className="badge">
+                      الحالة:{" "}
+                      {String(state.response_value || "").trim()
+                        ? toArabicResponseValue(state.response_value)
+                        : "بانتظار الإجابة"}
+                    </span>
                   </div>
 
                   <div
                     className="checklist-item-title"
-                    style={{ marginTop: "10px", lineHeight: 1.8 }}
+                    style={{ marginTop: "10px", lineHeight: 1.8, fontSize: "21px" }}
                   >
                     {toArabicQuestionText(item.question_text)}
                   </div>
@@ -909,9 +848,27 @@ export default function VisitExecutionForm({
                     {targetText(item) ? (
                       <span className="badge">{targetText(item)}</span>
                     ) : null}
+                    {item.numeric_unit ? (
+                      <span className="badge">الوحدة: {item.numeric_unit}</span>
+                    ) : null}
                     {baselineRow ? (
                       <span className="badge">مرجع الأصل جاهز</span>
                     ) : null}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "10px",
+                      border: "1px solid #dbeafe",
+                      background: "#eff6ff",
+                      color: "#1e3a8a",
+                      borderRadius: "14px",
+                      padding: "10px 12px",
+                      fontSize: "13px",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    {itemHintText(item)}
                   </div>
 
                   {baselineRow ? (
@@ -935,21 +892,6 @@ export default function VisitExecutionForm({
                     </div>
                   ) : null}
 
-                  <div
-                    style={{
-                      marginTop: "10px",
-                      border: "1px solid #dbeafe",
-                      background: "#eff6ff",
-                      color: "#1e3a8a",
-                      borderRadius: "14px",
-                      padding: "10px 12px",
-                      fontSize: "13px",
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    {itemHintText(item)}
-                  </div>
-
                   {!smart ? (
                     <div
                       style={{
@@ -961,6 +903,7 @@ export default function VisitExecutionForm({
                     >
                       <button
                         type="button"
+                        disabled={isReadOnly}
                         className={buttonClass(
                           state.response_value === "compliant",
                           "green"
@@ -977,6 +920,7 @@ export default function VisitExecutionForm({
 
                       <button
                         type="button"
+                        disabled={isReadOnly}
                         className={buttonClass(
                           state.response_value === "non_compliant",
                           "red"
@@ -996,6 +940,7 @@ export default function VisitExecutionForm({
 
                       <button
                         type="button"
+                        disabled={isReadOnly}
                         className={buttonClass(
                           state.response_value === "not_applicable",
                           "slate"
@@ -1036,6 +981,7 @@ export default function VisitExecutionForm({
                           inputMode="decimal"
                           placeholder="أدخل القراءة"
                           value={state.numeric_value}
+                          disabled={isReadOnly}
                           onChange={(e) =>
                             updateSmartItemState(item, {
                               numeric_value: e.target.value,
@@ -1061,6 +1007,7 @@ export default function VisitExecutionForm({
                             inputMode="decimal"
                             placeholder="أدخل القراءة"
                             value={state.numeric_value_2}
+                            disabled={isReadOnly}
                             onChange={(e) =>
                               updateSmartItemState(item, {
                                 numeric_value_2: e.target.value,
@@ -1087,6 +1034,7 @@ export default function VisitExecutionForm({
                             inputMode="decimal"
                             placeholder="أدخل القراءة"
                             value={state.numeric_value_3}
+                            disabled={isReadOnly}
                             onChange={(e) =>
                               updateSmartItemState(item, {
                                 numeric_value_3: e.target.value,
@@ -1096,37 +1044,39 @@ export default function VisitExecutionForm({
                         </div>
                       ) : null}
 
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "10px",
-                          flexWrap: "wrap",
-                          marginTop: "10px",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className={buttonClass(
-                            state.response_value === "not_applicable",
-                            "slate"
-                          )}
-                          onClick={() =>
-                            updateSmartItemState(item, {
-                              response_value: "not_applicable",
-                            })
-                          }
+                      {!isReadOnly ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "10px",
+                            flexWrap: "wrap",
+                            marginTop: "10px",
+                          }}
                         >
-                          غير منطبق
-                        </button>
+                          <button
+                            type="button"
+                            className={buttonClass(
+                              state.response_value === "not_applicable",
+                              "slate"
+                            )}
+                            onClick={() =>
+                              updateSmartItemState(item, {
+                                response_value: "not_applicable",
+                              })
+                            }
+                          >
+                            غير منطبق
+                          </button>
 
-                        <button
-                          type="button"
-                          className={buttonClass(false, "slate")}
-                          onClick={() => setItemState(item, defaultItemState(item))}
-                        >
-                          مسح القراءة
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            className={buttonClass(false, "slate")}
+                            onClick={() => setItemState(item, defaultItemState(item))}
+                          >
+                            مسح القراءة
+                          </button>
+                        </div>
+                      ) : null}
 
                       {state.calc_result_text ? (
                         <div
@@ -1160,7 +1110,7 @@ export default function VisitExecutionForm({
                     </div>
                   )}
 
-                  {isNonCompliant ? (
+                  {isNonCompliant && !isReadOnly ? (
                     <div
                       style={{
                         marginTop: "12px",
@@ -1236,19 +1186,21 @@ export default function VisitExecutionForm({
                       type="button"
                       className="btn btn-secondary"
                       onClick={() =>
-                        setOpenEvidenceKey(isOpenEvidence ? null : itemId)
+                        setOpenEvidenceKey(
+                          isOpenEvidence ? null : currentItemKey
+                        )
                       }
                     >
                       {itemEvidence.length > 0
-                        ? `عرض الأدلة (${itemEvidence.length})`
+                        ? `الدليل (${itemEvidence.length})`
                         : "إضافة دليل"}
                     </button>
 
-                    {String(state.response_value || "").trim() ? (
-                      <span className="badge">تمت الإجابة</span>
-                    ) : (
-                      <span className="badge">بانتظار الإجابة</span>
-                    )}
+                    <span className="badge">
+                      {String(state.response_value || "").trim()
+                        ? "تمت الإجابة"
+                        : "بانتظار الإجابة"}
+                    </span>
                   </div>
 
                   {isOpenEvidence ? (
@@ -1259,13 +1211,78 @@ export default function VisitExecutionForm({
                         paddingTop: "12px",
                       }}
                     >
-                      <ChecklistItemEvidence
-                        visitId={visitId}
-                        visitSystemId={String(item.visit_system_id)}
-                        checklistItemId={String(item.checklist_item_id)}
-                        assetId={activeAsset?.asset_id || ""}
-                        rows={itemEvidence}
-                      />
+                      {isReadOnly ? (
+                        itemEvidence.length === 0 ? (
+                          <div className="muted-note">لا توجد أدلة محفوظة لهذا البند.</div>
+                        ) : (
+                          <div className="stack-3">
+                            {itemEvidence.map((row) => (
+                              <div
+                                key={String(row.evidence_id)}
+                                style={{
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: "16px",
+                                  padding: "12px",
+                                  background: "#ffffff",
+                                }}
+                              >
+                                <div className="badge-wrap">
+                                  <span className="badge">
+                                    {String(row.evidence_type || "evidence")}
+                                  </span>
+                                  {row.file_name ? (
+                                    <span className="badge">
+                                      {String(row.file_name)}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                {looksLikeImage(
+                                  String(row.file_url || ""),
+                                  String(row.evidence_type || "")
+                                ) ? (
+                                  <div style={{ marginTop: "10px" }}>
+                                    <img
+                                      src={String(row.file_url || "")}
+                                      alt={String(row.file_name || "Evidence")}
+                                      style={{
+                                        width: "100%",
+                                        borderRadius: "14px",
+                                        border: "1px solid #e2e8f0",
+                                      }}
+                                    />
+                                  </div>
+                                ) : row.file_url ? (
+                                  <div style={{ marginTop: "10px" }}>
+                                    <a
+                                      href={String(row.file_url)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="btn btn-secondary"
+                                    >
+                                      فتح الملف
+                                    </a>
+                                  </div>
+                                ) : null}
+
+                                {row.caption ? (
+                                  <div className="section-subtitle" style={{ marginTop: "10px" }}>
+                                    {String(row.caption)}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      ) : (
+                        <ChecklistItemEvidence
+                          visitId={visitId}
+                          visitSystemId={String(item.visit_system_id)}
+                          checklistItemId={String(item.checklist_item_id)}
+                          assetId={activeAsset?.asset_id || ""}
+                          rows={itemEvidence}
+                        />
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -1287,16 +1304,18 @@ export default function VisitExecutionForm({
         </div>
       ) : null}
 
-      <div style={{ marginTop: "16px" }}>
-        <button
-          type="button"
-          className="btn btn-grow"
-          onClick={handleSaveAndClose}
-          disabled={saving}
-        >
-          {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
-        </button>
-      </div>
+      {!isReadOnly ? (
+        <div style={{ marginTop: "16px" }}>
+          <button
+            type="button"
+            className="btn btn-grow"
+            onClick={handleSaveAndClose}
+            disabled={saving}
+          >
+            {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
