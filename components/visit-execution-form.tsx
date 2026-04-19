@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChecklistItemEvidence from "@/components/checklist-item-evidence";
 import { evaluateSmartChecklist } from "@/lib/smart-checklist";
@@ -98,6 +98,15 @@ type ItemState = {
   calc_result_text: string;
 };
 
+type SectionGroup = {
+  key: string;
+  label: string;
+  items: ChecklistItem[];
+  total: number;
+  smartCount: number;
+  completedCount: number;
+};
+
 const SECTION_LABELS: Record<string, string> = {
   approvals: "الاعتمادات واللوحات (Approvals)",
   "pump room": "غرفة المضخة (Pump Room)",
@@ -108,6 +117,8 @@ const SECTION_LABELS: Record<string, string> = {
   "power supply": "مصدر الطاقة (Power Supply)",
   "diesel engine": "محرك الديزل (Diesel Engine)",
   "jockey pump": "مضخة الجوكي (Jockey Pump)",
+  installation: "التركيب (Installation)",
+  documentation: "التوثيق (Documentation)",
   alarms: "الإنذارات (Alarms)",
 };
 
@@ -118,6 +129,14 @@ const QUESTION_LABELS: Record<string, string> = {
     "هل غرفة المضخة سهلة الوصول ونظيفة ومضاءة وخالية من التخزين؟ (Pump Room Condition)",
   "Are suction and discharge pressure gauges installed, readable, and appropriately ranged?":
     "هل عدادات ضغط السحب والطرد مركبة وواضحة والمدى مناسب؟ (Suction / Discharge Gauges)",
+  "Is a listed flow meter installed for each fire pump where required?":
+    "هل يوجد مقياس تدفق معتمد ومركب لكل مضخة حريق عند الحاجة؟ (Flow Meter)",
+  "Are isolation valves locked/open, supervised, and free from tampering?":
+    "هل صمامات العزل في الوضع الطبيعي الصحيح ومراقبة وخالية من العبث؟ (Isolation Valves)",
+  "Is pump installation arrangement acceptable for the suction condition?":
+    "هل ترتيب تركيب المضخة مناسب لحالة السحب؟ (Installation / Suction Condition)",
+  "Did the controller indicate normal status with no unresolved alarms or trouble?":
+    "هل لوحة التحكم تظهر حالة طبيعية بدون إنذارات أو أعطال غير معالجة؟ (Controller Status)",
   "Was the weekly churn/auto-run test completed with acceptable readings?":
     "هل تم تنفيذ اختبار التشغيل الأسبوعي بدون حمل وكانت القراءات مقبولة؟ (Weekly Churn / Auto-Run Test)",
   "Record annual performance test reference readings if available.":
@@ -137,6 +156,14 @@ const CRITERIA_LABELS: Record<string, string> = {
     "تبقى الغرفة مخصصة لمعدات الحريق وآمنة للتشغيل وخالية من العوائق. (Dedicated / Safe Operation)",
   "Gauges installed, legible, undamaged, and correctly ranged.":
     "العدادات مركبة ومقروءة وغير متضررة والمدى مناسب. (Installed / Legible / Correct Range)",
+  "Flow meter present, accessible, and not bypassed.":
+    "مقياس التدفق موجود وسهل الوصول وغير متجاوز. (Present / Accessible / Not Bypassed)",
+  "Valves in required normal position and supervised.":
+    "الصمامات في الوضع الطبيعي المطلوب وتحت المراقبة. (Normal Position / Supervised)",
+  "Installation matches approved arrangement and no prohibited negative suction arrangement exists.":
+    "ترتيب التركيب مطابق للوضع المعتمد ولا يوجد ترتيب سحب سلبي غير مسموح. (Approved Arrangement)",
+  "Controller normal, no unresolved abnormal condition.":
+    "لوحة التحكم طبيعية ولا توجد حالة غير طبيعية غير معالجة. (Normal / No Trouble)",
   "Test completed and readings are within acceptable trend.":
     "تم تنفيذ الاختبار والقراءات ضمن الاتجاه أو المرجع المقبول. (Acceptable Trend)",
   "Current annual performance documentation available.":
@@ -285,7 +312,7 @@ function itemHintText(item: ChecklistItem) {
     return "أدخل القراءات المطلوبة وسيحسب النظام النتيجة تلقائيًا.";
   }
 
-  return "اختر مطابق أو غير مطابق أو غير منطبق، وأضف ملاحظة فقط عند الحاجة.";
+  return "اختر مطابق أو غير مطابق أو غير منطبق. أضف ملاحظة فقط عند الحاجة.";
 }
 
 export default function VisitExecutionForm({
@@ -302,6 +329,11 @@ export default function VisitExecutionForm({
   const [selectedSystemId, setSelectedSystemId] = useState<string>(
     activeAsset?.visit_system_id || visitSystems[0]?.visit_system_id || ""
   );
+  const [selectedSectionKey, setSelectedSectionKey] = useState<string>("");
+  const [openEvidenceKey, setOpenEvidenceKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const initialMap = useMemo(() => {
     const map: Record<string, ItemState> = {};
@@ -325,9 +357,6 @@ export default function VisitExecutionForm({
   }, [existingResponses]);
 
   const [formMap, setFormMap] = useState<Record<string, ItemState>>(initialMap);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
 
   const selectedSystem = visitSystems.find(
     (system) => String(system.visit_system_id) === String(selectedSystemId)
@@ -337,35 +366,71 @@ export default function VisitExecutionForm({
     (item) => String(item.visit_system_id) === String(selectedSystemId)
   );
 
-  const sectionCards = useMemo(() => {
-    const map = new Map<
-      string,
-      { label: string; count: number; smartCount: number }
-    >();
+  const sectionGroups = useMemo(() => {
+    const map = new Map<string, SectionGroup>();
 
     for (const item of selectedItems) {
+      const key = normalizeKey(String(item.section_name || "قسم عام"));
       const label = toArabicSectionName(String(item.section_name || "قسم عام"));
-      const current = map.get(label) || { label, count: 0, smartCount: 0 };
-      current.count += 1;
+      const current =
+        map.get(key) ||
+        {
+          key,
+          label,
+          items: [],
+          total: 0,
+          smartCount: 0,
+          completedCount: 0,
+        };
+
+      current.items.push(item);
+      current.total += 1;
       if (isSmartItem(item)) current.smartCount += 1;
-      map.set(label, current);
+
+      const state =
+        formMap[itemKey(item.visit_system_id, item.checklist_item_id)] ||
+        defaultItemState(item);
+
+      const completed =
+        String(state.response_value || "").trim() !== "" ||
+        String(state.numeric_value || "").trim() !== "" ||
+        String(state.numeric_value_2 || "").trim() !== "" ||
+        String(state.numeric_value_3 || "").trim() !== "";
+
+      if (completed) current.completedCount += 1;
+
+      map.set(key, current);
     }
 
     return Array.from(map.values());
-  }, [selectedItems]);
+  }, [selectedItems, formMap]);
 
-  const completedCount = selectedItems.filter((item) => {
-    const state =
-      formMap[itemKey(item.visit_system_id, item.checklist_item_id)] ||
-      defaultItemState(item);
+  useEffect(() => {
+    if (sectionGroups.length === 0) {
+      setSelectedSectionKey("");
+      return;
+    }
 
-    return (
-      String(state.response_value || "").trim() !== "" ||
-      String(state.numeric_value || "").trim() !== "" ||
-      String(state.numeric_value_2 || "").trim() !== "" ||
-      String(state.numeric_value_3 || "").trim() !== ""
-    );
-  }).length;
+    const exists = sectionGroups.some((s) => s.key === selectedSectionKey);
+    if (!exists) {
+      setSelectedSectionKey(sectionGroups[0].key);
+    }
+  }, [sectionGroups, selectedSectionKey]);
+
+  const activeSection =
+    sectionGroups.find((group) => group.key === selectedSectionKey) || null;
+
+  const activeSectionIndex = sectionGroups.findIndex(
+    (group) => group.key === selectedSectionKey
+  );
+
+  const visibleItems = activeSection?.items || [];
+
+  const totalCompleted = sectionGroups.reduce(
+    (sum, group) => sum + group.completedCount,
+    0
+  );
+  const totalItems = sectionGroups.reduce((sum, group) => sum + group.total, 0);
 
   function getItemState(item: ChecklistItem): ItemState {
     return (
@@ -566,7 +631,7 @@ export default function VisitExecutionForm({
     <section className="card">
       <div className="section-title">تنفيذ الفحص</div>
       <div className="section-subtitle">
-        مسار واضح للمفتش: اختر القسم، نفّذ البنود، ثم احفظ وأغلق الزيارة.
+        اختر القسم ثم نفّذ البنود. هذه الصفحة مخصصة للعمل الميداني فقط.
       </div>
 
       {activeAsset ? (
@@ -588,61 +653,6 @@ export default function VisitExecutionForm({
             {activeAsset.location_note
               ? ` · ${String(activeAsset.location_note)}`
               : ""}
-          </div>
-        </div>
-      ) : null}
-
-      {sectionCards.length > 0 ? (
-        <div style={{ marginTop: "16px" }}>
-          <div className="section-title" style={{ fontSize: "16px" }}>
-            خريطة الفحص السريعة
-          </div>
-          <div className="section-subtitle" style={{ marginTop: "4px" }}>
-            مربعات مختصرة توضح الأقسام الموجودة في هذا النظام.
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-              gap: "10px",
-              marginTop: "12px",
-            }}
-          >
-            {sectionCards.map((card) => (
-              <div
-                key={card.label}
-                style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "18px",
-                  padding: "12px",
-                  background: "#ffffff",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 800,
-                    color: "#0f172a",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {card.label}
-                </div>
-                <div
-                  style={{
-                    marginTop: "8px",
-                    fontSize: "13px",
-                    color: "#64748b",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  البنود: {card.count}
-                  <br />
-                  الذكية: {card.smartCount}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       ) : null}
@@ -681,61 +691,173 @@ export default function VisitExecutionForm({
         </div>
       ) : null}
 
-      {selectedSystem ? (
-        <div className="badge-wrap" style={{ marginTop: "14px" }}>
-          <span className="badge">النظام الحالي: {selectedSystem.system_code}</span>
-          <span className="badge">إجمالي البنود: {selectedItems.length}</span>
-          <span className="badge">المكتمل: {completedCount}</span>
-          <span className="badge">
-            المتبقي: {Math.max(selectedItems.length - completedCount, 0)}
-          </span>
+      <div className="badge-wrap" style={{ marginTop: "14px" }}>
+        <span className="badge">النظام الحالي: {selectedSystem?.system_code || "-"}</span>
+        <span className="badge">إجمالي البنود: {totalItems}</span>
+        <span className="badge">المكتمل: {totalCompleted}</span>
+        <span className="badge">المتبقي: {Math.max(totalItems - totalCompleted, 0)}</span>
+      </div>
+
+      {sectionGroups.length > 0 ? (
+        <div style={{ marginTop: "16px" }}>
+          <div className="section-title" style={{ fontSize: "16px" }}>
+            أقسام الفحص
+          </div>
+          <div className="section-subtitle" style={{ marginTop: "4px" }}>
+            اختر قسمًا واحدًا فقط ليظهر لك، حتى تبقى الصفحة قصيرة وواضحة.
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+              gap: "10px",
+              marginTop: "12px",
+            }}
+          >
+            {sectionGroups.map((group) => {
+              const active = group.key === selectedSectionKey;
+
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => setSelectedSectionKey(group.key)}
+                  style={{
+                    textAlign: "right",
+                    border: active ? "1px solid #0f766e" : "1px solid #e2e8f0",
+                    borderRadius: "18px",
+                    padding: "12px",
+                    background: active ? "#f0fdfa" : "#ffffff",
+                    boxShadow: active ? "0 0 0 1px rgba(15,118,110,.06)" : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 800,
+                      color: "#0f172a",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {group.label}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      fontSize: "13px",
+                      color: "#64748b",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    البنود: {group.total}
+                    <br />
+                    المكتمل: {group.completedCount}
+                    <br />
+                    الذكية: {group.smartCount}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
-      {selectedItems.length === 0 ? (
-        <div style={{ marginTop: "16px" }} className="muted-note">
-          لا توجد بنود فحص لهذا النظام داخل هذه الزيارة.
-        </div>
-      ) : (
-        <div className="stack-3" style={{ marginTop: "16px" }}>
-          {selectedItems.map((item, index) => {
-            const state = getItemState(item);
+      {activeSection ? (
+        <div
+          style={{
+            marginTop: "18px",
+            border: "1px solid #e2e8f0",
+            borderRadius: "22px",
+            padding: "16px",
+            background: "#ffffff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "12px",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div className="section-title" style={{ fontSize: "18px" }}>
+                {activeSection.label}
+              </div>
+              <div className="section-subtitle" style={{ marginTop: "4px" }}>
+                البنود: {activeSection.total} · المكتمل: {activeSection.completedCount}
+              </div>
+            </div>
 
-            const baselineRow = findAssetBaseline(
-              assetBaselines,
-              String(item.calc_rule || ""),
-              String(item.item_code || "")
-            );
+            <div className="badge-wrap">
+              {activeSectionIndex > 0 ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() =>
+                    setSelectedSectionKey(sectionGroups[activeSectionIndex - 1].key)
+                  }
+                >
+                  السابق
+                </button>
+              ) : null}
 
-            const itemEvidence = existingEvidence.filter((row) => {
-              const sameItem =
-                String(row.visit_system_id) === String(item.visit_system_id) &&
-                String(row.checklist_item_id) === String(item.checklist_item_id);
+              {activeSectionIndex < sectionGroups.length - 1 ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() =>
+                    setSelectedSectionKey(sectionGroups[activeSectionIndex + 1].key)
+                  }
+                >
+                  التالي
+                </button>
+              ) : null}
+            </div>
+          </div>
 
-              if (!sameItem) return false;
+          <div className="stack-3" style={{ marginTop: "16px" }}>
+            {visibleItems.map((item, index) => {
+              const state = getItemState(item);
+              const itemId = itemKey(item.visit_system_id, item.checklist_item_id);
+              const isOpenEvidence = openEvidenceKey === itemId;
 
-              if (activeAsset?.asset_id) {
-                return String(row.asset_id || "") === String(activeAsset.asset_id);
-              }
+              const baselineRow = findAssetBaseline(
+                assetBaselines,
+                String(item.calc_rule || ""),
+                String(item.item_code || "")
+              );
 
-              return true;
-            });
+              const itemEvidence = existingEvidence.filter((row) => {
+                const sameItem =
+                  String(row.visit_system_id) === String(item.visit_system_id) &&
+                  String(row.checklist_item_id) === String(item.checklist_item_id);
 
-            const smart = isSmartItem(item);
-            const isNonCompliant =
-              String(state.response_value) === "non_compliant";
+                if (!sameItem) return false;
 
-            return (
-              <div
-                key={`${item.visit_system_id}-${item.checklist_item_id}`}
-                style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "24px",
-                  background: "#ffffff",
-                  overflow: "hidden",
-                }}
-              >
-                <div style={{ padding: "18px 16px 8px" }}>
+                if (activeAsset?.asset_id) {
+                  return String(row.asset_id || "") === String(activeAsset.asset_id);
+                }
+
+                return true;
+              });
+
+              const smart = isSmartItem(item);
+              const isNonCompliant =
+                String(state.response_value) === "non_compliant";
+
+              return (
+                <div
+                  key={itemId}
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "22px",
+                    background: "#ffffff",
+                    padding: "14px",
+                  }}
+                >
                   <div
                     style={{
                       display: "flex",
@@ -745,26 +867,31 @@ export default function VisitExecutionForm({
                       flexWrap: "wrap",
                     }}
                   >
-                    <div className="checklist-item-section">
-                      {toArabicSectionName(item.section_name || "قسم عام")} · بند{" "}
-                      {index + 1}
-                    </div>
-
                     <div className="badge-wrap">
-                      <span className="badge">
-                        {smart ? "بند ذكي" : "بند بصري"}
-                      </span>
+                      <span className="badge">{smart ? "بند ذكي" : "بند بصري"}</span>
+                      <span className="badge">بند {index + 1}</span>
                       {item.numeric_unit ? (
-                        <span className="badge">
-                          الوحدة: {item.numeric_unit}
-                        </span>
+                        <span className="badge">الوحدة: {item.numeric_unit}</span>
                       ) : null}
                     </div>
+
+                    {String(state.response_value || "").trim() ? (
+                      <span className="badge">
+                        الحالة:{" "}
+                        {state.response_value === "compliant"
+                          ? "مطابق"
+                          : state.response_value === "non_compliant"
+                          ? "غير مطابق"
+                          : state.response_value === "not_applicable"
+                          ? "غير منطبق"
+                          : state.response_value}
+                      </span>
+                    ) : null}
                   </div>
 
                   <div
                     className="checklist-item-title"
-                    style={{ marginTop: "10px" }}
+                    style={{ marginTop: "10px", lineHeight: 1.8 }}
                   >
                     {toArabicQuestionText(item.question_text)}
                   </div>
@@ -772,7 +899,7 @@ export default function VisitExecutionForm({
                   {item.acceptance_criteria ? (
                     <div
                       className="checklist-item-criteria"
-                      style={{ marginTop: "10px" }}
+                      style={{ marginTop: "8px", lineHeight: 1.9 }}
                     >
                       {toArabicCriteriaText(item.acceptance_criteria)}
                     </div>
@@ -782,11 +909,8 @@ export default function VisitExecutionForm({
                     {targetText(item) ? (
                       <span className="badge">{targetText(item)}</span>
                     ) : null}
-
                     {baselineRow ? (
-                      <span className="badge">
-                        مرجع الأصل جاهز
-                      </span>
+                      <span className="badge">مرجع الأصل جاهز</span>
                     ) : null}
                   </div>
 
@@ -797,52 +921,42 @@ export default function VisitExecutionForm({
                         border: "1px solid #fcd34d",
                         background: "#fffbeb",
                         color: "#92400e",
-                        borderRadius: "16px",
-                        padding: "12px",
-                        fontSize: "14px",
+                        borderRadius: "14px",
+                        padding: "10px 12px",
+                        fontSize: "13px",
                         lineHeight: 1.8,
                       }}
                     >
-                      المرجع المعتمد للأصل:
-                      {baselineRow.ref_value
-                        ? ` ${baselineRow.ref_value}`
-                        : ""}
-                      {baselineRow.ref_value_2
-                        ? ` / ${baselineRow.ref_value_2}`
-                        : ""}
-                      {baselineRow.ref_value_3
-                        ? ` / ${baselineRow.ref_value_3}`
-                        : ""}
-                      {baselineRow.metric_unit
-                        ? ` ${baselineRow.metric_unit}`
-                        : ""}
+                      المرجع:
+                      {baselineRow.ref_value ? ` ${baselineRow.ref_value}` : ""}
+                      {baselineRow.ref_value_2 ? ` / ${baselineRow.ref_value_2}` : ""}
+                      {baselineRow.ref_value_3 ? ` / ${baselineRow.ref_value_3}` : ""}
+                      {baselineRow.metric_unit ? ` ${baselineRow.metric_unit}` : ""}
                     </div>
                   ) : null}
 
                   <div
                     style={{
-                      marginTop: "12px",
+                      marginTop: "10px",
                       border: "1px solid #dbeafe",
                       background: "#eff6ff",
                       color: "#1e3a8a",
-                      borderRadius: "16px",
-                      padding: "12px",
-                      fontSize: "14px",
+                      borderRadius: "14px",
+                      padding: "10px 12px",
+                      fontSize: "13px",
                       lineHeight: 1.8,
                     }}
                   >
                     {itemHintText(item)}
                   </div>
-                </div>
 
-                <div style={{ padding: "0 16px 18px" }}>
                   {!smart ? (
                     <div
                       style={{
                         display: "flex",
                         gap: "10px",
                         flexWrap: "wrap",
-                        marginTop: "10px",
+                        marginTop: "12px",
                       }}
                     >
                       <button
@@ -901,8 +1015,8 @@ export default function VisitExecutionForm({
                       style={{
                         marginTop: "12px",
                         border: "1px solid #e2e8f0",
-                        borderRadius: "20px",
-                        padding: "14px",
+                        borderRadius: "18px",
+                        padding: "12px",
                         background: "#fcfcfd",
                       }}
                     >
@@ -957,7 +1071,7 @@ export default function VisitExecutionForm({
                       ) : null}
 
                       {thirdLabel(item) ? (
-                        <div>
+                        <div style={{ marginBottom: "10px" }}>
                           <div
                             style={{
                               fontSize: "13px",
@@ -987,7 +1101,7 @@ export default function VisitExecutionForm({
                           display: "flex",
                           gap: "10px",
                           flexWrap: "wrap",
-                          marginTop: "12px",
+                          marginTop: "10px",
                         }}
                       >
                         <button
@@ -1019,8 +1133,8 @@ export default function VisitExecutionForm({
                           style={{
                             marginTop: "12px",
                             border: "1px solid #e2e8f0",
-                            borderRadius: "16px",
-                            padding: "12px",
+                            borderRadius: "14px",
+                            padding: "10px 12px",
                             background:
                               state.auto_judgement === "fail"
                                 ? "#fef2f2"
@@ -1033,7 +1147,7 @@ export default function VisitExecutionForm({
                                 : state.auto_judgement === "pass"
                                 ? "#047857"
                                 : "#334155",
-                            fontSize: "14px",
+                            fontSize: "13px",
                             lineHeight: 1.8,
                           }}
                         >
@@ -1049,10 +1163,10 @@ export default function VisitExecutionForm({
                   {isNonCompliant ? (
                     <div
                       style={{
-                        marginTop: "14px",
+                        marginTop: "12px",
                         border: "1px solid #e2e8f0",
-                        borderRadius: "20px",
-                        padding: "14px",
+                        borderRadius: "18px",
+                        padding: "12px",
                         background: "#fcfcfd",
                       }}
                     >
@@ -1061,7 +1175,7 @@ export default function VisitExecutionForm({
                           fontSize: "14px",
                           fontWeight: 700,
                           color: "#0f172a",
-                          marginBottom: "12px",
+                          marginBottom: "10px",
                         }}
                       >
                         تفاصيل عدم المطابقة
@@ -1091,7 +1205,7 @@ export default function VisitExecutionForm({
                             comments: e.target.value,
                           })
                         }
-                        style={{ marginTop: "12px" }}
+                        style={{ marginTop: "10px" }}
                       />
 
                       <textarea
@@ -1103,28 +1217,48 @@ export default function VisitExecutionForm({
                             corrective_action: e.target.value,
                           })
                         }
-                        style={{ marginTop: "12px" }}
+                        style={{ marginTop: "10px" }}
                       />
                     </div>
                   ) : null}
 
-                  <details style={{ marginTop: "14px" }}>
-                    <summary
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() =>
+                        setOpenEvidenceKey(isOpenEvidence ? null : itemId)
+                      }
+                    >
+                      {itemEvidence.length > 0
+                        ? `عرض الأدلة (${itemEvidence.length})`
+                        : "إضافة دليل"}
+                    </button>
+
+                    {String(state.response_value || "").trim() ? (
+                      <span className="badge">تمت الإجابة</span>
+                    ) : (
+                      <span className="badge">بانتظار الإجابة</span>
+                    )}
+                  </div>
+
+                  {isOpenEvidence ? (
+                    <div
                       style={{
-                        cursor: "pointer",
-                        listStyle: "none",
-                        border: "1px dashed #cbd5e1",
-                        borderRadius: "18px",
-                        padding: "12px 14px",
-                        fontWeight: 800,
-                        color: "#0f172a",
-                        background: "#ffffff",
+                        marginTop: "12px",
+                        borderTop: "1px dashed #cbd5e1",
+                        paddingTop: "12px",
                       }}
                     >
-                      أدلة البند {itemEvidence.length > 0 ? `(${itemEvidence.length})` : ""}
-                    </summary>
-
-                    <div style={{ marginTop: "12px" }}>
                       <ChecklistItemEvidence
                         visitId={visitId}
                         visitSystemId={String(item.visit_system_id)}
@@ -1133,13 +1267,13 @@ export default function VisitExecutionForm({
                         rows={itemEvidence}
                       />
                     </div>
-                  </details>
+                  ) : null}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      )}
+      ) : null}
 
       {message ? (
         <div className="alert-success" style={{ marginTop: "16px" }}>
