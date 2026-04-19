@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { toVisitTypeLabel } from "@/lib/display";
 import { StatusBadge } from "@/components/status-badge";
 import { CardLinkHint } from "@/components/card-link-hint";
 function toVisitTypeLabel(value: any) {
