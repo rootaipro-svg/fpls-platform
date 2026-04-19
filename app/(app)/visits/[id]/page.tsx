@@ -15,6 +15,31 @@ import { readSheet } from "@/lib/sheets";
 import { getChecklistForSystem } from "@/lib/checklist";
 import type { AssetBaselineRow } from "@/lib/asset-baseline";
 
+function toArabicVisitStatus(value: string) {
+  const v = String(value || "").toLowerCase();
+
+  if (v === "planned") return "مجدولة";
+  if (v === "in_progress") return "قيد التنفيذ";
+  if (v === "open") return "مفتوحة";
+  if (v === "closed") return "مغلقة";
+  if (v === "completed") return "مكتملة";
+
+  return value || "-";
+}
+
+function toArabicSummaryResult(value: string) {
+  const v = String(value || "").toLowerCase();
+
+  if (v === "pending") return "قيد الانتظار";
+  if (v === "compliant") return "مطابق";
+  if (v === "non_compliant") return "غير مطابق";
+  if (v === "critical_findings") return "مخالفات حرجة";
+  if (v === "fail_critical") return "فشل حرج";
+  if (v === "pass_with_remarks") return "مقبول مع ملاحظات";
+
+  return value || "-";
+}
+
 export default async function VisitDetailPage({
   params,
   searchParams,
@@ -258,9 +283,11 @@ export default async function VisitDetailPage({
       auto_judgement: String(r.auto_judgement || ""),
     }));
 
-  const reportReady =
-    String(visit?.visit_status || "").toLowerCase() === "closed" &&
-    responseRows.length > 0;
+  const visitStatusRaw = String(visit?.visit_status || "planned").toLowerCase();
+  const isReadOnly =
+    visitStatusRaw === "closed" || visitStatusRaw === "completed";
+
+  const reportReady = isReadOnly && responseRows.length > 0;
 
   return (
     <AppShell>
@@ -272,11 +299,14 @@ export default async function VisitDetailPage({
       />
 
       <div className="badge-wrap" style={{ marginBottom: "14px" }}>
-        <span className="badge">الحالة: {String(visit?.visit_status || "planned")}</span>
+        <span className="badge">الحالة: {toArabicVisitStatus(visitStatusRaw)}</span>
         <span className="badge">
           التاريخ: {String(visit?.planned_date || visit?.visit_date || "-")}
         </span>
         <span className="badge">النظام: {systems[0]?.system_code || "-"}</span>
+        <span className="badge">
+          الوضع: {isReadOnly ? "مراجعة فقط" : "تنفيذ ميداني"}
+        </span>
       </div>
 
       {activeAsset ? (
@@ -315,6 +345,7 @@ export default async function VisitDetailPage({
           }))}
           activeAsset={activeAsset}
           assetBaselines={activeAssetBaselines}
+          isReadOnly={isReadOnly}
         />
       ) : (
         <section className="card">
@@ -344,7 +375,7 @@ export default async function VisitDetailPage({
             <div className="badge-wrap" style={{ marginBottom: "12px" }}>
               <StatusBadge status={String(visit?.visit_status || "planned")} />
               <span className="badge">
-                النتيجة: {String(visit?.summary_result || "pending")}
+                النتيجة: {toArabicSummaryResult(String(visit?.summary_result || "pending"))}
               </span>
               <span className="badge">
                 المفتش:{" "}
