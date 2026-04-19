@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChecklistItemEvidence from "@/components/checklist-item-evidence";
 import { evaluateSmartChecklist } from "@/lib/smart-checklist";
@@ -99,28 +99,13 @@ type ItemState = {
   calc_result_text: string;
 };
 
-type SectionGroup = {
-  key: string;
-  label: string;
-  items: ChecklistItem[];
-  total: number;
-  smartCount: number;
-  completedCount: number;
-};
-
 const SECTION_LABELS: Record<string, string> = {
-  approvals: "الاعتمادات واللوحات (Approvals)",
-  "pump room": "غرفة المضخة (Pump Room)",
-  operation: "التشغيل (Operation)",
-  "testing and performance": "الاختبار والأداء (Testing & Performance)",
-  condition: "الحالة العامة (Condition)",
-  controller: "لوحة التحكم (Controller)",
-  "power supply": "مصدر الطاقة (Power Supply)",
-  "diesel engine": "محرك الديزل (Diesel Engine)",
-  "jockey pump": "مضخة الجوكي (Jockey Pump)",
-  installation: "التركيب (Installation)",
-  documentation: "التوثيق (Documentation)",
-  alarms: "الإنذارات (Alarms)",
+  approvals: "الاعتمادات واللوحات",
+  "pump room": "غرفة المضخة",
+  operation: "التشغيل",
+  "testing and performance": "الاختبار والأداء",
+  installation: "التركيب",
+  documentation: "التوثيق",
 };
 
 const QUESTION_LABELS: Record<string, string> = {
@@ -142,33 +127,27 @@ const QUESTION_LABELS: Record<string, string> = {
     "هل تم تنفيذ اختبار التشغيل الأسبوعي بدون حمل وكانت القراءات مقبولة؟ (Weekly Churn / Auto-Run Test)",
   "Record annual performance test reference readings if available.":
     "سجّل القراءات المرجعية لاختبار الأداء السنوي إن كانت متوفرة. (Annual Performance Reference)",
-  "Are fuel tank level, piping, valves, and diesel engine auxiliaries satisfactory?":
-    "هل مستوى الوقود والتمديدات والصمامات وملحقات محرك الديزل بحالة مرضية؟ (Fuel / Diesel Auxiliaries)",
-  "Are batteries, charger, and starting circuit in good condition?":
-    "هل البطاريات والشاحن ودائرة البدء بحالة جيدة؟ (Batteries / Charger / Starting Circuit)",
-  "Is controller in auto and free of alarms?":
-    "هل لوحة التحكم على وضع Auto وخالية من الإنذارات؟ (Controller Auto / Alarms)",
 };
 
 const CRITERIA_LABELS: Record<string, string> = {
   "Each major component has acceptable listing/approval and readable identification.":
-    "كل مكوّن رئيسي يجب أن يكون معتمدًا وعليه تعريف واضح ومقروء. (Approved / Identified)",
+    "كل مكوّن رئيسي يجب أن يكون معتمدًا وعليه تعريف واضح ومقروء.",
   "Room remains dedicated to fire protection equipment and safe operation.":
-    "تبقى الغرفة مخصصة لمعدات الحريق وآمنة للتشغيل وخالية من العوائق. (Dedicated / Safe Operation)",
+    "تبقى الغرفة مخصصة لمعدات الحريق وآمنة للتشغيل وخالية من العوائق.",
   "Gauges installed, legible, undamaged, and correctly ranged.":
-    "العدادات مركبة ومقروءة وغير متضررة والمدى مناسب. (Installed / Legible / Correct Range)",
+    "العدادات مركبة ومقروءة وغير متضررة والمدى مناسب.",
   "Flow meter present, accessible, and not bypassed.":
-    "مقياس التدفق موجود وسهل الوصول وغير متجاوز. (Present / Accessible / Not Bypassed)",
+    "مقياس التدفق موجود وسهل الوصول وغير متجاوز.",
   "Valves in required normal position and supervised.":
-    "الصمامات في الوضع الطبيعي المطلوب وتحت المراقبة. (Normal Position / Supervised)",
+    "الصمامات في الوضع الطبيعي المطلوب وتحت المراقبة.",
   "Installation matches approved arrangement and no prohibited negative suction arrangement exists.":
-    "ترتيب التركيب مطابق للوضع المعتمد ولا يوجد ترتيب سحب سلبي غير مسموح. (Approved Arrangement)",
+    "ترتيب التركيب مطابق للوضع المعتمد ولا يوجد ترتيب سحب سلبي غير مسموح.",
   "Controller normal, no unresolved abnormal condition.":
-    "لوحة التحكم طبيعية ولا توجد حالة غير طبيعية غير معالجة. (Normal / No Trouble)",
+    "لوحة التحكم طبيعية ولا توجد حالة غير طبيعية غير معالجة.",
   "Test completed and readings are within acceptable trend.":
-    "تم تنفيذ الاختبار والقراءات ضمن الاتجاه أو المرجع المقبول. (Acceptable Trend)",
+    "تم تنفيذ الاختبار والقراءات ضمن الاتجاه أو المرجع المقبول.",
   "Current annual performance documentation available.":
-    "التوثيق الحالي لاختبار الأداء السنوي متوفر عند الحاجة. (Documentation Available)",
+    "التوثيق الحالي لاختبار الأداء السنوي متوفر عند الحاجة.",
 };
 
 function normalizeKey(value: string) {
@@ -186,6 +165,14 @@ function toArabicQuestionText(value: string) {
 
 function toArabicCriteriaText(value: string) {
   return CRITERIA_LABELS[String(value || "").trim()] || value || "";
+}
+
+function toArabicResponseValue(value: string) {
+  const v = String(value || "").toLowerCase();
+  if (v === "compliant") return "مطابق";
+  if (v === "non_compliant") return "غير مطابق";
+  if (v === "not_applicable") return "غير منطبق";
+  return value || "بانتظار الإجابة";
 }
 
 function itemKey(visitSystemId: string, checklistItemId: string) {
@@ -207,30 +194,26 @@ function defaultItemState(item?: ChecklistItem): ItemState {
   };
 }
 
-function buttonClass(active: boolean, tone: "green" | "red" | "slate") {
-  const base =
-    "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-base font-semibold transition min-w-[108px]";
-
-  if (!active) {
-    return `${base} border-slate-200 bg-white text-slate-800`;
-  }
-
-  if (tone === "green") {
-    return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
-  }
-
-  if (tone === "red") {
-    return `${base} border-rose-200 bg-rose-50 text-rose-700`;
-  }
-
-  return `${base} border-slate-300 bg-slate-100 text-slate-800`;
-}
-
 function isSmartItem(item: ChecklistItem) {
   return (
     Boolean(String(item.calc_rule || "").trim()) ||
     String(item.response_type_v2 || "").toLowerCase() === "numeric_range"
   );
+}
+
+function compactButtonClass(active: boolean, tone: "green" | "red" | "slate") {
+  const base =
+    "inline-flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition min-w-[92px]";
+  if (!active) {
+    return `${base} border-slate-200 bg-white text-slate-800`;
+  }
+  if (tone === "green") {
+    return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
+  }
+  if (tone === "red") {
+    return `${base} border-rose-200 bg-rose-50 text-rose-700`;
+  }
+  return `${base} border-slate-300 bg-slate-100 text-slate-800`;
 }
 
 function targetText(item: ChecklistItem) {
@@ -242,54 +225,34 @@ function targetText(item: ChecklistItem) {
 
   const minNum = Number(minRaw);
   const maxNum = Number(maxRaw);
-
-  if (minRaw && maxRaw && minNum === 0 && maxNum === 0) {
-    return "";
-  }
+  if (minRaw && maxRaw && minNum === 0 && maxNum === 0) return "";
 
   if (minRaw && maxRaw) {
-    return `المجال المطلوب: ${minRaw} - ${maxRaw}${unit ? ` ${unit}` : ""}`;
+    return `${minRaw} - ${maxRaw}${unit ? ` ${unit}` : ""}`;
   }
-
-  if (minRaw) {
-    return `الحد الأدنى: ${minRaw}${unit ? ` ${unit}` : ""}`;
-  }
-
-  if (maxRaw) {
-    return `الحد الأعلى: ${maxRaw}${unit ? ` ${unit}` : ""}`;
-  }
-
+  if (minRaw) return `≥ ${minRaw}${unit ? ` ${unit}` : ""}`;
+  if (maxRaw) return `≤ ${maxRaw}${unit ? ` ${unit}` : ""}`;
   return "";
 }
 
 function primaryLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") return "المدة الفعلية (Duration)";
-  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل الجوكي (Jockey Start)";
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط البدء (Start Pressure)";
-  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") return "ضغط الطرد الحالي (Discharge Pressure)";
+  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") return "المدة الفعلية";
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل الجوكي";
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط البدء";
+  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") return "ضغط الطرد الحالي";
   return "القراءة الفعلية";
 }
 
 function secondaryLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") {
-    return "ضغط تشغيل المضخة الرئيسية (Main Pump Start)";
-  }
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") {
-    return "ضغط الإيقاف (Stop Pressure)";
-  }
-  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") {
-    return "ضغط السحب الحالي (Suction Pressure)";
-  }
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل المضخة الرئيسية";
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط الإيقاف";
+  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") return "ضغط السحب الحالي";
   return "";
 }
 
 function thirdLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") {
-    return "عدد مرات إعادة التشغيل (Restart Count)";
-  }
-  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") {
-    return "قراءة الأداء/التدفق إن توفرت (Flow / Performance)";
-  }
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "عدد مرات إعادة التشغيل";
+  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") return "قراءة الأداء/التدفق إن توفرت";
   return "";
 }
 
@@ -302,28 +265,6 @@ function mergeJudgement(...values: string[]) {
   if (normalized.includes("check")) return "check";
   if (normalized.includes("pass")) return "pass";
   return "";
-}
-
-function itemHintText(item: ChecklistItem) {
-  if (String(item.ui_hint_ar || "").trim()) {
-    return String(item.ui_hint_ar);
-  }
-
-  if (isSmartItem(item)) {
-    return "أدخل القراءات المطلوبة وسيحسب النظام النتيجة تلقائيًا.";
-  }
-
-  return "اختر مطابق أو غير مطابق أو غير منطبق. أضف ملاحظة فقط عند الحاجة.";
-}
-
-function toArabicResponseValue(value: string) {
-  const v = String(value || "").toLowerCase();
-
-  if (v === "compliant") return "مطابق";
-  if (v === "non_compliant") return "غير مطابق";
-  if (v === "not_applicable") return "غير منطبق";
-
-  return value || "-";
 }
 
 function looksLikeImage(url: string, evidenceType: string) {
@@ -350,15 +291,10 @@ export default function VisitExecutionForm({
   isReadOnly = false,
 }: Props) {
   const router = useRouter();
-
-  const [selectedSystemId, setSelectedSystemId] = useState<string>(
-    activeAsset?.visit_system_id || visitSystems[0]?.visit_system_id || ""
-  );
-  const [selectedSectionKey, setSelectedSectionKey] = useState<string>("");
-  const [openEvidenceKey, setOpenEvidenceKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [openEvidenceKey, setOpenEvidenceKey] = useState<string | null>(null);
 
   const initialMap = useMemo(() => {
     const map: Record<string, ItemState> = {};
@@ -383,75 +319,21 @@ export default function VisitExecutionForm({
 
   const [formMap, setFormMap] = useState<Record<string, ItemState>>(initialMap);
 
-  const selectedSystem = visitSystems.find(
-    (system) => String(system.visit_system_id) === String(selectedSystemId)
-  );
+  const orderedItems = checklistItems;
 
-  const selectedItems = checklistItems.filter(
-    (item) => String(item.visit_system_id) === String(selectedSystemId)
-  );
+  const totalItems = orderedItems.length;
+  const completedCount = orderedItems.filter((item) => {
+    const state =
+      formMap[itemKey(item.visit_system_id, item.checklist_item_id)] ||
+      defaultItemState(item);
 
-  const sectionGroups = useMemo(() => {
-    const map = new Map<string, SectionGroup>();
-
-    for (const item of selectedItems) {
-      const key = normalizeKey(String(item.section_name || "قسم عام"));
-      const label = toArabicSectionName(String(item.section_name || "قسم عام"));
-      const current =
-        map.get(key) ||
-        {
-          key,
-          label,
-          items: [],
-          total: 0,
-          smartCount: 0,
-          completedCount: 0,
-        };
-
-      current.items.push(item);
-      current.total += 1;
-      if (isSmartItem(item)) current.smartCount += 1;
-
-      const state =
-        formMap[itemKey(item.visit_system_id, item.checklist_item_id)] ||
-        defaultItemState(item);
-
-      const completed =
-        String(state.response_value || "").trim() !== "" ||
-        String(state.numeric_value || "").trim() !== "" ||
-        String(state.numeric_value_2 || "").trim() !== "" ||
-        String(state.numeric_value_3 || "").trim() !== "";
-
-      if (completed) current.completedCount += 1;
-
-      map.set(key, current);
-    }
-
-    return Array.from(map.values());
-  }, [selectedItems, formMap]);
-
-  useEffect(() => {
-    if (sectionGroups.length === 0) {
-      setSelectedSectionKey("");
-      return;
-    }
-
-    const exists = sectionGroups.some((s) => s.key === selectedSectionKey);
-    if (!exists) {
-      setSelectedSectionKey(sectionGroups[0].key);
-    }
-  }, [sectionGroups, selectedSectionKey]);
-
-  const activeSection =
-    sectionGroups.find((group) => group.key === selectedSectionKey) || null;
-
-  const visibleItems = activeSection?.items || [];
-
-  const totalCompleted = sectionGroups.reduce(
-    (sum, group) => sum + group.completedCount,
-    0
-  );
-  const totalItems = sectionGroups.reduce((sum, group) => sum + group.total, 0);
+    return (
+      String(state.response_value || "").trim() !== "" ||
+      String(state.numeric_value || "").trim() !== "" ||
+      String(state.numeric_value_2 || "").trim() !== "" ||
+      String(state.numeric_value_3 || "").trim() !== ""
+    );
+  }).length;
 
   function getItemState(item: ChecklistItem): ItemState {
     return (
@@ -462,21 +344,16 @@ export default function VisitExecutionForm({
 
   function setItemState(item: ChecklistItem, nextState: ItemState) {
     const key = itemKey(item.visit_system_id, item.checklist_item_id);
-
     setFormMap((prev) => ({
       ...prev,
       [key]: nextState,
     }));
   }
 
-  function updateStandardItemState(
-    item: ChecklistItem,
-    patch: Partial<ItemState>
-  ) {
+  function updateStandardItemState(item: ChecklistItem, patch: Partial<ItemState>) {
     if (isReadOnly) return;
 
     const current = getItemState(item);
-
     const nextState: ItemState = {
       ...current,
       ...patch,
@@ -493,7 +370,6 @@ export default function VisitExecutionForm({
     if (isReadOnly) return;
 
     const current = getItemState(item);
-
     const nextState: ItemState = {
       ...current,
       ...patch,
@@ -535,7 +411,6 @@ export default function VisitExecutionForm({
     );
 
     let mergedResponseValue = "";
-
     if (mergedJudgement === "fail") {
       mergedResponseValue = "non_compliant";
     } else if (smartEval.responseValue) {
@@ -544,10 +419,7 @@ export default function VisitExecutionForm({
       mergedResponseValue = baselineEval.responseValue;
     }
 
-    const resultParts = [
-      smartEval.resultTextAr,
-      baselineEval.resultTextAr,
-    ].filter(Boolean);
+    const resultParts = [smartEval.resultTextAr, baselineEval.resultTextAr].filter(Boolean);
 
     nextState.response_value = String(mergedResponseValue || "");
     nextState.auto_judgement = String(mergedJudgement || "");
@@ -656,316 +528,203 @@ export default function VisitExecutionForm({
 
   return (
     <section className="card">
-      <div className="section-title">تنفيذ الفحص</div>
+      <div className="section-title">قائمة الفحص التنفيذية</div>
       <div className="section-subtitle">
         {isReadOnly
           ? "هذه الزيارة مغلقة. يمكنك مراجعة النتائج فقط."
-          : "اختر قسمًا واحدًا ثم نفّذ البنود. الصفحة مخصصة للعمل الميداني فقط."}
+          : "قائمة ميدانية بسيطة: نفّذ البند ثم انتقل مباشرة إلى الذي يليه."}
       </div>
 
       <div className="badge-wrap" style={{ marginTop: "14px" }}>
-        <span className="badge">النظام الحالي: {selectedSystem?.system_code || "-"}</span>
+        <span className="badge">النظام: {visitSystems[0]?.system_code || "-"}</span>
         <span className="badge">إجمالي البنود: {totalItems}</span>
-        <span className="badge">المكتمل: {totalCompleted}</span>
-        <span className="badge">المتبقي: {Math.max(totalItems - totalCompleted, 0)}</span>
+        <span className="badge">المكتمل: {completedCount}</span>
+        <span className="badge">المتبقي: {Math.max(totalItems - completedCount, 0)}</span>
       </div>
 
-      {sectionGroups.length > 0 ? (
-        <div style={{ marginTop: "16px" }}>
-          <div className="section-title" style={{ fontSize: "16px" }}>
-            أقسام الفحص
-          </div>
-          <div className="section-subtitle" style={{ marginTop: "4px" }}>
-            تبويبات صغيرة للتنقل السريع بين الأقسام.
-          </div>
+      <div className="stack-3" style={{ marginTop: "18px" }}>
+        {orderedItems.map((item, index) => {
+          const state = getItemState(item);
+          const currentItemKey = itemKey(item.visit_system_id, item.checklist_item_id);
+          const smart = isSmartItem(item);
+          const isOpenEvidence = openEvidenceKey === currentItemKey;
+          const isNonCompliant = String(state.response_value) === "non_compliant";
+          const baselineRow = findAssetBaseline(
+            assetBaselines,
+            String(item.calc_rule || ""),
+            String(item.item_code || "")
+          );
 
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              overflowX: "auto",
-              paddingTop: "12px",
-              paddingBottom: "4px",
-              WebkitOverflowScrolling: "touch",
-            }}
-          >
-            {sectionGroups.map((group) => {
-              const active = group.key === selectedSectionKey;
+          const itemEvidence = existingEvidence.filter((row) => {
+            const sameItem =
+              String(row.visit_system_id) === String(item.visit_system_id) &&
+              String(row.checklist_item_id) === String(item.checklist_item_id);
 
-              return (
-                <button
-                  key={group.key}
-                  type="button"
-                  onClick={() => setSelectedSectionKey(group.key)}
+            if (!sameItem) return false;
+
+            if (activeAsset?.asset_id) {
+              return String(row.asset_id || "") === String(activeAsset.asset_id);
+            }
+
+            return true;
+          });
+
+          const previousItem = orderedItems[index - 1];
+          const showSectionHeader =
+            !previousItem ||
+            normalizeKey(previousItem.section_name) !== normalizeKey(item.section_name);
+
+          return (
+            <div key={currentItemKey}>
+              {showSectionHeader ? (
+                <div
                   style={{
-                    flex: "0 0 auto",
-                    minWidth: "150px",
-                    textAlign: "right",
-                    border: active ? "1px solid #0f766e" : "1px solid #e2e8f0",
-                    borderRadius: "16px",
-                    padding: "10px 12px",
-                    background: active ? "#f0fdfa" : "#ffffff",
+                    marginBottom: "10px",
+                    marginTop: index === 0 ? "0" : "8px",
+                    padding: "8px 4px",
+                    borderBottom: "1px solid #e2e8f0",
+                    fontSize: "15px",
+                    fontWeight: 800,
                     color: "#0f172a",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 800,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {group.label}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: "6px",
-                      fontSize: "12px",
-                      color: "#64748b",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {group.completedCount}/{group.total}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+                  {toArabicSectionName(item.section_name)}
+                </div>
+              ) : null}
 
-      {activeSection ? (
-        <div
-          style={{
-            marginTop: "18px",
-            border: "1px solid #e2e8f0",
-            borderRadius: "22px",
-            padding: "16px",
-            background: "#ffffff",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "12px",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <div className="section-title" style={{ fontSize: "18px" }}>
-                {activeSection.label}
-              </div>
-              <div className="section-subtitle" style={{ marginTop: "4px" }}>
-                البنود: {activeSection.total} · المكتمل: {activeSection.completedCount}
-              </div>
-            </div>
-          </div>
-
-          <div className="stack-3" style={{ marginTop: "16px" }}>
-            {visibleItems.map((item, index) => {
-              const state = getItemState(item);
-              const currentItemKey = itemKey(
-                item.visit_system_id,
-                item.checklist_item_id
-              );
-              const isOpenEvidence = openEvidenceKey === currentItemKey;
-
-              const baselineRow = findAssetBaseline(
-                assetBaselines,
-                String(item.calc_rule || ""),
-                String(item.item_code || "")
-              );
-
-              const itemEvidence = existingEvidence.filter((row) => {
-                const sameItem =
-                  String(row.visit_system_id) === String(item.visit_system_id) &&
-                  String(row.checklist_item_id) === String(item.checklist_item_id);
-
-                if (!sameItem) return false;
-
-                if (activeAsset?.asset_id) {
-                  return String(row.asset_id || "") === String(activeAsset.asset_id);
-                }
-
-                return true;
-              });
-
-              const smart = isSmartItem(item);
-              const isNonCompliant =
-                String(state.response_value) === "non_compliant";
-
-              return (
+              <div
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "18px",
+                  background: "#ffffff",
+                  padding: "14px",
+                }}
+              >
                 <div
-                  key={currentItemKey}
                   style={{
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "20px",
-                    background: "#ffffff",
-                    padding: "14px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "10px",
+                    flexWrap: "wrap",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "10px",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div className="badge-wrap">
-                      <span className="badge">{smart ? "بند ذكي" : "بند بصري"}</span>
-                      <span className="badge">بند {index + 1}</span>
-                    </div>
-
-                    <span className="badge">
-                      الحالة:{" "}
-                      {String(state.response_value || "").trim()
-                        ? toArabicResponseValue(state.response_value)
-                        : "بانتظار الإجابة"}
-                    </span>
-                  </div>
-
-                  <div
-                    className="checklist-item-title"
-                    style={{ marginTop: "10px", lineHeight: 1.8, fontSize: "21px" }}
-                  >
-                    {toArabicQuestionText(item.question_text)}
-                  </div>
-
-                  {item.acceptance_criteria ? (
-                    <div
-                      className="checklist-item-criteria"
-                      style={{ marginTop: "8px", lineHeight: 1.9 }}
-                    >
-                      {toArabicCriteriaText(item.acceptance_criteria)}
-                    </div>
-                  ) : null}
-
-                  <div className="badge-wrap" style={{ marginTop: "10px" }}>
-                    {targetText(item) ? (
-                      <span className="badge">{targetText(item)}</span>
-                    ) : null}
+                  <div className="badge-wrap">
+                    <span className="badge">#{index + 1}</span>
+                    <span className="badge">{smart ? "ذكي" : "بصري"}</span>
                     {item.numeric_unit ? (
                       <span className="badge">الوحدة: {item.numeric_unit}</span>
                     ) : null}
-                    {baselineRow ? (
-                      <span className="badge">مرجع الأصل جاهز</span>
+                    {targetText(item) ? (
+                      <span className="badge">المدى: {targetText(item)}</span>
                     ) : null}
                   </div>
 
+                  <span className="badge">
+                    {toArabicResponseValue(state.response_value)}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "10px",
+                    fontSize: "22px",
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {toArabicQuestionText(item.question_text)}
+                </div>
+
+                {item.acceptance_criteria ? (
                   <div
                     style={{
-                      marginTop: "10px",
-                      border: "1px solid #dbeafe",
-                      background: "#eff6ff",
-                      color: "#1e3a8a",
-                      borderRadius: "14px",
-                      padding: "10px 12px",
-                      fontSize: "13px",
-                      lineHeight: 1.8,
+                      marginTop: "8px",
+                      fontSize: "15px",
+                      color: "#475569",
+                      lineHeight: 1.9,
                     }}
                   >
-                    {itemHintText(item)}
+                    {toArabicCriteriaText(item.acceptance_criteria)}
                   </div>
+                ) : null}
 
-                  {baselineRow ? (
-                    <div
-                      style={{
-                        marginTop: "10px",
-                        border: "1px solid #fcd34d",
-                        background: "#fffbeb",
-                        color: "#92400e",
-                        borderRadius: "14px",
-                        padding: "10px 12px",
-                        fontSize: "13px",
-                        lineHeight: 1.8,
-                      }}
+                {!smart ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginTop: "14px",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      className={compactButtonClass(
+                        state.response_value === "compliant",
+                        "green"
+                      )}
+                      onClick={() =>
+                        updateStandardItemState(item, {
+                          response_value: "compliant",
+                          finding_severity: "",
+                        })
+                      }
                     >
-                      المرجع:
-                      {baselineRow.ref_value ? ` ${baselineRow.ref_value}` : ""}
-                      {baselineRow.ref_value_2 ? ` / ${baselineRow.ref_value_2}` : ""}
-                      {baselineRow.ref_value_3 ? ` / ${baselineRow.ref_value_3}` : ""}
-                      {baselineRow.metric_unit ? ` ${baselineRow.metric_unit}` : ""}
-                    </div>
-                  ) : null}
+                      مطابق
+                    </button>
 
-                  {!smart ? (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        flexWrap: "wrap",
-                        marginTop: "12px",
-                      }}
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      className={compactButtonClass(
+                        state.response_value === "non_compliant",
+                        "red"
+                      )}
+                      onClick={() =>
+                        updateStandardItemState(item, {
+                          response_value: "non_compliant",
+                          finding_severity:
+                            state.finding_severity ||
+                            item.severity_default ||
+                            "major",
+                        })
+                      }
                     >
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        className={buttonClass(
-                          state.response_value === "compliant",
-                          "green"
-                        )}
-                        onClick={() =>
-                          updateStandardItemState(item, {
-                            response_value: "compliant",
-                            finding_severity: "",
-                          })
-                        }
-                      >
-                        مطابق
-                      </button>
+                      غير مطابق
+                    </button>
 
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        className={buttonClass(
-                          state.response_value === "non_compliant",
-                          "red"
-                        )}
-                        onClick={() =>
-                          updateStandardItemState(item, {
-                            response_value: "non_compliant",
-                            finding_severity:
-                              state.finding_severity ||
-                              item.severity_default ||
-                              "major",
-                          })
-                        }
-                      >
-                        غير مطابق
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isReadOnly}
-                        className={buttonClass(
-                          state.response_value === "not_applicable",
-                          "slate"
-                        )}
-                        onClick={() =>
-                          updateStandardItemState(item, {
-                            response_value: "not_applicable",
-                            finding_severity: "",
-                          })
-                        }
-                      >
-                        غير منطبق
-                      </button>
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        marginTop: "12px",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "18px",
-                        padding: "12px",
-                        background: "#fcfcfd",
-                      }}
+                    <button
+                      type="button"
+                      disabled={isReadOnly}
+                      className={compactButtonClass(
+                        state.response_value === "not_applicable",
+                        "slate"
+                      )}
+                      onClick={() =>
+                        updateStandardItemState(item, {
+                          response_value: "not_applicable",
+                          finding_severity: "",
+                        })
+                      }
                     >
-                      <div style={{ marginBottom: "10px" }}>
+                      غير منطبق
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "16px",
+                      padding: "12px",
+                      background: "#fafafa",
+                    }}
+                  >
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      <div>
                         <div
                           style={{
                             fontSize: "13px",
@@ -991,7 +750,7 @@ export default function VisitExecutionForm({
                       </div>
 
                       {secondaryLabel(item) ? (
-                        <div style={{ marginBottom: "10px" }}>
+                        <div>
                           <div
                             style={{
                               fontSize: "13px",
@@ -1018,7 +777,7 @@ export default function VisitExecutionForm({
                       ) : null}
 
                       {thirdLabel(item) ? (
-                        <div style={{ marginBottom: "10px" }}>
+                        <div>
                           <div
                             style={{
                               fontSize: "13px",
@@ -1043,254 +802,259 @@ export default function VisitExecutionForm({
                           />
                         </div>
                       ) : null}
-
-                      {!isReadOnly ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "10px",
-                            flexWrap: "wrap",
-                            marginTop: "10px",
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className={buttonClass(
-                              state.response_value === "not_applicable",
-                              "slate"
-                            )}
-                            onClick={() =>
-                              updateSmartItemState(item, {
-                                response_value: "not_applicable",
-                              })
-                            }
-                          >
-                            غير منطبق
-                          </button>
-
-                          <button
-                            type="button"
-                            className={buttonClass(false, "slate")}
-                            onClick={() => setItemState(item, defaultItemState(item))}
-                          >
-                            مسح القراءة
-                          </button>
-                        </div>
-                      ) : null}
-
-                      {state.calc_result_text ? (
-                        <div
-                          style={{
-                            marginTop: "12px",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "14px",
-                            padding: "10px 12px",
-                            background:
-                              state.auto_judgement === "fail"
-                                ? "#fef2f2"
-                                : state.auto_judgement === "pass"
-                                ? "#ecfdf5"
-                                : "#f8fafc",
-                            color:
-                              state.auto_judgement === "fail"
-                                ? "#b91c1c"
-                                : state.auto_judgement === "pass"
-                                ? "#047857"
-                                : "#334155",
-                            fontSize: "13px",
-                            lineHeight: 1.8,
-                          }}
-                        >
-                          <div style={{ fontWeight: 800, marginBottom: "6px" }}>
-                            النتيجة التلقائية
-                          </div>
-                          {state.calc_result_text}
-                        </div>
-                      ) : null}
                     </div>
-                  )}
 
-                  {isNonCompliant && !isReadOnly ? (
-                    <div
-                      style={{
-                        marginTop: "12px",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "18px",
-                        padding: "12px",
-                        background: "#fcfcfd",
-                      }}
-                    >
+                    {!isReadOnly ? (
                       <div
                         style={{
-                          fontSize: "14px",
-                          fontWeight: 700,
-                          color: "#0f172a",
-                          marginBottom: "10px",
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                          marginTop: "10px",
                         }}
                       >
-                        تفاصيل عدم المطابقة
+                        <button
+                          type="button"
+                          className={compactButtonClass(
+                            state.response_value === "not_applicable",
+                            "slate"
+                          )}
+                          onClick={() =>
+                            updateSmartItemState(item, {
+                              response_value: "not_applicable",
+                            })
+                          }
+                        >
+                          غير منطبق
+                        </button>
+
+                        <button
+                          type="button"
+                          className={compactButtonClass(false, "slate")}
+                          onClick={() => setItemState(item, defaultItemState(item))}
+                        >
+                          مسح
+                        </button>
                       </div>
+                    ) : null}
 
-                      <select
-                        className="field"
-                        value={state.finding_severity}
-                        onChange={(e) =>
-                          updateStandardItemState(item, {
-                            finding_severity: e.target.value,
-                          })
-                        }
+                    {baselineRow ? (
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          border: "1px solid #fcd34d",
+                          background: "#fffbeb",
+                          color: "#92400e",
+                          borderRadius: "12px",
+                          padding: "9px 10px",
+                          fontSize: "13px",
+                          lineHeight: 1.8,
+                        }}
                       >
-                        <option value="">اختر الشدة</option>
-                        <option value="critical">حرج</option>
-                        <option value="major">مرتفع</option>
-                        <option value="minor">منخفض</option>
-                      </select>
+                        مرجع الأصل:
+                        {baselineRow.ref_value ? ` ${baselineRow.ref_value}` : ""}
+                        {baselineRow.ref_value_2 ? ` / ${baselineRow.ref_value_2}` : ""}
+                        {baselineRow.ref_value_3 ? ` / ${baselineRow.ref_value_3}` : ""}
+                        {baselineRow.metric_unit ? ` ${baselineRow.metric_unit}` : ""}
+                      </div>
+                    ) : null}
 
-                      <textarea
-                        className="field"
-                        placeholder="ملاحظات المفتش"
-                        value={state.comments}
-                        onChange={(e) =>
-                          updateStandardItemState(item, {
-                            comments: e.target.value,
-                          })
-                        }
-                        style={{ marginTop: "10px" }}
-                      />
+                    {state.calc_result_text ? (
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "12px",
+                          padding: "10px 12px",
+                          background:
+                            state.auto_judgement === "fail"
+                              ? "#fef2f2"
+                              : state.auto_judgement === "pass"
+                              ? "#ecfdf5"
+                              : "#f8fafc",
+                          color:
+                            state.auto_judgement === "fail"
+                              ? "#b91c1c"
+                              : state.auto_judgement === "pass"
+                              ? "#047857"
+                              : "#334155",
+                          fontSize: "13px",
+                          lineHeight: 1.8,
+                        }}
+                      >
+                        {state.calc_result_text}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
 
-                      <textarea
-                        className="field"
-                        placeholder="الإجراء التصحيحي المقترح"
-                        value={state.corrective_action}
-                        onChange={(e) =>
-                          updateStandardItemState(item, {
-                            corrective_action: e.target.value,
-                          })
-                        }
-                        style={{ marginTop: "10px" }}
-                      />
-                    </div>
-                  ) : null}
-
+                {isNonCompliant && !isReadOnly ? (
                   <div
                     style={{
                       marginTop: "12px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "10px",
-                      flexWrap: "wrap",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "16px",
+                      padding: "12px",
+                      background: "#fcfcfd",
                     }}
                   >
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() =>
-                        setOpenEvidenceKey(
-                          isOpenEvidence ? null : currentItemKey
-                        )
+                    <select
+                      className="field"
+                      value={state.finding_severity}
+                      onChange={(e) =>
+                        updateStandardItemState(item, {
+                          finding_severity: e.target.value,
+                        })
                       }
                     >
-                      {itemEvidence.length > 0
-                        ? `الدليل (${itemEvidence.length})`
-                        : "إضافة دليل"}
-                    </button>
+                      <option value="">اختر الشدة</option>
+                      <option value="critical">حرج</option>
+                      <option value="major">مرتفع</option>
+                      <option value="minor">منخفض</option>
+                    </select>
 
-                    <span className="badge">
-                      {String(state.response_value || "").trim()
-                        ? "تمت الإجابة"
-                        : "بانتظار الإجابة"}
-                    </span>
+                    <textarea
+                      className="field"
+                      placeholder="ملاحظات المفتش"
+                      value={state.comments}
+                      onChange={(e) =>
+                        updateStandardItemState(item, {
+                          comments: e.target.value,
+                        })
+                      }
+                      style={{ marginTop: "10px" }}
+                    />
+
+                    <textarea
+                      className="field"
+                      placeholder="الإجراء التصحيحي المقترح"
+                      value={state.corrective_action}
+                      onChange={(e) =>
+                        updateStandardItemState(item, {
+                          corrective_action: e.target.value,
+                        })
+                      }
+                      style={{ marginTop: "10px" }}
+                    />
                   </div>
+                ) : null}
 
-                  {isOpenEvidence ? (
-                    <div
-                      style={{
-                        marginTop: "12px",
-                        borderTop: "1px dashed #cbd5e1",
-                        paddingTop: "12px",
-                      }}
-                    >
-                      {isReadOnly ? (
-                        itemEvidence.length === 0 ? (
-                          <div className="muted-note">لا توجد أدلة محفوظة لهذا البند.</div>
-                        ) : (
-                          <div className="stack-3">
-                            {itemEvidence.map((row) => (
-                              <div
-                                key={String(row.evidence_id)}
-                                style={{
-                                  border: "1px solid #e2e8f0",
-                                  borderRadius: "16px",
-                                  padding: "12px",
-                                  background: "#ffffff",
-                                }}
-                              >
-                                <div className="badge-wrap">
-                                  <span className="badge">
-                                    {String(row.evidence_type || "evidence")}
-                                  </span>
-                                  {row.file_name ? (
-                                    <span className="badge">
-                                      {String(row.file_name)}
-                                    </span>
-                                  ) : null}
-                                </div>
+                <div
+                  style={{
+                    marginTop: "12px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() =>
+                      setOpenEvidenceKey(
+                        isOpenEvidence ? null : currentItemKey
+                      )
+                    }
+                  >
+                    {itemEvidence.length > 0
+                      ? `الدليل (${itemEvidence.length})`
+                      : "الدليل"}
+                  </button>
 
-                                {looksLikeImage(
-                                  String(row.file_url || ""),
-                                  String(row.evidence_type || "")
-                                ) ? (
-                                  <div style={{ marginTop: "10px" }}>
-                                    <img
-                                      src={String(row.file_url || "")}
-                                      alt={String(row.file_name || "Evidence")}
-                                      style={{
-                                        width: "100%",
-                                        borderRadius: "14px",
-                                        border: "1px solid #e2e8f0",
-                                      }}
-                                    />
-                                  </div>
-                                ) : row.file_url ? (
-                                  <div style={{ marginTop: "10px" }}>
-                                    <a
-                                      href={String(row.file_url)}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="btn btn-secondary"
-                                    >
-                                      فتح الملف
-                                    </a>
-                                  </div>
-                                ) : null}
+                  <span className="badge">
+                    {String(state.response_value || "").trim()
+                      ? "تمت الإجابة"
+                      : "بانتظار الإجابة"}
+                  </span>
+                </div>
 
-                                {row.caption ? (
-                                  <div className="section-subtitle" style={{ marginTop: "10px" }}>
-                                    {String(row.caption)}
-                                  </div>
+                {isOpenEvidence ? (
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      borderTop: "1px dashed #cbd5e1",
+                      paddingTop: "12px",
+                    }}
+                  >
+                    {isReadOnly ? (
+                      itemEvidence.length === 0 ? (
+                        <div className="muted-note">لا توجد أدلة محفوظة لهذا البند.</div>
+                      ) : (
+                        <div className="stack-3">
+                          {itemEvidence.map((row) => (
+                            <div
+                              key={String(row.evidence_id)}
+                              style={{
+                                border: "1px solid #e2e8f0",
+                                borderRadius: "14px",
+                                padding: "12px",
+                                background: "#ffffff",
+                              }}
+                            >
+                              <div className="badge-wrap">
+                                <span className="badge">
+                                  {String(row.evidence_type || "evidence")}
+                                </span>
+                                {row.file_name ? (
+                                  <span className="badge">{String(row.file_name)}</span>
                                 ) : null}
                               </div>
-                            ))}
-                          </div>
-                        )
-                      ) : (
-                        <ChecklistItemEvidence
-                          visitId={visitId}
-                          visitSystemId={String(item.visit_system_id)}
-                          checklistItemId={String(item.checklist_item_id)}
-                          assetId={activeAsset?.asset_id || ""}
-                          rows={itemEvidence}
-                        />
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+
+                              {looksLikeImage(
+                                String(row.file_url || ""),
+                                String(row.evidence_type || "")
+                              ) ? (
+                                <div style={{ marginTop: "10px" }}>
+                                  <img
+                                    src={String(row.file_url || "")}
+                                    alt={String(row.file_name || "Evidence")}
+                                    style={{
+                                      width: "100%",
+                                      borderRadius: "12px",
+                                      border: "1px solid #e2e8f0",
+                                    }}
+                                  />
+                                </div>
+                              ) : row.file_url ? (
+                                <div style={{ marginTop: "10px" }}>
+                                  <a
+                                    href={String(row.file_url)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-secondary"
+                                  >
+                                    فتح الملف
+                                  </a>
+                                </div>
+                              ) : null}
+
+                              {row.caption ? (
+                                <div className="section-subtitle" style={{ marginTop: "10px" }}>
+                                  {String(row.caption)}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    ) : (
+                      <ChecklistItemEvidence
+                        visitId={visitId}
+                        visitSystemId={String(item.visit_system_id)}
+                        checklistItemId={String(item.checklist_item_id)}
+                        assetId={activeAsset?.asset_id || ""}
+                        rows={itemEvidence}
+                      />
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {message ? (
         <div className="alert-success" style={{ marginTop: "16px" }}>
