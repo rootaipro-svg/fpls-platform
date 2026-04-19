@@ -1,8 +1,7 @@
-import { ClipboardList, FileCheck2, ShieldCheck, UserRound } from "lucide-react";
+import { ShieldCheck, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { ComplianceProgress } from "@/components/compliance-progress";
 import { VisitSystemSummaryCard } from "@/components/visit-system-summary-card";
@@ -15,48 +14,6 @@ import {
 import { readSheet } from "@/lib/sheets";
 import { getChecklistForSystem } from "@/lib/checklist";
 import type { AssetBaselineRow } from "@/lib/asset-baseline";
-
-function toArabicSectionName(value: string) {
-  const normalized = String(value || "").trim().toLowerCase();
-
-  const map: Record<string, string> = {
-    approvals: "الاعتمادات واللوحات (Approvals)",
-    "pump room": "غرفة المضخة (Pump Room)",
-    operation: "التشغيل (Operation)",
-    "testing and performance": "الاختبار والأداء (Testing & Performance)",
-    condition: "الحالة العامة (Condition)",
-    controller: "لوحة التحكم (Controller)",
-    "power supply": "مصدر الطاقة (Power Supply)",
-    "diesel engine": "محرك الديزل (Diesel Engine)",
-    "jockey pump": "مضخة الجوكي (Jockey Pump)",
-  };
-
-  return map[normalized] || value || "قسم عام";
-}
-
-function isSmartExecutionItem(item: any) {
-  return (
-    Boolean(String(item.calc_rule || "").trim()) ||
-    String(item.response_type_v2 || "").toLowerCase() === "numeric_range"
-  );
-}
-
-function buildReferenceSections(items: any[]) {
-  const map = new Map<
-    string,
-    { label: string; count: number; smartCount: number }
-  >();
-
-  for (const item of items) {
-    const label = toArabicSectionName(String(item.section_name || "قسم عام"));
-    const current = map.get(label) || { label, count: 0, smartCount: 0 };
-    current.count += 1;
-    if (isSmartExecutionItem(item)) current.smartCount += 1;
-    map.set(label, current);
-  }
-
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
-}
 
 export default async function VisitDetailPage({
   params,
@@ -279,7 +236,6 @@ export default async function VisitDetailPage({
   );
 
   const executionItems = executionItemsNested.flat();
-  const referenceSections = buildReferenceSections(executionItems);
 
   const existingResponses = responseRows
     .filter((r: any) => {
@@ -315,8 +271,16 @@ export default async function VisitDetailPage({
         }`}
       />
 
+      <div className="badge-wrap" style={{ marginBottom: "14px" }}>
+        <span className="badge">الحالة: {String(visit?.visit_status || "planned")}</span>
+        <span className="badge">
+          التاريخ: {String(visit?.planned_date || visit?.visit_date || "-")}
+        </span>
+        <span className="badge">النظام: {systems[0]?.system_code || "-"}</span>
+      </div>
+
       {activeAsset ? (
-        <section className="card">
+        <section className="card" style={{ marginBottom: "14px" }}>
           <div className="section-title">الأصل الجاري فحصه</div>
           <div className="section-subtitle">
             {String(activeAsset.asset_name_ar || activeAsset.asset_name || "أصل")}
@@ -325,138 +289,6 @@ export default async function VisitDetailPage({
           </div>
         </section>
       ) : null}
-
-      <div className="stats-grid">
-        <StatCard
-          label="الأنظمة"
-          value={systems.length}
-          hint="عدد الأنظمة داخل الزيارة"
-          icon={ShieldCheck}
-          tone="teal"
-        />
-        <StatCard
-          label="مطابق"
-          value={compliantCount}
-          hint="عدد البنود المطابقة"
-          icon={ClipboardList}
-          tone="slate"
-        />
-        <StatCard
-          label="غير مطابق"
-          value={nonCompliantCount}
-          hint="عدد البنود غير المطابقة"
-          icon={ClipboardList}
-          tone={nonCompliantCount > 0 ? "amber" : "slate"}
-        />
-        <StatCard
-          label="المخالفات المفتوحة"
-          value={openFindingsCount}
-          hint="تحتاج متابعة"
-          icon={FileCheck2}
-          tone={openFindingsCount > 0 ? "red" : "slate"}
-        />
-      </div>
-
-      <div className="visit-summary-grid">
-        <div className="card">
-          <div className="section-title">ملخص الزيارة</div>
-
-          <div className="section-header-row" style={{ marginTop: "12px" }}>
-            <div className="section-header-side">
-              <StatusBadge status={String(visit?.visit_status || "planned")} />
-              <span className="badge">
-                النتيجة: {String(visit?.summary_result || "pending")}
-              </span>
-            </div>
-            <span className="badge">
-              التاريخ: {String(visit?.planned_date || visit?.visit_date || "-")}
-            </span>
-          </div>
-
-          <ComplianceProgress value={overallCompliance} />
-
-          <div className="visit-kpi-row">
-            <span className="visit-kpi-pill">مطابق: {compliantCount}</span>
-            <span className="visit-kpi-pill">غير مطابق: {nonCompliantCount}</span>
-            <span className="visit-kpi-pill">غير منطبق: {notApplicableCount}</span>
-            <span className="visit-kpi-pill">
-              الاستحقاق التالي: {String(visit?.next_due_date || "-")}
-            </span>
-          </div>
-
-          <div className="visit-kpi-row">
-            <span className="visit-kpi-pill">
-              المفتش:{" "}
-              {String(
-                assignedInspector?.full_name_ar ||
-                  assignedInspector?.full_name ||
-                  assignedInspector?.email ||
-                  "غير محدد"
-              )}
-            </span>
-            {assignedInspector?.phone ? (
-              <span className="visit-kpi-pill">
-                الجوال: {String(assignedInspector.phone)}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="visit-card-text" style={{ marginTop: "12px" }}>
-            {String(visit?.notes || "لا توجد ملاحظات مسجلة لهذه الزيارة.")}
-          </div>
-        </div>
-
-        <div className="report-ready-card">
-          <div className="report-ready-title">جاهزية التقرير</div>
-          <div className="report-ready-text">
-            {reportReady
-              ? "الزيارة مغلقة وتم تسجيل نتائج فعلية، والصفحة أصبحت جاهزة للتقرير."
-              : "أكمل تنفيذ البنود وأغلق الزيارة أولًا حتى تصبح جاهزة بالكامل."}
-          </div>
-
-          <div className="visit-kpi-row">
-            <span className="badge">
-              حالة الجاهزية: {reportReady ? "جاهز" : "غير جاهز"}
-            </span>
-            <span className="badge">الإجابات المسجلة: {responseRows.length}</span>
-            <span className="badge">المخالفات: {findingRows.length}</span>
-          </div>
-
-          <div className="visit-kpi-row">
-            <span className="badge">
-              المفتش المعين:{" "}
-              {String(
-                assignedInspector?.full_name_ar ||
-                  assignedInspector?.full_name ||
-                  "غير محدد"
-              )}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <section className="card">
-        <div className="section-title">نتائج الأنظمة</div>
-
-        {systems.length === 0 ? (
-          <div style={{ marginTop: "12px" }}>
-            <EmptyState
-              title="لا توجد أنظمة مرتبطة"
-              description="لم يتم ربط أي نظام بهذه الزيارة بعد."
-              icon={ShieldCheck}
-            />
-          </div>
-        ) : (
-          <div className="system-summary-grid" style={{ marginTop: "12px" }}>
-            {systems.map((system: any) => (
-              <VisitSystemSummaryCard
-                key={String(system.visit_system_id)}
-                system={system}
-              />
-            ))}
-          </div>
-        )}
-      </section>
 
       {systems.length > 0 ? (
         <VisitExecutionForm
@@ -484,9 +316,17 @@ export default async function VisitDetailPage({
           activeAsset={activeAsset}
           assetBaselines={activeAssetBaselines}
         />
-      ) : null}
+      ) : (
+        <section className="card">
+          <EmptyState
+            title="لا توجد أنظمة مرتبطة"
+            description="لم يتم ربط أي نظام بهذه الزيارة بعد."
+            icon={ShieldCheck}
+          />
+        </section>
+      )}
 
-      <section className="card">
+      <section className="card" style={{ marginTop: "14px" }}>
         <details>
           <summary
             style={{
@@ -497,59 +337,74 @@ export default async function VisitDetailPage({
               padding: "4px 0",
             }}
           >
-            خريطة الفحص المرجعية
+            ملخص الزيارة والتقرير
           </summary>
 
-          <div className="section-subtitle" style={{ marginTop: "8px" }}>
-            هذه الخريطة مختصرة لتوضيح الأقسام وعدد البنود، بدل عرض القائمة الطويلة.
-          </div>
+          <div style={{ marginTop: "12px" }}>
+            <div className="badge-wrap" style={{ marginBottom: "12px" }}>
+              <StatusBadge status={String(visit?.visit_status || "planned")} />
+              <span className="badge">
+                النتيجة: {String(visit?.summary_result || "pending")}
+              </span>
+              <span className="badge">
+                المفتش:{" "}
+                {String(
+                  assignedInspector?.full_name_ar ||
+                    assignedInspector?.full_name ||
+                    assignedInspector?.email ||
+                    "غير محدد"
+                )}
+              </span>
+            </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-              gap: "10px",
-              marginTop: "14px",
-            }}
-          >
-            {referenceSections.map((section) => (
-              <div
-                key={section.label}
-                style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "18px",
-                  padding: "12px",
-                  background: "#ffffff",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 800,
-                    color: "#0f172a",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {section.label}
-                </div>
+            <ComplianceProgress value={overallCompliance} />
 
-                <div
-                  style={{
-                    marginTop: "8px",
-                    fontSize: "13px",
-                    color: "#64748b",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  البنود: {section.count}
-                  <br />
-                  البنود الذكية: {section.smartCount}
-                </div>
-              </div>
-            ))}
+            <div className="badge-wrap" style={{ marginTop: "12px" }}>
+              <span className="badge">مطابق: {compliantCount}</span>
+              <span className="badge">غير مطابق: {nonCompliantCount}</span>
+              <span className="badge">غير منطبق: {notApplicableCount}</span>
+              <span className="badge">المخالفات المفتوحة: {openFindingsCount}</span>
+              <span className="badge">
+                الاستحقاق التالي: {String(visit?.next_due_date || "-")}
+              </span>
+              <span className="badge">
+                حالة التقرير: {reportReady ? "جاهز" : "غير جاهز"}
+              </span>
+            </div>
+
+            <div className="section-subtitle" style={{ marginTop: "12px" }}>
+              {String(visit?.notes || "لا توجد ملاحظات مسجلة لهذه الزيارة.")}
+            </div>
           </div>
         </details>
       </section>
+
+      {systems.length > 0 ? (
+        <section className="card" style={{ marginTop: "14px" }}>
+          <details>
+            <summary
+              style={{
+                cursor: "pointer",
+                listStyle: "none",
+                fontWeight: 800,
+                color: "#0f172a",
+                padding: "4px 0",
+              }}
+            >
+              نتائج الأنظمة
+            </summary>
+
+            <div className="system-summary-grid" style={{ marginTop: "12px" }}>
+              {systems.map((system: any) => (
+                <VisitSystemSummaryCard
+                  key={String(system.visit_system_id)}
+                  system={system}
+                />
+              ))}
+            </div>
+          </details>
+        </section>
+      ) : null}
     </AppShell>
   );
 }
