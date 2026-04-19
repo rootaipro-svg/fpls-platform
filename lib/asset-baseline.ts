@@ -154,6 +154,102 @@ function compareScalarBaseline(
   };
 }
 
+function comparePumpFlowAcceptanceBaseline(
+  baseline: AssetBaselineRow,
+  numericValue: string | number | null | undefined,
+  numericValue2: string | number | null | undefined,
+  numericValue3: string | number | null | undefined,
+  unitOverride = ""
+): AssetBaselineCompareResult {
+  const discharge = toNumber(numericValue);
+  const suction = toNumber(numericValue2);
+  const flowReading = toNumber(numericValue3);
+
+  if (discharge === null && suction === null && flowReading === null) {
+    return {
+      hasBaseline: true,
+      responseValue: "",
+      autoJudgement: "",
+      resultTextAr: "",
+    };
+  }
+
+  const refDischarge = toNumber(baseline.ref_value);
+  const refSuction = toNumber(baseline.ref_value_2);
+  const refFlow = toNumber(baseline.ref_value_3);
+  const allowedAbs = toNumber(baseline.allowed_dev_abs);
+  const allowedPct = toNumber(baseline.allowed_dev_pct);
+  const unit = String(unitOverride || baseline.metric_unit || "psi");
+
+  const dischargeOk =
+    discharge === null || refDischarge === null
+      ? true
+      : withinAbs(discharge, refDischarge, allowedAbs) &&
+        withinPct(discharge, refDischarge, allowedPct);
+
+  const suctionOk =
+    suction === null || refSuction === null
+      ? true
+      : withinAbs(suction, refSuction, allowedAbs) &&
+        withinPct(suction, refSuction, allowedPct);
+
+  const flowOk =
+    flowReading === null || refFlow === null
+      ? true
+      : withinAbs(flowReading, refFlow, allowedAbs) &&
+        withinPct(flowReading, refFlow, allowedPct);
+
+  const relationOk =
+    discharge === null || suction === null ? true : discharge > suction;
+
+  const pass = dischargeOk && suctionOk && flowOk && relationOk;
+
+  const parts: string[] = [];
+
+  if (discharge !== null) {
+    parts.push(
+      `ضغط الطرد الحالي ${fmt(discharge)} ${unit}${
+        refDischarge !== null ? ` / المرجع ${fmt(refDischarge)} ${unit}` : ""
+      }.`
+    );
+  }
+
+  if (suction !== null) {
+    parts.push(
+      `ضغط السحب الحالي ${fmt(suction)} ${unit}${
+        refSuction !== null ? ` / المرجع ${fmt(refSuction)} ${unit}` : ""
+      }.`
+    );
+  }
+
+  if (flowReading !== null) {
+    parts.push(
+      `قراءة الأداء/التدفق الحالية ${fmt(flowReading)}${
+        refFlow !== null ? ` / المرجع ${fmt(refFlow)}` : ""
+      }.`
+    );
+  }
+
+  if (!relationOk) {
+    parts.push("ضغط الطرد يجب أن يكون أعلى من ضغط السحب.");
+  }
+
+  if (allowedAbs !== null) {
+    parts.push(`الانحراف المطلق المسموح ±${fmt(allowedAbs)} ${unit}.`);
+  }
+
+  if (allowedPct !== null) {
+    parts.push(`الانحراف النسبي المسموح ${fmt(allowedPct)}%.`);
+  }
+
+  return {
+    hasBaseline: true,
+    responseValue: pass ? "compliant" : "non_compliant",
+    autoJudgement: pass ? "pass" : "fail",
+    resultTextAr: `مقارنة baseline: ${parts.join(" ")}`,
+  };
+}
+
 function comparePressureSetpointsBaseline(
   baseline: AssetBaselineRow,
   numericValue: string | number | null | undefined,
@@ -257,7 +353,8 @@ function comparePressureStabilityBaseline(
         withinPct(stopPressure, refStop, allowedPct);
 
   const relationOk = stopPressure > startPressure;
-  const restartOk = refRestarts === null || restarts === null ? true : restarts <= refRestarts;
+  const restartOk =
+    refRestarts === null || restarts === null ? true : restarts <= refRestarts;
 
   const pass = startOk && stopOk && relationOk && restartOk;
 
@@ -318,6 +415,16 @@ export function compareWithAssetBaseline(input: {
   }
 
   const metricCode = String(baseline.metric_code || "").toUpperCase();
+
+  if (metricCode === "PUMP_FLOW_ACCEPTANCE") {
+    return comparePumpFlowAcceptanceBaseline(
+      baseline,
+      input.numericValue,
+      input.numericValue2,
+      input.numericValue3,
+      input.numericUnit || ""
+    );
+  }
 
   if (metricCode === "PRESSURE_SETPOINTS") {
     return comparePressureSetpointsBaseline(
