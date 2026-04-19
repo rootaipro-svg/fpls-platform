@@ -16,6 +16,48 @@ import { readSheet } from "@/lib/sheets";
 import { getChecklistForSystem } from "@/lib/checklist";
 import type { AssetBaselineRow } from "@/lib/asset-baseline";
 
+function toArabicSectionName(value: string) {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    approvals: "الاعتمادات واللوحات (Approvals)",
+    "pump room": "غرفة المضخة (Pump Room)",
+    operation: "التشغيل (Operation)",
+    "testing and performance": "الاختبار والأداء (Testing & Performance)",
+    condition: "الحالة العامة (Condition)",
+    controller: "لوحة التحكم (Controller)",
+    "power supply": "مصدر الطاقة (Power Supply)",
+    "diesel engine": "محرك الديزل (Diesel Engine)",
+    "jockey pump": "مضخة الجوكي (Jockey Pump)",
+  };
+
+  return map[normalized] || value || "قسم عام";
+}
+
+function isSmartExecutionItem(item: any) {
+  return (
+    Boolean(String(item.calc_rule || "").trim()) ||
+    String(item.response_type_v2 || "").toLowerCase() === "numeric_range"
+  );
+}
+
+function buildReferenceSections(items: any[]) {
+  const map = new Map<
+    string,
+    { label: string; count: number; smartCount: number }
+  >();
+
+  for (const item of items) {
+    const label = toArabicSectionName(String(item.section_name || "قسم عام"));
+    const current = map.get(label) || { label, count: 0, smartCount: 0 };
+    current.count += 1;
+    if (isSmartExecutionItem(item)) current.smartCount += 1;
+    map.set(label, current);
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+}
+
 export default async function VisitDetailPage({
   params,
   searchParams,
@@ -237,6 +279,7 @@ export default async function VisitDetailPage({
   );
 
   const executionItems = executionItemsNested.flat();
+  const referenceSections = buildReferenceSections(executionItems);
 
   const existingResponses = responseRows
     .filter((r: any) => {
@@ -367,8 +410,8 @@ export default async function VisitDetailPage({
           <div className="report-ready-title">جاهزية التقرير</div>
           <div className="report-ready-text">
             {reportReady
-              ? "الزيارة مغلقة وتم تسجيل نتائج فعلية، والصفحة أصبحت جاهزة للانتقال إلى مرحلة تقرير PDF الاحترافي."
-              : "أكمل تنفيذ البنود وأغلق الزيارة أولًا حتى تصبح جاهزة بالكامل لمرحلة التقرير."}
+              ? "الزيارة مغلقة وتم تسجيل نتائج فعلية، والصفحة أصبحت جاهزة للتقرير."
+              : "أكمل تنفيذ البنود وأغلق الزيارة أولًا حتى تصبح جاهزة بالكامل."}
           </div>
 
           <div className="visit-kpi-row">
@@ -444,39 +487,68 @@ export default async function VisitDetailPage({
       ) : null}
 
       <section className="card">
-        <div className="section-title">قائمة الفحص المرجعية</div>
+        <details>
+          <summary
+            style={{
+              cursor: "pointer",
+              listStyle: "none",
+              fontWeight: 800,
+              color: "#0f172a",
+              padding: "4px 0",
+            }}
+          >
+            خريطة الفحص المرجعية
+          </summary>
 
-        {executionItems.length === 0 ? (
-          <div style={{ marginTop: "12px" }}>
-            <EmptyState
-              title="لا توجد قائمة فحص"
-              description="لم يتم العثور على Checklist للأنظمة المرتبطة بهذه الزيارة."
-              icon={ClipboardList}
-            />
+          <div className="section-subtitle" style={{ marginTop: "8px" }}>
+            هذه الخريطة مختصرة لتوضيح الأقسام وعدد البنود، بدل عرض القائمة الطويلة.
           </div>
-        ) : (
-          <div className="stack-3" style={{ marginTop: "12px" }}>
-            {executionItems.slice(0, 10).map((item: any) => (
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+              gap: "10px",
+              marginTop: "14px",
+            }}
+          >
+            {referenceSections.map((section) => (
               <div
-                key={`${item.visit_system_id}-${item.checklist_item_id}`}
-                className="checklist-item"
+                key={section.label}
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "18px",
+                  padding: "12px",
+                  background: "#ffffff",
+                }}
               >
-                <div className="checklist-item-section">
-                  {item.system_code} · {item.section_name || "Section"}
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {section.label}
                 </div>
-                <div className="checklist-item-title">{item.question_text}</div>
-                <div className="checklist-item-criteria">
-                  {item.acceptance_criteria}
+
+                <div
+                  style={{
+                    marginTop: "8px",
+                    fontSize: "13px",
+                    color: "#64748b",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  البنود: {section.count}
+                  <br />
+                  البنود الذكية: {section.smartCount}
                 </div>
-                {item.ui_hint_ar ? (
-                  <div className="section-subtitle" style={{ marginTop: "8px" }}>
-                    {item.ui_hint_ar}
-                  </div>
-                ) : null}
               </div>
             ))}
           </div>
-        )}
+        </details>
       </section>
     </AppShell>
   );
