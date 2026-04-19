@@ -18,7 +18,7 @@ export function VisitCard({
       <div className="visit-card-top">
         <div>
           <div className="visit-card-title">
-            {String(visit.visit_type || "زيارة")}
+            {toVisitTypeLabel(visit.visit_type)}
           </div>
           <div className="visit-card-sub">
             {String(visit.planned_date || visit.visit_date || "-")}
