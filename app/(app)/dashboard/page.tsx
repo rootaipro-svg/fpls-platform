@@ -10,12 +10,13 @@ import {
   ShieldAlert,
   UserRound,
   Users,
+  ChevronLeft,
+  Activity,
+  FileWarning,
+  type LucideIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/empty-state";
-import { CardLinkHint } from "@/components/card-link-hint";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 import {
@@ -58,96 +59,587 @@ function getDueLabel(daysDiff: number) {
   return "مستقبلي";
 }
 
-function ShortcutCard({
-  href,
+function toArabicVisitStatus(value: string) {
+  const v = String(value || "").toLowerCase();
+  if (v === "planned") return "مجدولة";
+  if (v === "open") return "مفتوحة";
+  if (v === "in_progress") return "قيد التنفيذ";
+  if (v === "closed") return "مغلقة";
+  if (v === "completed") return "مغلقة";
+  return value || "-";
+}
+
+function formatDate(value: any) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return raw;
+  return dt.toISOString().slice(0, 10);
+}
+
+function SectionHeader({
   title,
-  text,
-  hint,
-  icon: Icon,
-  tone = "teal",
+  subtitle,
+  action,
 }: {
-  href: string;
   title: string;
-  text: string;
-  hint: string;
-  icon: any;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: "12px",
+        marginBottom: "14px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: "28px",
+            fontWeight: 900,
+            color: "#0f172a",
+            lineHeight: 1.3,
+          }}
+        >
+          {title}
+        </div>
+        {subtitle ? (
+          <div
+            style={{
+              marginTop: "6px",
+              fontSize: "15px",
+              color: "#64748b",
+              lineHeight: 1.8,
+            }}
+          >
+            {subtitle}
+          </div>
+        ) : null}
+      </div>
+
+      {action ? <div>{action}</div> : null}
+    </div>
+  );
+}
+
+function StatusChip({
+  label,
+  tone = "slate",
+}: {
+  label: string;
   tone?: "teal" | "amber" | "red" | "slate";
 }) {
-  const toneMap: Record<string, { bg: string; color: string; border: string }> = {
-    teal: {
-      bg: "#ecfeff",
-      color: "#0f766e",
-      border: "1px solid #ccfbf1",
-    },
-    amber: {
-      bg: "#fffbeb",
-      color: "#b45309",
-      border: "1px solid #fde68a",
-    },
-    red: {
-      bg: "#fef2f2",
-      color: "#b91c1c",
-      border: "1px solid #fecaca",
-    },
-    slate: {
-      bg: "#f8fafc",
-      color: "#334155",
-      border: "1px solid #e2e8f0",
-    },
-  };
-
-  const theme = toneMap[tone] || toneMap.teal;
+  const palette = {
+    teal: { bg: "#ecfeff", text: "#0f766e", border: "#ccfbf1" },
+    amber: { bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
+    red: { bg: "#fef2f2", text: "#b91c1c", border: "#fecaca" },
+    slate: { bg: "#f8fafc", text: "#334155", border: "#e2e8f0" },
+  }[tone];
 
   return (
-    <Link href={href} className="quick-link-card">
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "8px 14px",
+        borderRadius: "999px",
+        border: `1px solid ${palette.border}`,
+        background: palette.bg,
+        color: palette.text,
+        fontSize: "14px",
+        fontWeight: 800,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function TopOpsCard({
+  title,
+  subtitle,
+  todayLabel,
+  secondaryLabel,
+  icon: Icon,
+}: {
+  title: string;
+  subtitle: string;
+  todayLabel: string;
+  secondaryLabel: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <section
+      className="card"
+      style={{
+        padding: "18px",
+        borderRadius: "26px",
+        marginBottom: "18px",
+      }}
+    >
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "12px",
-          marginBottom: "12px",
+          gap: "14px",
+          justifyContent: "space-between",
         }}
       >
         <div
           style={{
-            width: "44px",
-            height: "44px",
-            borderRadius: "14px",
+            width: "62px",
+            height: "62px",
+            borderRadius: "22px",
+            background: "#ecfeff",
+            color: "#0f766e",
+            border: "1px solid #ccfbf1",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: theme.bg,
-            color: theme.color,
-            border: theme.border,
             flexShrink: 0,
           }}
         >
-          <Icon size={20} />
+          <Icon size={30} />
         </div>
 
-        <div className="quick-link-title" style={{ margin: 0 }}>
-          {title}
+        <div style={{ flex: 1, textAlign: "right" }}>
+          <div
+            style={{
+              fontSize: "15px",
+              color: "#64748b",
+              lineHeight: 1.7,
+            }}
+          >
+            {subtitle}
+          </div>
+
+          <div
+            style={{
+              marginTop: "4px",
+              fontSize: "34px",
+              fontWeight: 900,
+              color: "#0f172a",
+              lineHeight: 1.2,
+            }}
+          >
+            {title}
+          </div>
         </div>
       </div>
 
-      <div className="quick-link-text">{text}</div>
-      <CardLinkHint label={hint} />
+      <div
+        style={{
+          marginTop: "16px",
+          borderTop: "1px solid #e2e8f0",
+          paddingTop: "14px",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "10px",
+          justifyContent: "flex-start",
+        }}
+      >
+        <StatusChip label={todayLabel} tone="slate" />
+        <StatusChip label={secondaryLabel} tone="teal" />
+      </div>
+    </section>
+  );
+}
+
+function QuickActionTile({
+  href,
+  title,
+  icon: Icon,
+  tone = "slate",
+}: {
+  href: string;
+  title: string;
+  icon: LucideIcon;
+  tone?: "teal" | "amber" | "red" | "slate";
+}) {
+  const palette = {
+    teal: { bg: "#ecfeff", text: "#0f766e", border: "#ccfbf1" },
+    amber: { bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
+    red: { bg: "#fef2f2", text: "#b91c1c", border: "#fecaca" },
+    slate: { bg: "#f8fafc", text: "#334155", border: "#e2e8f0" },
+  }[tone];
+
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "10px",
+        minHeight: "108px",
+        borderRadius: "20px",
+        border: "1px solid #e2e8f0",
+        background: "#fff",
+        padding: "14px",
+        textDecoration: "none",
+      }}
+    >
+      <div
+        style={{
+          width: "46px",
+          height: "46px",
+          borderRadius: "16px",
+          background: palette.bg,
+          border: `1px solid ${palette.border}`,
+          color: palette.text,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <Icon size={21} />
+      </div>
+
+      <div
+        style={{
+          fontSize: "18px",
+          fontWeight: 800,
+          color: "#0f172a",
+          textAlign: "center",
+          lineHeight: 1.5,
+        }}
+      >
+        {title}
+      </div>
     </Link>
   );
 }
 
-function SectionTitle({
+function AlertStrip({
   title,
-  subtitle,
+  text,
+  href,
+  buttonLabel,
 }: {
   title: string;
-  subtitle: string;
+  text: string;
+  href: string;
+  buttonLabel: string;
 }) {
   return (
-    <div style={{ marginBottom: "12px" }}>
-      <div className="section-title">{title}</div>
-      <div className="section-subtitle">{subtitle}</div>
+    <section
+      className="card"
+      style={{
+        border: "1px solid #fecaca",
+        background: "#fff7f7",
+        marginBottom: "18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "14px",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            width: "58px",
+            height: "58px",
+            borderRadius: "999px",
+            background: "#fee2e2",
+            color: "#dc2626",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <AlertTriangle size={28} />
+        </div>
+
+        <div style={{ flex: 1, minWidth: "220px" }}>
+          <div
+            style={{
+              fontSize: "28px",
+              fontWeight: 900,
+              color: "#991b1b",
+              lineHeight: 1.3,
+            }}
+          >
+            {title}
+          </div>
+          <div
+            style={{
+              marginTop: "4px",
+              fontSize: "16px",
+              color: "#b91c1c",
+              lineHeight: 1.8,
+            }}
+          >
+            {text}
+          </div>
+        </div>
+
+        <Link
+          href={href}
+          className="btn"
+          style={{
+            background: "#dc2626",
+            borderColor: "#dc2626",
+            color: "#fff",
+          }}
+        >
+          {buttonLabel}
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function TinyMetricCard({
+  value,
+  label,
+  icon: Icon,
+  tone = "slate",
+}: {
+  value: number | string;
+  label: string;
+  icon: LucideIcon;
+  tone?: "teal" | "amber" | "red" | "slate";
+}) {
+  const palette = {
+    teal: { bg: "#ecfeff", text: "#0f766e", border: "#ccfbf1" },
+    amber: { bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
+    red: { bg: "#fef2f2", text: "#b91c1c", border: "#fecaca" },
+    slate: { bg: "#f8fafc", text: "#475569", border: "#e2e8f0" },
+  }[tone];
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: "20px",
+        background: "#fff",
+        padding: "16px",
+        minHeight: "110px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+      }}
+    >
+      <div
+        style={{
+          width: "54px",
+          height: "54px",
+          borderRadius: "18px",
+          background: palette.bg,
+          border: `1px solid ${palette.border}`,
+          color: palette.text,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <Icon size={24} />
+      </div>
+
+      <div style={{ textAlign: "right", flex: 1 }}>
+        <div
+          style={{
+            fontSize: "16px",
+            color: "#64748b",
+            lineHeight: 1.5,
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            marginTop: "2px",
+            fontSize: "40px",
+            fontWeight: 900,
+            color: "#0f172a",
+            lineHeight: 1.1,
+          }}
+        >
+          {value}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function DataTabs({
+  visitsCount,
+  findingsCount,
+}: {
+  visitsCount: number;
+  findingsCount: number;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "8px",
+        marginBottom: "14px",
+        flexWrap: "wrap",
+      }}
+    >
+      <div
+        style={{
+          padding: "10px 18px",
+          borderRadius: "14px",
+          border: "1px solid #dbe2ea",
+          background: "#fff",
+          color: "#0f172a",
+          fontWeight: 800,
+          fontSize: "16px",
+        }}
+      >
+        الزيارات ({visitsCount})
+      </div>
+
+      <div
+        style={{
+          padding: "10px 18px",
+          borderRadius: "14px",
+          border: "1px solid #e2e8f0",
+          background: "#f8fafc",
+          color: "#64748b",
+          fontWeight: 800,
+          fontSize: "16px",
+        }}
+      >
+        المخالفات ({findingsCount})
+      </div>
+    </div>
+  );
+}
+
+function VisitRow({
+  href,
+  title,
+  subtitle,
+  status,
+}: {
+  href: string;
+  title: string;
+  subtitle: string;
+  status: string;
+}) {
+  const statusLower = String(status || "").toLowerCase();
+  const tone =
+    statusLower === "closed" || statusLower === "completed"
+      ? "slate"
+      : statusLower === "in_progress" || statusLower === "open"
+      ? "teal"
+      : "amber";
+
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+        padding: "16px 0",
+        textDecoration: "none",
+        borderTop: "1px solid #eef2f7",
+      }}
+    >
+      <ChevronLeft size={18} color="#94a3b8" />
+
+      <div style={{ flex: 1, textAlign: "right" }}>
+        <div
+          style={{
+            fontSize: "22px",
+            fontWeight: 800,
+            color: "#0f172a",
+            lineHeight: 1.4,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            marginTop: "4px",
+            fontSize: "15px",
+            color: "#64748b",
+            lineHeight: 1.7,
+          }}
+        >
+          {subtitle}
+        </div>
+      </div>
+
+      <StatusChip label={toArabicVisitStatus(status)} tone={tone as any} />
+    </Link>
+  );
+}
+
+function DueAssetRow({
+  href,
+  title,
+  systemCode,
+  dueDate,
+  dueLabel,
+}: {
+  href: string;
+  title: string;
+  systemCode: string;
+  dueDate: string;
+  dueLabel: string;
+}) {
+  const tone =
+    dueLabel === "متأخر" ? "red" : dueLabel === "قريب" ? "amber" : "slate";
+
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "12px",
+        padding: "16px 0",
+        textDecoration: "none",
+        borderTop: "1px solid #eef2f7",
+      }}
+    >
+      <StatusChip label={dueLabel} tone={tone as any} />
+
+      <div style={{ flex: 1, textAlign: "right" }}>
+        <div
+          style={{
+            fontSize: "22px",
+            fontWeight: 800,
+            color: "#0f172a",
+            lineHeight: 1.4,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            marginTop: "4px",
+            fontSize: "15px",
+            color: "#64748b",
+            lineHeight: 1.7,
+          }}
+        >
+          {systemCode} · الاستحقاق: {dueDate}
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -204,11 +696,6 @@ export default async function DashboardPage() {
   if (actor.role === "inspector" && !currentInspector) {
     return (
       <AppShell>
-        <PageHeader
-          title="لوحة المفتش"
-          subtitle="لم يتم ربط حسابك بسجل مفتش داخل INSPECTORS"
-        />
-
         <EmptyState
           title="لا يوجد ملف مفتش لهذا الحساب"
           description="أضف app_user_id أو email الصحيح داخل شيت INSPECTORS لربط هذا الحساب بالمفتش."
@@ -314,128 +801,119 @@ export default async function DashboardPage() {
         });
 
   if (actor.role === "inspector") {
+    const inspectorName =
+      currentInspector?.full_name_ar ||
+      currentInspector?.full_name ||
+      actor.email ||
+      "مفتش";
+
     return (
       <AppShell>
-        <PageHeader
+        <TopOpsCard
           title="لوحة المفتش"
-          subtitle={`مرحبًا ${
-            currentInspector?.full_name_ar ||
-            currentInspector?.full_name ||
-            actor.email ||
-            "Inspector"
-          }`}
+          subtitle={String(inspectorName)}
+          todayLabel={`تاريخ اليوم: ${todayIso}`}
+          secondaryLabel={
+            overdueVisits > 0
+              ? `يوجد ${overdueVisits} زيارة متأخرة`
+              : "حالة النظام: متصل"
+          }
+          icon={Activity}
         />
 
-        <div className="stats-grid">
-          <StatCard
-            label="زياراتي"
-            value={visibleVisits.length}
-            hint="كل الزيارات المعينة لك"
-            icon={ClipboardList}
-            tone="teal"
+        {(overdueVisits > 0 || openVisibleFindingsCount > 0 || dueAssets.length > 0) && (
+          <AlertStrip
+            title="تنبيه ميداني"
+            text={
+              overdueVisits > 0
+                ? `لديك ${overdueVisits} زيارة متأخرة تحتاج بدء التنفيذ.`
+                : openVisibleFindingsCount > 0
+                ? `لديك ${openVisibleFindingsCount} مخالفة مفتوحة تحتاج متابعة.`
+                : `لديك ${dueAssets.length} أصلًا مستحقًا يحتاج مراجعة قريبًا.`
+            }
+            href={overdueVisits > 0 ? "/visits" : openVisibleFindingsCount > 0 ? "/findings" : "/assets"}
+            buttonLabel="فتح الآن"
           />
-          <StatCard
-            label="اليوم"
-            value={todaysVisits}
-            hint="زيارات اليوم"
-            icon={Clock3}
-            tone="slate"
-          />
-          <StatCard
-            label="متأخر"
-            value={overdueVisits}
-            hint="زيارات تحتاج تنفيذ"
-            icon={AlertTriangle}
-            tone={overdueVisits > 0 ? "amber" : "slate"}
-          />
-          <StatCard
-            label="مخالفات مفتوحة"
-            value={openVisibleFindingsCount}
-            hint="تحتاج متابعة"
-            icon={ShieldAlert}
-            tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
-          />
-        </div>
+        )}
 
-        <section className="card">
-          <SectionTitle
-            title="البدء السريع"
-            subtitle="كل ما يحتاجه المفتش لبدء التنفيذ والمتابعة الميدانية"
-          />
+        <section className="card" style={{ marginBottom: "18px" }}>
+          <SectionHeader title="إجراءات سريعة" subtitle="أهم ما يحتاجه المفتش للعمل اليومي" />
 
-          <div className="quick-links-grid">
-            <ShortcutCard
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "12px",
+            }}
+          >
+            <QuickActionTile
               href="/visits"
               title="زياراتي"
-              text="اعرض كل الزيارات المسندة لك وابدأ التنفيذ أو أكمل الزيارة."
-              hint="فتح الزيارات"
               icon={ClipboardList}
               tone="teal"
             />
-
-            <ShortcutCard
+            <QuickActionTile
               href="/assets"
-              title="لوحة الأصول"
-              text="افتح الأصول المسموح لك بها، وراجع QR وابدأ الفحص من الأصل."
-              hint="فتح الأصول"
+              title="الأصول"
               icon={Boxes}
               tone="slate"
             />
-
-            <ShortcutCard
+            <QuickActionTile
               href="/findings"
               title="المخالفات"
-              text="راجع المخالفات المفتوحة وتابع الإجراء التصحيحي والإغلاق."
-              hint="فتح المخالفات"
               icon={ShieldAlert}
+              tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
+            />
+            <QuickActionTile
+              href="/assets/labels"
+              title="ملصقات QR"
+              icon={QrCode}
+              tone="slate"
+            />
+          </div>
+        </section>
+
+        <section className="card" style={{ marginBottom: "18px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "12px",
+            }}
+          >
+            <TinyMetricCard
+              value={visibleVisits.length}
+              label="الزيارات"
+              icon={ClipboardList}
+              tone="teal"
+            />
+            <TinyMetricCard
+              value={todaysVisits}
+              label="زيارات اليوم"
+              icon={Clock3}
+              tone="slate"
+            />
+            <TinyMetricCard
+              value={dueAssets.length}
+              label="أصول مستحقة"
+              icon={Boxes}
+              tone={dueAssets.length > 0 ? "amber" : "slate"}
+            />
+            <TinyMetricCard
+              value={openVisibleFindingsCount}
+              label="مخالفات مفتوحة"
+              icon={FileWarning}
               tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
             />
           </div>
         </section>
 
-        <section className="card">
-          <SectionTitle
-            title="الأصول المستحقة الآن"
-            subtitle="أصول تحتاج اهتمامًا قريبًا أو فوريًا ضمن الأنظمة المسموح لك بها"
-          />
+        <section className="card" style={{ marginBottom: "18px" }}>
+          <SectionHeader title="سجل المهام والزيارات" subtitle="أحدث ما تم إسناده لك" />
 
-          {dueAssets.length === 0 ? (
-            <EmptyState
-              title="لا توجد أصول مستحقة حاليًا"
-              description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
-              icon={Clock3}
-            />
-          ) : (
-            <div className="stack-3" style={{ marginTop: "12px" }}>
-              {dueAssets.slice(0, 5).map((asset: any) => (
-                <Link
-                  key={String(asset.asset_id)}
-                  href={`/assets/${String(asset.asset_id)}`}
-                  className="quick-link-card"
-                >
-                  <div className="quick-link-title">
-                    {String(
-                      asset.asset_name_ar ||
-                        asset.asset_name ||
-                        asset.asset_code ||
-                        asset.asset_id
-                    )}
-                  </div>
-                  <div className="quick-link-text">
-                    {String(asset.system_code || "-")} · الاستحقاق:{" "}
-                    {String(asset.next_due_date || "-")} · {String(asset.due_label)}
-                  </div>
-                  <CardLinkHint label="فتح الأصل" />
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="card">
-          <SectionTitle
-            title="آخر الزيارات المعيّنة لك"
-            subtitle="وصول سريع إلى أحدث الزيارات التي تعمل عليها"
+          <DataTabs
+            visitsCount={visibleVisits.length}
+            findingsCount={openVisibleFindingsCount}
           />
 
           {latestVisits.length === 0 ? (
@@ -445,21 +923,58 @@ export default async function DashboardPage() {
               icon={ClipboardList}
             />
           ) : (
-            <div className="stack-3" style={{ marginTop: "12px" }}>
-              {latestVisits.map((visit: any) => (
-                <Link
-                  key={String(visit.visit_id)}
-                  href={`/visits/${visit.visit_id}`}
-                  className="quick-link-card"
-                >
-                  <div className="quick-link-title">
-                    {String(visit.visit_type || "زيارة")}
-                  </div>
-                  <div className="quick-link-text">
-                    التاريخ: {String(visit.planned_date || visit.visit_date || "-")}
-                  </div>
-                  <CardLinkHint label="فتح الزيارة" />
-                </Link>
+            <div>
+              {latestVisits.map((visit: any, index: number) => (
+                <div key={String(visit.visit_id)}>
+                  {index === 0 ? null : null}
+                  <VisitRow
+                    href={`/visits/${visit.visit_id}`}
+                    title={String(visit.visit_type || "زيارة")}
+                    subtitle={`${String(
+                      visit.facility_name ||
+                        visit.building_name ||
+                        visit.notes ||
+                        "بدون وصف"
+                    )} · التاريخ: ${formatDate(
+                      visit.planned_date || visit.visit_date || "-"
+                    )}`}
+                    status={String(visit.visit_status || "planned")}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="card">
+          <SectionHeader
+            title="استحقاقات الأصول"
+            subtitle="الأصول التي تحتاج متابعة ميدانية الآن"
+            action={<Link href="/assets">عرض الكل</Link>}
+          />
+
+          {dueAssets.length === 0 ? (
+            <EmptyState
+              title="لا توجد أصول مستحقة حاليًا"
+              description="كل الأصول ضمن المدى الحالي أو لم يتم ضبط جدولها بعد."
+              icon={Clock3}
+            />
+          ) : (
+            <div>
+              {dueAssets.slice(0, 4).map((asset: any) => (
+                <DueAssetRow
+                  key={String(asset.asset_id)}
+                  href={`/assets/${String(asset.asset_id)}`}
+                  title={String(
+                    asset.asset_name_ar ||
+                      asset.asset_name ||
+                      asset.asset_code ||
+                      asset.asset_id
+                  )}
+                  systemCode={String(asset.system_code || "-")}
+                  dueDate={formatDate(asset.next_due_date)}
+                  dueLabel={String(asset.due_label)}
+                />
               ))}
             </div>
           )}
@@ -470,245 +985,66 @@ export default async function DashboardPage() {
 
   return (
     <AppShell>
-      <PageHeader
+      <TopOpsCard
         title="لوحة التحكم"
-        subtitle="متابعة المنشآت والأصول والزيارات والمخالفات والتوزيع التشغيلي"
+        subtitle="إدارة العمليات المركزية"
+        todayLabel={`تاريخ اليوم: ${todayIso}`}
+        secondaryLabel="حالة النظام: متصل"
+        icon={Activity}
       />
 
-      <div className="stats-grid">
-        <StatCard
-          label="المنشآت"
-          value={visibleFacilities.length}
-          hint="إجمالي المنشآت المسجلة"
-          icon={Building2}
-          tone="teal"
-        />
-        <StatCard
-          label="الأصول"
-          value={visibleAssets.length}
-          hint="إجمالي الأصول المسجلة"
-          icon={Boxes}
-          tone="slate"
-        />
-        <StatCard
-          label="زيارات غير مسندة"
-          value={unassignedOpenVisits.length}
-          hint="تحتاج توزيعًا سريعًا"
-          icon={Users}
-          tone={unassignedOpenVisits.length > 0 ? "amber" : "slate"}
-        />
-        <StatCard
-          label="المخالفات المفتوحة"
-          value={openVisibleFindingsCount}
-          hint="تحتاج متابعة"
-          icon={ShieldAlert}
-          tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
-        />
-      </div>
+      <section className="card" style={{ marginBottom: "18px" }}>
+        <SectionHeader title="إجراءات سريعة" subtitle="الوصول السريع لأهم الوظائف الإدارية" />
 
-      {unassignedOpenVisits.length > 0 ? (
-        <section
-          className="card"
+        <div
           style={{
-            border: "1px solid #fecaca",
-            background: "#fff7f7",
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "12px",
           }}
         >
-          <div className="section-header-row">
-            <div>
-              <div className="section-title">تنبيه تشغيلي مهم</div>
-              <div className="section-subtitle">
-                توجد زيارات مفتوحة غير مسندة لمفتش، ويجب توزيعها حتى لا تتعطل أعمال التنفيذ.
-              </div>
-            </div>
-
-            <div className="badge-wrap">
-              <span className="badge">غير مسندة: {unassignedOpenVisits.length}</span>
-              <Link href="/unassigned-visits" className="btn btn-secondary">
-                فتح الزيارات غير المسندة
-              </Link>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="card">
-        <SectionTitle
-          title="مركز التشغيل اليومي"
-          subtitle="أهم الصفحات اليومية الخاصة بالمتابعة والتوزيع والتنفيذ"
-        />
-
-        <div className="quick-links-grid">
-          <ShortcutCard
+          <QuickActionTile
+            href="/facilities"
+            title="إضافة منشأة"
+            icon={Building2}
+            tone="teal"
+          />
+          <QuickActionTile
             href="/unassigned-visits"
-            title="الزيارات غير المسندة"
-            text="راجع الزيارات المفتوحة التي لم تُسند بعد، وعيّن المفتش المناسب بسرعة."
-            hint="فتح الصفحة"
+            title="توزيع المهام"
             icon={Users}
             tone={unassignedOpenVisits.length > 0 ? "amber" : "slate"}
           />
-
-          <ShortcutCard
-            href="/due"
-            title="العناصر المستحقة"
-            text="اعرض العناصر والأنظمة المتأخرة أو القريبة، وأنشئ زيارات متابعة مباشرة."
-            hint="فتح الصفحة"
-            icon={Clock3}
-            tone={dueAssets.length > 0 ? "amber" : "slate"}
-          />
-
-          <ShortcutCard
-            href="/visits"
-            title="الزيارات"
-            text="افتح كل الزيارات المجدولة أو الجارية وتابع التنفيذ والحالة الحالية."
-            hint="فتح الزيارات"
-            icon={ClipboardList}
-            tone="teal"
-          />
-
-          <ShortcutCard
-            href="/findings"
-            title="المخالفات"
-            text="راجع المخالفات المفتوحة وتابع الإغلاقات والإجراءات التصحيحية."
-            hint="فتح المخالفات"
-            icon={ShieldAlert}
-            tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
-          />
-
-          <ShortcutCard
-            href="/assets"
-            title="لوحة الأصول"
-            text="استعرض الأصول، وابحث وفلتر، وابدأ الفحص وراجع الاستحقاقات."
-            hint="فتح الأصول"
-            icon={Boxes}
+          <QuickActionTile
+            href="/settings"
+            title="الإعدادات"
+            icon={Settings}
             tone="slate"
           />
-
-          <ShortcutCard
+          <QuickActionTile
             href="/assets/labels"
-            title="ملصقات QR"
-            text="اطبع الملصقات الجماعية للأصول لاستخدامها ميدانيًا وربطها بالمسح."
-            hint="فتح الملصقات"
+            title="طباعة ملصقات"
             icon={QrCode}
             tone="slate"
           />
         </div>
       </section>
 
-      <section className="card">
-        <SectionTitle
-          title="الإدارة والتهيئة"
-          subtitle="الوظائف الإدارية الخاصة بالمنشآت والمفتشين والمستخدمين والإعدادات"
+      {unassignedOpenVisits.length > 0 ? (
+        <AlertStrip
+          title="تنبيه تشغيلي: زيارات غير مسندة"
+          text={`يوجد ${unassignedOpenVisits.length} زيارات تتطلب تعيين مفتش فورًا.`}
+          href="/unassigned-visits"
+          buttonLabel="تعيين الآن"
         />
+      ) : null}
 
-        <div className="quick-links-grid">
-          <ShortcutCard
-            href="/facilities"
-            title="المنشآت"
-            text="إدارة المنشآت والمباني والأنظمة المثبتة وربط الأصول بها."
-            hint="فتح المنشآت"
-            icon={Building2}
-            tone="teal"
-          />
+      <section className="card" style={{ marginBottom: "18px" }}>
+        <SectionHeader title="سجل المهام والزيارات" subtitle="متابعة سريعة لأحدث الحركة التشغيلية" />
 
-          <ShortcutCard
-            href="/inspectors"
-            title="إدارة المفتشين"
-            text="إضافة المفتشين وربطهم بالحسابات وتحديد الأنظمة المسموحة لهم."
-            hint="فتح إدارة المفتشين"
-            icon={UserRound}
-            tone="slate"
-          />
-
-          <ShortcutCard
-            href="/settings/users"
-            title="المستخدمون والصلاحيات"
-            text="تحكم في الأدوار والصلاحيات وحالة الحسابات داخل هذا العميل."
-            hint="فتح المستخدمين"
-            icon={Users}
-            tone="slate"
-          />
-
-          <ShortcutCard
-            href="/settings"
-            title="إعدادات العميل"
-            text="تخصيص اسم الجهة والشعار وبيانات التقرير والهوية العامة."
-            hint="فتح الإعدادات"
-            icon={Settings}
-            tone="slate"
-          />
-        </div>
-      </section>
-
-      <section className="card">
-        <SectionTitle
-          title="الأصول المستحقة الآن"
-          subtitle="أهم الأصول التي تحتاج متابعة مباشرة أو قريبة حسب تاريخ الاستحقاق"
-        />
-
-        {dueAssets.length === 0 ? (
-          <EmptyState
-            title="لا توجد أصول مستحقة حاليًا"
-            description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
-            icon={Clock3}
-          />
-        ) : (
-          <>
-            <div className="badge-wrap" style={{ marginTop: "12px", marginBottom: "12px" }}>
-              <span className="badge">المستحقة الآن: {dueAssets.length}</span>
-              <span className="badge">المتأخرة: {overdueDueAssetsCount}</span>
-            </div>
-
-            <div className="stack-3">
-              {dueAssets.slice(0, 6).map((asset: any) => (
-                <Link
-                  key={String(asset.asset_id)}
-                  href={`/assets/${String(asset.asset_id)}`}
-                  className="quick-link-card"
-                >
-                  <div className="quick-link-title">
-                    {String(
-                      asset.asset_name_ar ||
-                        asset.asset_name ||
-                        asset.asset_code ||
-                        asset.asset_id
-                    )}
-                  </div>
-                  <div className="quick-link-text">
-                    {String(asset.system_code || "-")} · الاستحقاق:{" "}
-                    {String(asset.next_due_date || "-")} · {String(asset.due_label)}
-                  </div>
-                  <CardLinkHint label="فتح الأصل" />
-                </Link>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      <section className="card">
-        <SectionTitle
-          title="ملخص تشغيلي سريع"
-          subtitle="لقطة سريعة عن الوضع التشغيلي الحالي داخل النظام"
-        />
-
-        <div className="badge-wrap" style={{ marginTop: "12px" }}>
-          <span className="badge">الزيارات: {visibleVisits.length}</span>
-          <span className="badge">الأصول: {visibleAssets.length}</span>
-          <span className="badge">أصول مستحقة: {dueAssets.length}</span>
-          <span className="badge">
-            زيارات غير مسندة: {unassignedOpenVisits.length}
-          </span>
-          <span className="badge">
-            المخالفات المفتوحة: {openVisibleFindingsCount}
-          </span>
-        </div>
-      </section>
-
-      <section className="card">
-        <SectionTitle
-          title="آخر الزيارات"
-          subtitle="آخر الزيارات المجدولة أو الجارية لسرعة الوصول والمتابعة"
+        <DataTabs
+          visitsCount={visibleVisits.length}
+          findingsCount={openVisibleFindingsCount}
         />
 
         {latestVisits.length === 0 ? (
@@ -718,25 +1054,101 @@ export default async function DashboardPage() {
             icon={ClipboardList}
           />
         ) : (
-          <div className="stack-3" style={{ marginTop: "12px" }}>
+          <div>
             {latestVisits.map((visit: any) => (
-              <Link
+              <VisitRow
                 key={String(visit.visit_id)}
                 href={`/visits/${visit.visit_id}`}
-                className="quick-link-card"
-              >
-                <div className="quick-link-title">
-                  {String(visit.visit_type || "زيارة")}
-                </div>
-                <div className="quick-link-text">
-                  التاريخ: {String(visit.planned_date || visit.visit_date || "-")}
-                </div>
-                <CardLinkHint label="فتح الزيارة" />
-              </Link>
+                title={String(visit.visit_type || "زيارة")}
+                subtitle={`${String(
+                  visit.building_name ||
+                    visit.facility_name ||
+                    visit.notes ||
+                    "بدون وصف"
+                )} · التاريخ: ${formatDate(
+                  visit.planned_date || visit.visit_date || "-"
+                )}`}
+                status={String(visit.visit_status || "planned")}
+              />
             ))}
           </div>
         )}
       </section>
+
+      <section className="card" style={{ marginBottom: "18px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "12px",
+          }}
+        >
+          <TinyMetricCard
+            value={visibleAssets.length}
+            label="الأصول"
+            icon={Boxes}
+            tone="slate"
+          />
+          <TinyMetricCard
+            value={visibleFacilities.length}
+            label="المنشآت"
+            icon={Building2}
+            tone="teal"
+          />
+          <TinyMetricCard
+            value={openVisibleFindingsCount}
+            label="مخالفات"
+            icon={ShieldAlert}
+            tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
+          />
+          <TinyMetricCard
+            value={unassignedOpenVisits.length}
+            label="مهام معلقة"
+            icon={Users}
+            tone={unassignedOpenVisits.length > 0 ? "amber" : "slate"}
+          />
+        </div>
+      </section>
+
+      <section className="card">
+        <SectionHeader
+          title="استحقاقات الأصول"
+          subtitle="الأصول التي تحتاج متابعة قريبة أو فورية"
+          action={<Link href="/assets">عرض الكل</Link>}
+        />
+
+        {dueAssets.length === 0 ? (
+          <EmptyState
+            title="لا توجد أصول مستحقة حاليًا"
+            description="كل الأصول ضمن المدى الحالي أو لم يتم ضبط جدولها بعد."
+            icon={Clock3}
+          />
+        ) : (
+          <div>
+            {dueAssets.slice(0, 5).map((asset: any) => (
+              <DueAssetRow
+                key={String(asset.asset_id)}
+                href={`/assets/${String(asset.asset_id)}`}
+                title={String(
+                  asset.asset_name_ar ||
+                    asset.asset_name ||
+                    asset.asset_code ||
+                    asset.asset_id
+                )}
+                systemCode={String(asset.system_code || "-")}
+                dueDate={formatDate(asset.next_due_date)}
+                dueLabel={String(asset.due_label)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {overdueDueAssetsCount > 0 ? (
+        <div style={{ marginTop: "12px" }}>
+          <StatusChip label={`الأصول المتأخرة: ${overdueDueAssetsCount}`} tone="red" />
+        </div>
+      ) : null}
     </AppShell>
   );
 }
