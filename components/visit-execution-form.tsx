@@ -178,15 +178,10 @@ function targetText(item: ChecklistItem) {
 }
 
 function primaryLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") {
-    return "المدة الفعلية";
-  }
-  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") {
-    return "ضغط تشغيل الجوكي";
-  }
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") {
-    return "ضغط البدء";
-  }
+  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") return "المدة الفعلية";
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل الجوكي";
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط البدء";
+  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") return "ضغط الطرد الحالي";
   return "القراءة الفعلية";
 }
 
@@ -197,12 +192,18 @@ function secondaryLabel(item: ChecklistItem) {
   if (String(item.calc_rule) === "PRESSURE_STABILITY") {
     return "ضغط الإيقاف";
   }
+  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") {
+    return "ضغط السحب الحالي";
+  }
   return "";
 }
 
 function thirdLabel(item: ChecklistItem) {
   if (String(item.calc_rule) === "PRESSURE_STABILITY") {
     return "عدد مرات إعادة التشغيل";
+  }
+  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") {
+    return "قراءة الأداء/التدفق إن توفرت";
   }
   return "";
 }
@@ -421,9 +422,15 @@ export default function VisitExecutionForm({
         };
       });
 
-      const effectiveRows = rows.filter(
-        (row) => String(row.response_value || "").trim() !== ""
-      );
+      const effectiveRows = rows.filter((row) => {
+        const hasDecision = String(row.response_value || "").trim() !== "";
+        const hasNumeric =
+          String(row.numeric_value || "").trim() !== "" ||
+          String(row.numeric_value_2 || "").trim() !== "" ||
+          String(row.numeric_value_3 || "").trim() !== "";
+
+        return hasDecision || hasNumeric;
+      });
 
       if (effectiveRows.length === 0) {
         throw new Error("سجل نتيجة بند واحد على الأقل قبل الحفظ");
@@ -528,6 +535,7 @@ export default function VisitExecutionForm({
         <div className="stack-3" style={{ marginTop: "16px" }}>
           {selectedItems.map((item, index) => {
             const state = getItemState(item);
+
             const baselineRow = findAssetBaseline(
               assetBaselines,
               String(item.calc_rule || ""),
@@ -797,9 +805,7 @@ export default function VisitExecutionForm({
                         <button
                           type="button"
                           className={buttonClass(false, "slate")}
-                          onClick={() =>
-                            setItemState(item, defaultItemState(item))
-                          }
+                          onClick={() => setItemState(item, defaultItemState(item))}
                         >
                           مسح القراءة
                         </button>
