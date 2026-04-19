@@ -185,6 +185,69 @@ function evaluatePressureStability(
   };
 }
 
+function evaluatePumpFlowAcceptance(
+  input: SmartEvaluationInput
+): SmartEvaluationResult {
+  const discharge = toNumber(input.numericValue);
+  const suction = toNumber(input.numericValue2);
+  const flowReading = toNumber(input.numericValue3);
+  const unit = String(input.numericUnit || "psi");
+  const targetMin = toNumber(input.targetMin);
+  const targetMax = toNumber(input.targetMax);
+
+  if (discharge === null && suction === null && flowReading === null) {
+    return {
+      responseValue: "",
+      autoJudgement: "",
+      resultTextAr: "",
+    };
+  }
+
+  let pass = true;
+  const parts: string[] = [];
+
+  if (discharge !== null) {
+    parts.push(`ضغط الطرد الحالي ${formatNumber(discharge)} ${unit}.`);
+
+    if (targetMin !== null && discharge < targetMin) {
+      pass = false;
+    }
+
+    if (targetMax !== null && targetMax > 0 && discharge > targetMax) {
+      pass = false;
+    }
+
+    if (targetMin !== null || targetMax !== null) {
+      parts.push(
+        `المجال المطلوب ${
+          targetMin !== null ? formatNumber(targetMin) : "-"
+        } إلى ${targetMax !== null ? formatNumber(targetMax) : "-"} ${
+          unit || ""
+        }.`
+      );
+    }
+  }
+
+  if (suction !== null) {
+    parts.push(`ضغط السحب الحالي ${formatNumber(suction)} ${unit}.`);
+  }
+
+  if (flowReading !== null) {
+    parts.push(`قراءة الأداء/التدفق الحالية ${formatNumber(flowReading)}.`);
+  }
+
+  if (discharge !== null && suction !== null && discharge <= suction) {
+    pass = false;
+    parts.push("قراءة ضغط الطرد يجب أن تكون أعلى من ضغط السحب.");
+  }
+
+  return {
+    responseValue: pass ? "compliant" : "non_compliant",
+    autoJudgement: pass ? "pass" : "fail",
+    resultTextAr: parts.join(" "),
+  };
+}
+
 export function evaluateSmartChecklist(
   input: SmartEvaluationInput
 ): SmartEvaluationResult {
@@ -201,6 +264,10 @@ export function evaluateSmartChecklist(
 
   if (calcRule === "PRESSURE_STABILITY") {
     return evaluatePressureStability(input);
+  }
+
+  if (calcRule === "PUMP_FLOW_ACCEPTANCE") {
+    return evaluatePumpFlowAcceptance(input);
   }
 
   if (responseType === "numeric_range") {
