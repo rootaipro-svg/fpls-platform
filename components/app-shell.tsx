@@ -36,8 +36,8 @@ function drawerLinkClass(active: boolean) {
   return [
     "flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition",
     active
-      ? "bg-teal-50 text-teal-700 border border-teal-100"
-      : "text-slate-700 hover:bg-slate-50 border border-transparent",
+      ? "border border-teal-100 bg-teal-50 text-teal-700"
+      : "border border-transparent text-slate-700 hover:bg-slate-50",
   ].join(" ");
 }
 
@@ -67,8 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (!menuOpen) return;
-      if (!panelRef.current) return;
+      if (!menuOpen || !panelRef.current) return;
       if (!panelRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
@@ -92,9 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   async function handleLogout() {
     try {
       setLoggingOut(true);
-      await fetch("/api/auth/logout", {
-        method: "POST",
-      });
+      await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       window.location.href = "/";
     }
@@ -223,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ref={panelRef}
                 className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-xl"
               >
-                <div className="mb-3 rounded-2xl bg-slate-50 px-4 py-3">
+                <div className="mb-3 rounded-2xl bg-slate-50 px-4 py-3 text-right">
                   <div className="text-sm font-bold text-slate-900">
                     {session?.fullName || "المستخدم"}
                   </div>
