@@ -98,6 +98,68 @@ type ItemState = {
   calc_result_text: string;
 };
 
+const SECTION_LABELS: Record<string, string> = {
+  approvals: "الاعتمادات واللوحات (Approvals)",
+  "pump room": "غرفة المضخة (Pump Room)",
+  operation: "التشغيل (Operation)",
+  "testing and performance": "الاختبار والأداء (Testing & Performance)",
+  condition: "الحالة العامة (Condition)",
+  controller: "لوحة التحكم (Controller)",
+  "power supply": "مصدر الطاقة (Power Supply)",
+  "diesel engine": "محرك الديزل (Diesel Engine)",
+  "jockey pump": "مضخة الجوكي (Jockey Pump)",
+  alarms: "الإنذارات (Alarms)",
+};
+
+const QUESTION_LABELS: Record<string, string> = {
+  "Are the pump, driver, controller and accessories listed/approved with visible nameplates?":
+    "هل المضخة والمحرك ووحدة التحكم والملحقات معتمدة ومثبتة عليها لوحات تعريف واضحة؟ (Nameplates / Listing)",
+  "Is the pump room accessible, clean, illuminated and free from storage?":
+    "هل غرفة المضخة سهلة الوصول ونظيفة ومضاءة وخالية من التخزين؟ (Pump Room Condition)",
+  "Are suction and discharge pressure gauges installed, readable, and appropriately ranged?":
+    "هل عدادات ضغط السحب والطرد مركبة وواضحة والمدى مناسب؟ (Suction / Discharge Gauges)",
+  "Was the weekly churn/auto-run test completed with acceptable readings?":
+    "هل تم تنفيذ اختبار التشغيل الأسبوعي بدون حمل وكانت القراءات مقبولة؟ (Weekly Churn / Auto-Run Test)",
+  "Record annual performance test reference readings if available.":
+    "سجّل القراءات المرجعية لاختبار الأداء السنوي إن كانت متوفرة. (Annual Performance Reference)",
+  "Are fuel tank level, piping, valves, and diesel engine auxiliaries satisfactory?":
+    "هل مستوى الوقود والتمديدات والصمامات وملحقات محرك الديزل بحالة مرضية؟ (Fuel / Diesel Auxiliaries)",
+  "Are batteries, charger, and starting circuit in good condition?":
+    "هل البطاريات والشاحن ودائرة البدء بحالة جيدة؟ (Batteries / Charger / Starting Circuit)",
+  "Is controller in auto and free of alarms?":
+    "هل لوحة التحكم على وضع Auto وخالية من الإنذارات؟ (Controller Auto / Alarms)",
+};
+
+const CRITERIA_LABELS: Record<string, string> = {
+  "Each major component has acceptable listing/approval and readable identification.":
+    "كل مكوّن رئيسي يجب أن يكون معتمدًا وعليه تعريف واضح ومقروء. (Approved / Identified)",
+  "Room remains dedicated to fire protection equipment and safe operation.":
+    "تبقى الغرفة مخصصة لمعدات الحريق وآمنة للتشغيل وخالية من العوائق. (Dedicated / Safe Operation)",
+  "Gauges installed, legible, undamaged, and correctly ranged.":
+    "العدادات مركبة ومقروءة وغير متضررة والمدى مناسب. (Installed / Legible / Correct Range)",
+  "Test completed and readings are within acceptable trend.":
+    "تم تنفيذ الاختبار والقراءات ضمن الاتجاه أو المرجع المقبول. (Acceptable Trend)",
+  "Current annual performance documentation available.":
+    "التوثيق الحالي لاختبار الأداء السنوي متوفر عند الحاجة. (Documentation Available)",
+};
+
+function normalizeKey(value: string) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function toArabicSectionName(value: string) {
+  const normalized = normalizeKey(value);
+  return SECTION_LABELS[normalized] || value || "قسم عام";
+}
+
+function toArabicQuestionText(value: string) {
+  return QUESTION_LABELS[String(value || "").trim()] || value || "بند فحص";
+}
+
+function toArabicCriteriaText(value: string) {
+  return CRITERIA_LABELS[String(value || "").trim()] || value || "";
+}
+
 function itemKey(visitSystemId: string, checklistItemId: string) {
   return `${visitSystemId}__${checklistItemId}`;
 }
@@ -143,67 +205,62 @@ function isSmartItem(item: ChecklistItem) {
   );
 }
 
-function smartBadgeText(item: ChecklistItem) {
-  if (String(item.calc_rule || "").trim()) {
-    return `قاعدة ذكية: ${String(item.calc_rule)}`;
-  }
-
-  if (String(item.response_type_v2 || "").toLowerCase() === "numeric_range") {
-    return "إدخال رقمي";
-  }
-
-  return "";
-}
-
 function targetText(item: ChecklistItem) {
-  const hasMin = String(item.target_min || "").trim() !== "";
-  const hasMax = String(item.target_max || "").trim() !== "";
+  const minRaw = String(item.target_min || "").trim();
+  const maxRaw = String(item.target_max || "").trim();
   const unit = String(item.numeric_unit || "");
 
-  if (hasMin && hasMax) {
-    return `المجال: ${item.target_min} - ${item.target_max}${
-      unit ? ` ${unit}` : ""
-    }`;
+  if (!minRaw && !maxRaw) return "";
+
+  const minNum = Number(minRaw);
+  const maxNum = Number(maxRaw);
+
+  if (minRaw && maxRaw && minNum === 0 && maxNum === 0) {
+    return "";
   }
 
-  if (hasMin) {
-    return `الحد الأدنى: ${item.target_min}${unit ? ` ${unit}` : ""}`;
+  if (minRaw && maxRaw) {
+    return `المجال المطلوب: ${minRaw} - ${maxRaw}${unit ? ` ${unit}` : ""}`;
   }
 
-  if (hasMax) {
-    return `الحد الأعلى: ${item.target_max}${unit ? ` ${unit}` : ""}`;
+  if (minRaw) {
+    return `الحد الأدنى: ${minRaw}${unit ? ` ${unit}` : ""}`;
+  }
+
+  if (maxRaw) {
+    return `الحد الأعلى: ${maxRaw}${unit ? ` ${unit}` : ""}`;
   }
 
   return "";
 }
 
 function primaryLabel(item: ChecklistItem) {
-  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") return "المدة الفعلية";
-  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل الجوكي";
-  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط البدء";
-  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") return "ضغط الطرد الحالي";
+  if (String(item.calc_rule) === "EMERGENCY_LIGHT_DURATION") return "المدة الفعلية (Duration)";
+  if (String(item.calc_rule) === "PRESSURE_SETPOINTS") return "ضغط تشغيل الجوكي (Jockey Start)";
+  if (String(item.calc_rule) === "PRESSURE_STABILITY") return "ضغط البدء (Start Pressure)";
+  if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") return "ضغط الطرد الحالي (Discharge Pressure)";
   return "القراءة الفعلية";
 }
 
 function secondaryLabel(item: ChecklistItem) {
   if (String(item.calc_rule) === "PRESSURE_SETPOINTS") {
-    return "ضغط تشغيل المضخة الرئيسية";
+    return "ضغط تشغيل المضخة الرئيسية (Main Pump Start)";
   }
   if (String(item.calc_rule) === "PRESSURE_STABILITY") {
-    return "ضغط الإيقاف";
+    return "ضغط الإيقاف (Stop Pressure)";
   }
   if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") {
-    return "ضغط السحب الحالي";
+    return "ضغط السحب الحالي (Suction Pressure)";
   }
   return "";
 }
 
 function thirdLabel(item: ChecklistItem) {
   if (String(item.calc_rule) === "PRESSURE_STABILITY") {
-    return "عدد مرات إعادة التشغيل";
+    return "عدد مرات إعادة التشغيل (Restart Count)";
   }
   if (String(item.calc_rule) === "PUMP_FLOW_ACCEPTANCE") {
-    return "قراءة الأداء/التدفق إن توفرت";
+    return "قراءة الأداء/التدفق إن توفرت (Flow / Performance)";
   }
   return "";
 }
@@ -217,6 +274,18 @@ function mergeJudgement(...values: string[]) {
   if (normalized.includes("check")) return "check";
   if (normalized.includes("pass")) return "pass";
   return "";
+}
+
+function itemHintText(item: ChecklistItem) {
+  if (String(item.ui_hint_ar || "").trim()) {
+    return String(item.ui_hint_ar);
+  }
+
+  if (isSmartItem(item)) {
+    return "أدخل القراءات المطلوبة وسيحسب النظام النتيجة تلقائيًا.";
+  }
+
+  return "اختر مطابق أو غير مطابق أو غير منطبق، وأضف ملاحظة فقط عند الحاجة.";
 }
 
 export default function VisitExecutionForm({
@@ -267,6 +336,36 @@ export default function VisitExecutionForm({
   const selectedItems = checklistItems.filter(
     (item) => String(item.visit_system_id) === String(selectedSystemId)
   );
+
+  const sectionCards = useMemo(() => {
+    const map = new Map<
+      string,
+      { label: string; count: number; smartCount: number }
+    >();
+
+    for (const item of selectedItems) {
+      const label = toArabicSectionName(String(item.section_name || "قسم عام"));
+      const current = map.get(label) || { label, count: 0, smartCount: 0 };
+      current.count += 1;
+      if (isSmartItem(item)) current.smartCount += 1;
+      map.set(label, current);
+    }
+
+    return Array.from(map.values());
+  }, [selectedItems]);
+
+  const completedCount = selectedItems.filter((item) => {
+    const state =
+      formMap[itemKey(item.visit_system_id, item.checklist_item_id)] ||
+      defaultItemState(item);
+
+    return (
+      String(state.response_value || "").trim() !== "" ||
+      String(state.numeric_value || "").trim() !== "" ||
+      String(state.numeric_value_2 || "").trim() !== "" ||
+      String(state.numeric_value_3 || "").trim() !== ""
+    );
+  }).length;
 
   function getItemState(item: ChecklistItem): ItemState {
     return (
@@ -465,9 +564,9 @@ export default function VisitExecutionForm({
 
   return (
     <section className="card">
-      <div className="section-title">تنفيذ الزيارة</div>
+      <div className="section-title">تنفيذ الفحص</div>
       <div className="section-subtitle">
-        سجل نتائج الفحص لكل بند، وأضف الدليل مباشرة تحت البند نفسه.
+        مسار واضح للمفتش: اختر القسم، نفّذ البنود، ثم احفظ وأغلق الزيارة.
       </div>
 
       {activeAsset ? (
@@ -481,7 +580,7 @@ export default function VisitExecutionForm({
           }}
         >
           <div className="section-title" style={{ fontSize: "15px" }}>
-            فحص أصل محدد
+            الأصل الجاري فحصه
           </div>
           <div className="section-subtitle" style={{ marginTop: "6px" }}>
             {String(activeAsset.asset_name_ar || activeAsset.asset_name || "أصل")}
@@ -493,37 +592,103 @@ export default function VisitExecutionForm({
         </div>
       ) : null}
 
-      {!activeAsset && visitSystems.length > 1 ? (
-        <div className="badge-wrap" style={{ marginTop: "14px" }}>
-          {visitSystems.map((system) => {
-            const active =
-              String(system.visit_system_id) === String(selectedSystemId);
+      {sectionCards.length > 0 ? (
+        <div style={{ marginTop: "16px" }}>
+          <div className="section-title" style={{ fontSize: "16px" }}>
+            خريطة الفحص السريعة
+          </div>
+          <div className="section-subtitle" style={{ marginTop: "4px" }}>
+            مربعات مختصرة توضح الأقسام الموجودة في هذا النظام.
+          </div>
 
-            return (
-              <button
-                key={system.visit_system_id}
-                type="button"
-                onClick={() => setSelectedSystemId(String(system.visit_system_id))}
-                className={active ? "badge badge-active" : "badge"}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+              gap: "10px",
+              marginTop: "12px",
+            }}
+          >
+            {sectionCards.map((card) => (
+              <div
+                key={card.label}
                 style={{
-                  border: active ? "1px solid #0f766e" : "1px solid #e2e8f0",
-                  background: active ? "#0f766e" : "#ffffff",
-                  color: active ? "#ffffff" : "#0f172a",
-                  padding: "10px 18px",
-                  borderRadius: "999px",
-                  fontWeight: 700,
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "18px",
+                  padding: "12px",
+                  background: "#ffffff",
                 }}
               >
-                {system.system_code}
-              </button>
-            );
-          })}
+                <div
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {card.label}
+                </div>
+                <div
+                  style={{
+                    marginTop: "8px",
+                    fontSize: "13px",
+                    color: "#64748b",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  البنود: {card.count}
+                  <br />
+                  الذكية: {card.smartCount}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!activeAsset && visitSystems.length > 1 ? (
+        <div style={{ marginTop: "16px" }}>
+          <div className="section-title" style={{ fontSize: "16px" }}>
+            اختيار النظام
+          </div>
+
+          <div className="badge-wrap" style={{ marginTop: "12px" }}>
+            {visitSystems.map((system) => {
+              const active =
+                String(system.visit_system_id) === String(selectedSystemId);
+
+              return (
+                <button
+                  key={system.visit_system_id}
+                  type="button"
+                  onClick={() => setSelectedSystemId(String(system.visit_system_id))}
+                  className={active ? "badge badge-active" : "badge"}
+                  style={{
+                    border: active ? "1px solid #0f766e" : "1px solid #e2e8f0",
+                    background: active ? "#0f766e" : "#ffffff",
+                    color: active ? "#ffffff" : "#0f172a",
+                    padding: "10px 18px",
+                    borderRadius: "999px",
+                    fontWeight: 700,
+                  }}
+                >
+                  {system.system_code}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
       {selectedSystem ? (
-        <div className="section-subtitle" style={{ marginTop: "12px" }}>
-          النظام الحالي: {selectedSystem.system_code}
+        <div className="badge-wrap" style={{ marginTop: "14px" }}>
+          <span className="badge">النظام الحالي: {selectedSystem.system_code}</span>
+          <span className="badge">إجمالي البنود: {selectedItems.length}</span>
+          <span className="badge">المكتمل: {completedCount}</span>
+          <span className="badge">
+            المتبقي: {Math.max(selectedItems.length - completedCount, 0)}
+          </span>
         </div>
       ) : null}
 
@@ -571,15 +736,37 @@ export default function VisitExecutionForm({
                 }}
               >
                 <div style={{ padding: "18px 16px 8px" }}>
-                  <div className="checklist-item-section">
-                    {item.section_name || "Section"} · بند {index + 1}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div className="checklist-item-section">
+                      {toArabicSectionName(item.section_name || "قسم عام")} · بند{" "}
+                      {index + 1}
+                    </div>
+
+                    <div className="badge-wrap">
+                      <span className="badge">
+                        {smart ? "بند ذكي" : "بند بصري"}
+                      </span>
+                      {item.numeric_unit ? (
+                        <span className="badge">
+                          الوحدة: {item.numeric_unit}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div
                     className="checklist-item-title"
                     style={{ marginTop: "10px" }}
                   >
-                    {item.question_text}
+                    {toArabicQuestionText(item.question_text)}
                   </div>
 
                   {item.acceptance_criteria ? (
@@ -587,27 +774,18 @@ export default function VisitExecutionForm({
                       className="checklist-item-criteria"
                       style={{ marginTop: "10px" }}
                     >
-                      {item.acceptance_criteria}
+                      {toArabicCriteriaText(item.acceptance_criteria)}
                     </div>
                   ) : null}
 
                   <div className="badge-wrap" style={{ marginTop: "10px" }}>
-                    {smartBadgeText(item) ? (
-                      <span className="badge">{smartBadgeText(item)}</span>
-                    ) : null}
-
-                    {item.numeric_unit ? (
-                      <span className="badge">الوحدة: {item.numeric_unit}</span>
-                    ) : null}
-
                     {targetText(item) ? (
                       <span className="badge">{targetText(item)}</span>
                     ) : null}
 
                     {baselineRow ? (
                       <span className="badge">
-                        Baseline:{" "}
-                        {baselineRow.metric_name_ar || baselineRow.metric_code}
+                        مرجع الأصل جاهز
                       </span>
                     ) : null}
                   </div>
@@ -625,42 +803,36 @@ export default function VisitExecutionForm({
                         lineHeight: 1.8,
                       }}
                     >
-                      مرجع الأصل:{" "}
-                      {baselineRow.metric_name_ar || baselineRow.metric_code}
+                      المرجع المعتمد للأصل:
                       {baselineRow.ref_value
-                        ? ` · القيمة المرجعية 1: ${baselineRow.ref_value}`
+                        ? ` ${baselineRow.ref_value}`
                         : ""}
                       {baselineRow.ref_value_2
-                        ? ` · القيمة المرجعية 2: ${baselineRow.ref_value_2}`
+                        ? ` / ${baselineRow.ref_value_2}`
                         : ""}
                       {baselineRow.ref_value_3
-                        ? ` · القيمة المرجعية 3: ${baselineRow.ref_value_3}`
+                        ? ` / ${baselineRow.ref_value_3}`
                         : ""}
                       {baselineRow.metric_unit
-                        ? ` · الوحدة: ${baselineRow.metric_unit}`
-                        : ""}
-                      {baselineRow.baseline_date
-                        ? ` · التاريخ: ${baselineRow.baseline_date}`
+                        ? ` ${baselineRow.metric_unit}`
                         : ""}
                     </div>
                   ) : null}
 
-                  {item.ui_hint_ar ? (
-                    <div
-                      style={{
-                        marginTop: "12px",
-                        border: "1px solid #dbeafe",
-                        background: "#eff6ff",
-                        color: "#1e3a8a",
-                        borderRadius: "16px",
-                        padding: "12px",
-                        fontSize: "14px",
-                        lineHeight: 1.8,
-                      }}
-                    >
-                      {item.ui_hint_ar}
-                    </div>
-                  ) : null}
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      border: "1px solid #dbeafe",
+                      background: "#eff6ff",
+                      color: "#1e3a8a",
+                      borderRadius: "16px",
+                      padding: "12px",
+                      fontSize: "14px",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    {itemHintText(item)}
+                  </div>
                 </div>
 
                 <div style={{ padding: "0 16px 18px" }}>
@@ -734,49 +906,80 @@ export default function VisitExecutionForm({
                         background: "#fcfcfd",
                       }}
                     >
-                      <input
-                        className="field"
-                        type="number"
-                        inputMode="decimal"
-                        placeholder={primaryLabel(item)}
-                        value={state.numeric_value}
-                        onChange={(e) =>
-                          updateSmartItemState(item, {
-                            numeric_value: e.target.value,
-                          })
-                        }
-                      />
-
-                      {secondaryLabel(item) ? (
+                      <div style={{ marginBottom: "10px" }}>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "#64748b",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          {primaryLabel(item)}
+                        </div>
                         <input
                           className="field"
                           type="number"
                           inputMode="decimal"
-                          placeholder={secondaryLabel(item)}
-                          value={state.numeric_value_2}
+                          placeholder="أدخل القراءة"
+                          value={state.numeric_value}
                           onChange={(e) =>
                             updateSmartItemState(item, {
-                              numeric_value_2: e.target.value,
+                              numeric_value: e.target.value,
                             })
                           }
-                          style={{ marginTop: "12px" }}
                         />
+                      </div>
+
+                      {secondaryLabel(item) ? (
+                        <div style={{ marginBottom: "10px" }}>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              color: "#64748b",
+                              marginBottom: "6px",
+                            }}
+                          >
+                            {secondaryLabel(item)}
+                          </div>
+                          <input
+                            className="field"
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="أدخل القراءة"
+                            value={state.numeric_value_2}
+                            onChange={(e) =>
+                              updateSmartItemState(item, {
+                                numeric_value_2: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
                       ) : null}
 
                       {thirdLabel(item) ? (
-                        <input
-                          className="field"
-                          type="number"
-                          inputMode="decimal"
-                          placeholder={thirdLabel(item)}
-                          value={state.numeric_value_3}
-                          onChange={(e) =>
-                            updateSmartItemState(item, {
-                              numeric_value_3: e.target.value,
-                            })
-                          }
-                          style={{ marginTop: "12px" }}
-                        />
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              color: "#64748b",
+                              marginBottom: "6px",
+                            }}
+                          >
+                            {thirdLabel(item)}
+                          </div>
+                          <input
+                            className="field"
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="أدخل القراءة"
+                            value={state.numeric_value_3}
+                            onChange={(e) =>
+                              updateSmartItemState(item, {
+                                numeric_value_3: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
                       ) : null}
 
                       <div
@@ -834,6 +1037,9 @@ export default function VisitExecutionForm({
                             lineHeight: 1.8,
                           }}
                         >
+                          <div style={{ fontWeight: 800, marginBottom: "6px" }}>
+                            النتيجة التلقائية
+                          </div>
                           {state.calc_result_text}
                         </div>
                       ) : null}
@@ -850,6 +1056,17 @@ export default function VisitExecutionForm({
                         background: "#fcfcfd",
                       }}
                     >
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color: "#0f172a",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        تفاصيل عدم المطابقة
+                      </div>
+
                       <select
                         className="field"
                         value={state.finding_severity}
@@ -891,13 +1108,32 @@ export default function VisitExecutionForm({
                     </div>
                   ) : null}
 
-                  <ChecklistItemEvidence
-                    visitId={visitId}
-                    visitSystemId={String(item.visit_system_id)}
-                    checklistItemId={String(item.checklist_item_id)}
-                    assetId={activeAsset?.asset_id || ""}
-                    rows={itemEvidence}
-                  />
+                  <details style={{ marginTop: "14px" }}>
+                    <summary
+                      style={{
+                        cursor: "pointer",
+                        listStyle: "none",
+                        border: "1px dashed #cbd5e1",
+                        borderRadius: "18px",
+                        padding: "12px 14px",
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        background: "#ffffff",
+                      }}
+                    >
+                      أدلة البند {itemEvidence.length > 0 ? `(${itemEvidence.length})` : ""}
+                    </summary>
+
+                    <div style={{ marginTop: "12px" }}>
+                      <ChecklistItemEvidence
+                        visitId={visitId}
+                        visitSystemId={String(item.visit_system_id)}
+                        checklistItemId={String(item.checklist_item_id)}
+                        assetId={activeAsset?.asset_id || ""}
+                        rows={itemEvidence}
+                      />
+                    </div>
+                  </details>
                 </div>
               </div>
             );
