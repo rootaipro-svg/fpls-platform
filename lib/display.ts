@@ -1,29 +1,35 @@
-export function toArabicDigits(input: string | number) {
-  return String(input).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
-}
-
 export function safeText(value: any, fallback = "-") {
   const text = String(value ?? "").trim();
   return text || fallback;
+}
+
+export function formatDateLabel(value: any) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return raw;
+
+  return dt.toISOString().slice(0, 10);
 }
 
 export function toStatusLabel(value: any) {
   const v = String(value || "").trim().toLowerCase();
 
   const map: Record<string, string> = {
-    active: "نشط (Active)",
-    inactive: "غير نشط (Inactive)",
-    planned: "مجدولة (Planned)",
-    open: "مفتوحة (Open)",
-    in_progress: "قيد التنفيذ (In Progress)",
-    completed: "مكتملة (Completed)",
-    closed: "مغلقة (Closed)",
-    pending: "قيد الانتظار (Pending)",
-    overdue: "متأخر (Overdue)",
-    due: "مستحق (Due)",
-    compliant: "مطابق (Compliant)",
-    non_compliant: "غير مطابق (Non-Compliant)",
-    not_applicable: "غير منطبق (Not Applicable)",
+    active: "نشط",
+    inactive: "غير نشط",
+    planned: "مجدولة",
+    open: "مفتوحة",
+    in_progress: "قيد التنفيذ",
+    completed: "مكتملة",
+    closed: "مغلقة",
+    pending: "قيد الانتظار",
+    overdue: "متأخر",
+    due: "مستحق",
+    compliant: "مطابق",
+    non_compliant: "غير مطابق",
+    not_applicable: "غير منطبق",
   };
 
   return map[v] || String(value || "-");
@@ -89,41 +95,16 @@ export function toSystemLabel(value: any) {
   return map[v] || String(value || "-");
 }
 
-export function toResponseLabel(value: any) {
-  const v = String(value || "").trim().toLowerCase();
-
-  const map: Record<string, string> = {
-    compliant: "مطابق",
-    non_compliant: "غير مطابق",
-    not_applicable: "غير منطبق",
-    pass: "ناجح",
-    fail: "غير ناجح",
-    check: "يحتاج مراجعة",
-  };
-
-  return map[v] || String(value || "-");
-}
-
 export function toSeverityLabel(value: any) {
   const v = String(value || "").trim().toLowerCase();
 
   const map: Record<string, string> = {
-    critical: "حرج (Critical)",
-    major: "مرتفع (Major)",
-    minor: "منخفض (Minor)",
-    medium: "متوسط (Medium)",
-    low: "منخفض (Low)",
+    critical: "حرجة (Critical)",
+    major: "مرتفعة (Major)",
+    minor: "منخفضة (Minor)",
+    medium: "متوسطة (Medium)",
+    low: "منخفضة (Low)",
   };
 
   return map[v] || String(value || "-");
-}
-
-export function formatDateLabel(value: any) {
-  const raw = String(value || "").trim();
-  if (!raw) return "-";
-
-  const dt = new Date(raw);
-  if (Number.isNaN(dt.getTime())) return raw;
-
-  return dt.toISOString().slice(0, 10);
 }
