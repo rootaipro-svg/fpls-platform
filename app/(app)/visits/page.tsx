@@ -1,10 +1,10 @@
-import { ClipboardList, UserRound } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { StatCard } from "@/components/stat-card";
+import { PageHero } from "@/components/page-hero";
+import { MetricCard } from "@/components/metric-card";
+import { ActionCard } from "@/components/action-card";
 import { VisitCard } from "@/components/visit-card";
-import CreateVisitForm from "@/components/create-visit-form";
+import { EmptyState } from "@/components/empty-state";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 import {
@@ -12,24 +12,6 @@ import {
   isVisitAssignedToInspector,
 } from "@/lib/current-inspector";
 
-function toVisitTypeLabel(value: any) {
-  const v = String(value || "").trim().toLowerCase();
-
-  const map: Record<string, string> = {
-    followup: "متابعة (Follow-up)",
-    asset_followup: "متابعة أصل (Asset Follow-up)",
-    handover: "تسليم واستلام (Handover)",
-    safety_inspection: "فحص سلامة (Safety Inspection)",
-    periodic_inspection: "تفتيش دوري (Periodic Inspection)",
-    initial_survey: "معاينة أولية (Initial Survey)",
-    emergency_maintenance: "صيانة طارئة (Emergency Maintenance)",
-    quality_audit: "تدقيق جودة (Quality Audit)",
-    inspection: "تفتيش (Inspection)",
-    audit: "تدقيق (Audit)",
-  };
-
-  return map[v] || String(value || "زيارة");
-}
 function sortByDateDesc(rows: any[], field: string) {
   return [...rows].sort((a, b) => {
     const aTime = new Date(String(a?.[field] || 0)).getTime();
@@ -41,36 +23,16 @@ function sortByDateDesc(rows: any[], field: string) {
 export default async function VisitsPage() {
   const actor = await requirePermission("visits", "view");
 
-  const [visits, facilities, buildings, buildingSystems, inspectors] =
-    await Promise.all([
-      readSheet(actor.workbookId, "VISITS"),
-      readSheet(actor.workbookId, "FACILITIES"),
-      readSheet(actor.workbookId, "BUILDINGS"),
-      readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
-      readSheet(actor.workbookId, "INSPECTORS"),
-    ]);
+  const [visits, facilities, buildings] = await Promise.all([
+    readSheet(actor.workbookId, "VISITS"),
+    readSheet(actor.workbookId, "FACILITIES"),
+    readSheet(actor.workbookId, "BUILDINGS"),
+  ]);
 
   const currentInspector =
     actor.role === "inspector"
       ? await getCurrentInspector(actor.workbookId, actor)
       : null;
-
-  if (actor.role === "inspector" && !currentInspector) {
-    return (
-      <AppShell>
-        <PageHeader
-          title="زياراتي"
-          subtitle="لم يتم ربط هذا الحساب بسجل مفتش داخل INSPECTORS"
-        />
-
-        <EmptyState
-          title="لا يوجد ملف مفتش"
-          description="أضف app_user_id أو email الصحيح داخل شيت INSPECTORS ثم أعد المحاولة."
-          icon={UserRound}
-        />
-      </AppShell>
-    );
-  }
 
   const visibleVisits =
     actor.role === "inspector"
@@ -84,134 +46,100 @@ export default async function VisitsPage() {
 
   const sortedVisits = sortByDateDesc(visibleVisits, "planned_date");
 
-  const openCount = visibleVisits.filter((visit: any) => {
-    const status = String(visit.visit_status || "").toLowerCase();
+  const openCount = sortedVisits.filter((v: any) => {
+    const status = String(v.visit_status || "").toLowerCase();
     return status !== "closed" && status !== "completed";
   }).length;
 
-  const closedCount = visibleVisits.filter((visit: any) => {
-    const status = String(visit.visit_status || "").toLowerCase();
+  const closedCount = sortedVisits.filter((v: any) => {
+    const status = String(v.visit_status || "").toLowerCase();
     return status === "closed" || status === "completed";
   }).length;
 
   return (
     <AppShell>
-      <PageHeader
-        title={actor.role === "inspector" ? "زياراتي" : "الزيارات"}
-        subtitle={
-          actor.role === "inspector"
-            ? "الزيارات المعيّنة لك فقط"
-            : "إدارة كل الزيارات داخل النظام"
-        }
+      <PageHero
+        eyebrow="إدارة كل الزيارات داخل النظام"
+        title="الزيارات"
+        subtitle="متابعة الزيارات المفتوحة والمغلقة وسرعة الوصول إلى التنفيذ"
       />
 
-      <div className="stats-grid">
-        <StatCard
-          label={actor.role === "inspector" ? "زياراتي" : "إجمالي الزيارات"}
-          value={visibleVisits.length}
-          hint="كل الزيارات المعروضة"
+      <div className="space-y-4">
+        <MetricCard
+          title="إجمالي الزيارات"
+          value={sortedVisits.length}
+          subtitle="كل الزيارات المعروضة"
           icon={ClipboardList}
           tone="teal"
         />
-        <StatCard
-          label="مفتوحة"
+
+        <MetricCard
+          title="مفتوحة"
           value={openCount}
-          hint="قيد التنفيذ أو مجدولة"
+          subtitle="قيد التنفيذ أو مجدولة"
           icon={ClipboardList}
           tone="slate"
         />
-        <StatCard
-          label="مغلقة"
+
+        <MetricCard
+          title="مغلقة"
           value={closedCount}
-          hint="تم إغلاقها"
+          subtitle="تم إغلاقها"
           icon={ClipboardList}
           tone="slate"
         />
-      </div>
 
-      {actor.role !== "inspector" ? (
-        <CreateVisitForm
-          facilities={facilities.map((f: any) => ({
-            facility_id: String(f.facility_id || ""),
-            facility_name: String(f.facility_name || ""),
-          }))}
-          buildings={buildings.map((b: any) => ({
-            building_id: String(b.building_id || ""),
-            facility_id: String(b.facility_id || ""),
-            building_name: String(b.building_name || ""),
-          }))}
-          buildingSystems={buildingSystems.map((s: any) => ({
-            building_system_id: String(s.building_system_id || ""),
-            building_id: String(s.building_id || ""),
-            system_code: String(s.system_code || ""),
-          }))}
-          inspectors={inspectors.map((i: any) => ({
-            inspector_id: String(i.inspector_id || ""),
-            inspector_name: String(
-              i.full_name_ar || i.full_name || i.email || i.inspector_id || "Inspector"
-            ),
-            email: String(i.email || ""),
-            phone: String(i.phone || ""),
-            status: String(i.status || "active"),
-            allowed_systems: String(i.allowed_systems || ""),
-          }))}
-        />
-      ) : (
-        <div className="card">
-          <div className="section-title">المفتش الحالي</div>
-          <div className="section-subtitle">
-            {String(
-              currentInspector?.full_name_ar ||
-                currentInspector?.full_name ||
-                currentInspector?.email ||
-                "Inspector"
-            )}
+        {actor.role !== "inspector" ? (
+          <ActionCard
+            href="/visits/new"
+            title="إنشاء زيارة"
+            text="أنشئ زيارة جديدة واختر المبنى والأنظمة والمفتش المسؤول عنها."
+            buttonLabel="زيارة جديدة"
+            icon={Plus}
+          />
+        ) : null}
+
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 text-right">
+            <div className="text-3xl font-extrabold text-slate-950">
+              سجل المهام والزيارات
+            </div>
+            <div className="mt-2 text-base text-slate-500">
+              متابعة سريعة لأحدث الحركة التشغيلية
+            </div>
           </div>
-        </div>
-      )}
 
-      <section className="card">
-        <div className="section-title">
-          {actor.role === "inspector" ? "الزيارات المعيّنة لك" : "قائمة الزيارات"}
-        </div>
-
-        {sortedVisits.length === 0 ? (
-          <div style={{ marginTop: "12px" }}>
+          {sortedVisits.length === 0 ? (
             <EmptyState
               title="لا توجد زيارات"
-              description={
-                actor.role === "inspector"
-                  ? "لا توجد زيارات مخصصة لك حاليًا."
-                  : "لا توجد زيارات في النظام حتى الآن."
-              }
+              description="لم يتم إنشاء أي زيارة حتى الآن."
               icon={ClipboardList}
             />
-          </div>
-        ) : (
-          <div className="stack-3" style={{ marginTop: "12px" }}>
-            {sortedVisits.map((visit: any) => {
-              const facility = facilities.find(
-                (f: any) =>
-                  String(f.facility_id) === String(visit.facility_id || "")
-              );
+          ) : (
+            <div className="space-y-4">
+              {sortedVisits.map((visit: any) => {
+                const facility = facilities.find(
+                  (f: any) =>
+                    String(f.facility_id) === String(visit.facility_id || "")
+                );
+                const building = buildings.find(
+                  (b: any) =>
+                    String(b.building_id) === String(visit.building_id || "")
+                );
 
-              const building = buildings.find(
-                (b: any) =>
-                  String(b.building_id) === String(visit.building_id || "")
-              );
-
-              return (
-                <VisitCard
-                  key={String(visit.visit_id)}
-                  visit={visit}
-                  facilityName={String(facility?.facility_name || "")}
-                  buildingName={String(building?.building_name || "")}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
+                return (
+                  <VisitCard
+                    key={String(visit.visit_id)}
+                    visit={visit}
+                    facilityName={String(facility?.facility_name || "")}
+                    buildingName={String(building?.building_name || "")}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
     </AppShell>
   );
 }
