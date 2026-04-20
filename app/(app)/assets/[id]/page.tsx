@@ -110,7 +110,153 @@ function responseLabel(value: any) {
 
   return map[v] || safeText(value);
 }
+type ActionCardProps = {
+  href: string;
+  title: string;
+  icon?: any;
+  subtitle?: string;
+  description?: string;
+  text?: string;
+  hint?: string;
+  badge?: string;
+  tone?: "teal" | "amber" | "red" | "slate";
+  disabled?: boolean;
+  [key: string]: any;
+};
 
+function ActionCard({
+  href,
+  title,
+  icon: Icon,
+  subtitle,
+  description,
+  text,
+  hint,
+  badge,
+  tone = "teal",
+  disabled = false,
+}: ActionCardProps) {
+  const toneMap: Record<
+    string,
+    { bg: string; border: string; iconBg: string; iconColor: string }
+  > = {
+    teal: {
+      bg: "#ffffff",
+      border: "1px solid #e2e8f0",
+      iconBg: "#ecfeff",
+      iconColor: "#0f766e",
+    },
+    amber: {
+      bg: "#ffffff",
+      border: "1px solid #fde68a",
+      iconBg: "#fffbeb",
+      iconColor: "#b45309",
+    },
+    red: {
+      bg: "#ffffff",
+      border: "1px solid #fecaca",
+      iconBg: "#fef2f2",
+      iconColor: "#b91c1c",
+    },
+    slate: {
+      bg: "#ffffff",
+      border: "1px solid #e2e8f0",
+      iconBg: "#f8fafc",
+      iconColor: "#475569",
+    },
+  };
+
+  const theme = toneMap[tone] || toneMap.teal;
+  const bodyText = subtitle || description || text || hint || "";
+
+  return (
+    <Link
+      href={disabled ? "#" : href}
+      style={{
+        display: "block",
+        borderRadius: "24px",
+        border: theme.border,
+        background: theme.bg,
+        padding: "16px",
+        textDecoration: "none",
+        opacity: disabled ? 0.55 : 1,
+        pointerEvents: disabled ? "none" : "auto",
+        boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "12px",
+        }}
+      >
+        <div style={{ flex: 1, textAlign: "right" }}>
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: 800,
+              color: "#0f172a",
+              lineHeight: 1.5,
+            }}
+          >
+            {title}
+          </div>
+
+          {bodyText ? (
+            <div
+              style={{
+                marginTop: "8px",
+                fontSize: "14px",
+                color: "#64748b",
+                lineHeight: 1.8,
+              }}
+            >
+              {bodyText}
+            </div>
+          ) : null}
+
+          {badge ? (
+            <div
+              style={{
+                marginTop: "10px",
+                display: "inline-flex",
+                alignItems: "center",
+                borderRadius: "999px",
+                border: "1px solid #e2e8f0",
+                padding: "6px 10px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#334155",
+                background: "#f8fafc",
+              }}
+            >
+              {badge}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          style={{
+            width: "52px",
+            height: "52px",
+            borderRadius: "18px",
+            background: theme.iconBg,
+            color: theme.iconColor,
+            border: "1px solid #dbeafe",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {Icon ? <Icon size={24} /> : null}
+        </div>
+      </div>
+    </Link>
+  );
+}
 export default async function AssetDetailPage({
   params,
 }: {
