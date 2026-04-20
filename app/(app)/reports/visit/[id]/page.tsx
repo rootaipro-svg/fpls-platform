@@ -1,8 +1,5 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  ClipboardList,
-} from "lucide-react";
+import { ArrowRight, ClipboardList, Printer } from "lucide-react";
 import PrintReportButton from "@/components/print-report-button";
 import { SeverityBadge } from "@/components/severity-badge";
 import { FindingStatusBadge } from "@/components/finding-status-badge";
@@ -11,6 +8,17 @@ import { getSessionUser } from "@/lib/auth";
 import { getTenantWorkbookId } from "@/lib/tenant";
 import { readSheet } from "@/lib/sheets";
 
+function safeText(value: any, fallback = "-") {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function formatDateLabel(value: any) {
+  const text = String(value || "").trim();
+  if (!text) return "-";
+  return text;
+}
+
 function toArabicSummary(value: string) {
   const normalized = String(value || "").toLowerCase();
 
@@ -18,8 +26,58 @@ function toArabicSummary(value: string) {
   if (normalized === "pass_with_remarks") return "مطابق مع ملاحظات";
   if (normalized === "fail_critical") return "غير مطابق - حرج";
   if (normalized === "pending") return "قيد الانتظار";
+  if (normalized === "non_compliant") return "غير مطابق";
+  if (normalized === "critical_findings") return "مخالفات حرجة";
 
   return value || "غير محدد";
+}
+
+function toVisitTypeLabel(value: any) {
+  const v = String(value || "").trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    followup: "متابعة (Follow-up)",
+    asset_followup: "متابعة أصل (Asset Follow-up)",
+    handover: "تسليم واستلام (Handover)",
+    safety_inspection: "فحص سلامة (Safety Inspection)",
+    periodic_inspection: "تفتيش دوري (Periodic Inspection)",
+    initial_survey: "معاينة أولية (Initial Survey)",
+    emergency_maintenance: "صيانة طارئة (Emergency Maintenance)",
+    quality_audit: "تدقيق جودة (Quality Audit)",
+    inspection: "تفتيش (Inspection)",
+    audit: "تدقيق (Audit)",
+  };
+
+  return map[v] || safeText(value, "زيارة");
+}
+
+function toSystemLabel(value: any) {
+  const raw = String(value || "").trim();
+  const key = raw.toUpperCase().replace(/-/g, "_");
+
+  const map: Record<string, string> = {
+    FP_DIESEL_PUMP: "مضخة حريق ديزل (Fire Pump - Diesel)",
+    FP_ELECTRIC_PUMP: "مضخة حريق كهربائية (Fire Pump - Electric)",
+    JOCKEY_PUMP: "مضخة جوكي (Jockey Pump)",
+    FIRE_ALARM: "نظام إنذار الحريق (Fire Alarm)",
+    FA_ADDR: "إنذار حريق معنّون (Addressable Fire Alarm)",
+    FA_VOICE: "إنذار صوتي وإخلاء (Voice Evacuation)",
+    SP_WET: "شبكة رش آلي مائية (Wet Sprinkler System)",
+    SP_DRY: "شبكة رش آلي جافة (Dry Sprinkler System)",
+    HOSE_REEL: "بكرات خراطيم الحريق (Hose Reel)",
+    FIRE_EXTINGUISHER: "طفايات الحريق (Fire Extinguishers)",
+    EMERGENCY_LIGHT: "إنارة الطوارئ (Emergency Light)",
+    EXIT_SIGN: "لوحات مخارج الطوارئ (Exit Sign)",
+    FIRE_DOOR: "أبواب مقاومة للحريق (Fire Door)",
+    CLEAN_AGENT: "نظام غاز نظيف (Clean Agent System)",
+    FM200: "نظام FM200 (FM200 System)",
+    CO2_SYSTEM: "نظام ثاني أكسيد الكربون (CO2 System)",
+    FOAM_SYSTEM: "نظام رغوي (Foam System)",
+    KITCHEN_SUPPRESSION: "إطفاء المطابخ (Kitchen Suppression)",
+    FIRE_PUMP: "مضخة حريق (Fire Pump)",
+  };
+
+  return map[key] || raw || "-";
 }
 
 function makeReportReference(visitId: string, plannedDate: string) {
@@ -37,6 +95,45 @@ function looksLikeImage(url: string, evidenceType: string) {
     u.endsWith(".png") ||
     u.endsWith(".webp") ||
     u.includes("blob.vercel-storage.com")
+  );
+}
+
+function StatMiniCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint: string;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: "22px",
+        background: "#ffffff",
+        padding: "16px",
+      }}
+    >
+      <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 700 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "38px",
+          lineHeight: 1,
+          fontWeight: 800,
+          color: "#0f172a",
+          marginTop: "8px",
+        }}
+      >
+        {value}
+      </div>
+      <div style={{ fontSize: "13px", color: "#94a3b8", marginTop: "10px" }}>
+        {hint}
+      </div>
+    </div>
   );
 }
 
@@ -78,9 +175,7 @@ export default async function VisitReportPage({
     (vs) => String(vs.visit_id) === String(id)
   );
 
-  const visitSystemIds = new Set(
-    systems.map((s) => String(s.visit_system_id))
-  );
+  const visitSystemIds = new Set(systems.map((s) => String(s.visit_system_id)));
 
   const visitResponses = responses.filter((r) =>
     visitSystemIds.has(String(r.visit_system_id))
@@ -201,423 +296,821 @@ export default async function VisitReportPage({
   }
 
   const assetById = new Map<string, any>();
-
   for (const row of assets) {
     assetById.set(String(row.asset_id || ""), row);
   }
 
   return (
-    <div dir="rtl" className="report-page-wrap">
-      <div className="report-toolbar print-hidden">
-        <div className="report-toolbar-side">
-          <Link href="/reports" className="btn btn-secondary">
-            <ArrowRight size={18} />
-            العودة للتقارير
-          </Link>
+    <div
+      dir="rtl"
+      style={{
+        background: "#f1f5f9",
+        minHeight: "100vh",
+        padding: "16px 12px 40px",
+      }}
+    >
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @media print {
+              .print-hidden { display: none !important; }
+              body { background: #ffffff !important; }
+            }
+          `,
+        }}
+      />
 
-          <Link href={`/visits/${id}`} className="btn btn-secondary">
-            <ClipboardList size={18} />
-            فتح الزيارة
-          </Link>
-        </div>
+      <div style={{ margin: "0 auto", maxWidth: "980px" }}>
+        <div
+          className="print-hidden"
+          style={{
+            display: "flex",
+            gap: "10px",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            marginBottom: "12px",
+          }}
+        >
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <Link href="/reports" className="btn btn-secondary">
+              <ArrowRight size={18} />
+              العودة للتقارير
+            </Link>
 
-        <div className="report-toolbar-side">
-          <PrintReportButton />
-        </div>
-      </div>
+            <Link href={`/visits/${id}`} className="btn btn-secondary">
+              <ClipboardList size={18} />
+              فتح الزيارة
+            </Link>
+          </div>
 
-      <div className="report-paper">
-        <div className="report-cover">
-          <div className="report-brand-row">
-            <div className="report-logo-box">
-              {logoUrl ? (
-                <img src={logoUrl} alt="logo" />
-              ) : (
-                <span className="report-logo-fallback">{brandFallback}</span>
-              )}
+          <div style={{ display: "flex", gap: "10px" }}>
+            <div className="btn btn-secondary" style={{ pointerEvents: "none", opacity: 0.8 }}>
+              <Printer size={18} />
+              صفحة التقرير
             </div>
-
-            <div className="report-brand-content">
-              <div className="report-cover-eyebrow">{brandSub}</div>
-              <div className="report-brand-name">{brandName}</div>
-              <div className="report-brand-sub">
-                {String(tenantProfile.address_line || "")}
-                {tenantProfile.city ? ` · ${tenantProfile.city}` : ""}
-                {tenantProfile.country ? ` · ${tenantProfile.country}` : ""}
-              </div>
-
-              <div className="report-brand-contact">
-                {tenantProfile.contact_phone ? (
-                  <span className="badge">
-                    {String(tenantProfile.contact_phone)}
-                  </span>
-                ) : null}
-                {tenantProfile.contact_email ? (
-                  <span className="badge">
-                    {String(tenantProfile.contact_email)}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="report-cover-title">تقرير زيارة تفتيش فني</div>
-
-          <div className="report-cover-subtitle">
-            تقرير فني عربي قابل للطباعة والحفظ PDF، مبني على نتائج الزيارة والأنظمة
-            والمخالفات المسجلة داخل المنصة.
-          </div>
-
-          <div className="report-badge-row">
-            <span className="badge">رقم التقرير: {reportRef}</span>
-            <span className="badge">رقم الزيارة: {String(id)}</span>
-            <span className="badge">
-              التاريخ: {String(visit?.planned_date || visit?.visit_date || "-")}
-            </span>
-            <span className="badge">
-              نوع الزيارة: {String(visit?.visit_type || "-")}
-            </span>
-          </div>
-
-          <div style={{ marginTop: "14px" }}>
-            <ReportDecisionBadge
-              value={String(visit?.summary_result || "pending")}
-            />
+            <PrintReportButton />
           </div>
         </div>
 
-        <div className="report-content">
-          <section className="report-section">
-            <div className="report-section-title">نطاق الفحص ومنهجية العمل</div>
-            <div className="report-section-subtitle">
-              وصف مختصر لنطاق الزيارة وكيفية تسجيل النتائج داخل النظام
-            </div>
-
-            <div className="report-scope-list">
-              <div className="report-scope-item">
-                <div className="report-scope-item-title">نطاق الفحص</div>
-                <div className="report-scope-item-text">
-                  شمل الفحص الأنظمة المرتبطة بهذه الزيارة كما هي مسجلة داخل المنصة،
-                  وتم تقييم البنود وفق قائمة الفحص المرتبطة بكل نظام.
-                </div>
-              </div>
-
-              <div className="report-scope-item">
-                <div className="report-scope-item-title">منهجية التقييم</div>
-                <div className="report-scope-item-text">
-                  تم تسجيل البنود كالتالي: مطابق، غير مطابق، أو غير منطبق، مع
-                  احتساب نسبة الامتثال بناءً على البنود القابلة للتقييم فقط.
-                </div>
-              </div>
-
-              <div className="report-scope-item">
-                <div className="report-scope-item-title">مخرجات الفحص</div>
-                <div className="report-scope-item-text">
-                  تم إنشاء المخالفات تلقائيًا للبنود غير المطابقة، وربطها بالإجراءات
-                  التصحيحية وحالة الإغلاق عند توفرها.
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="report-section">
-            <div className="report-section-title">ملخص الامتثال العام</div>
-            <div className="report-section-subtitle">
-              قراءة سريعة لحالة الزيارة ونتائجها النهائية
-            </div>
-
-            <div className="report-progress-wrap">
-              <div className="report-progress-bar">
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "28px",
+            overflow: "hidden",
+            boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
+          }}
+        >
+          <div style={{ padding: "22px 18px 18px" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "14px",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
                 <div
-                  className="report-progress-fill"
-                  style={{ width: `${overallCompliance}%` }}
+                  style={{
+                    width: "72px",
+                    height: "72px",
+                    borderRadius: "22px",
+                    border: "1px solid #ccfbf1",
+                    background: "#ecfeff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                  }}
+                >
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="logo"
+                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: "22px",
+                        fontWeight: 800,
+                        color: "#0f766e",
+                      }}
+                    >
+                      {brandFallback}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: "13px", color: "#64748b" }}>{brandSub}</div>
+                  <div
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: 800,
+                      color: "#0f172a",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {brandName}
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#64748b", marginTop: "6px" }}>
+                    {safeText(tenantProfile.address_line, "")}
+                    {tenantProfile.city ? ` · ${tenantProfile.city}` : ""}
+                    {tenantProfile.country ? ` · ${tenantProfile.country}` : ""}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ minWidth: "220px" }}>
+                <div style={{ fontSize: "13px", color: "#64748b" }}>قرار التقرير</div>
+                <div style={{ marginTop: "8px" }}>
+                  <ReportDecisionBadge
+                    value={String(visit?.summary_result || "pending")}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: "20px",
+                borderTop: "1px solid #e2e8f0",
+                paddingTop: "18px",
+              }}
+            >
+              <div style={{ fontSize: "13px", color: "#64748b" }}>تقرير زيارة تفتيش فني</div>
+              <div
+                style={{
+                  fontSize: "34px",
+                  lineHeight: 1.15,
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  marginTop: "8px",
+                }}
+              >
+                تقرير زيارة {safeText(facility?.facility_name || facility?.facility_name_ar, "المنشأة")}
+              </div>
+
+              <div
+                style={{
+                  fontSize: "15px",
+                  color: "#475569",
+                  marginTop: "10px",
+                  lineHeight: 1.9,
+                }}
+              >
+                تقرير فني عربي قابل للطباعة والحفظ PDF، مبني على نتائج الزيارة
+                والأنظمة والمخالفات المسجلة داخل المنصة.
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  marginTop: "14px",
+                }}
+              >
+                <span className="badge">رقم التقرير: {reportRef}</span>
+                <span className="badge">رقم الزيارة: {String(id)}</span>
+                <span className="badge">
+                  التاريخ: {formatDateLabel(visit?.planned_date || visit?.visit_date)}
+                </span>
+                <span className="badge">
+                  نوع الزيارة: {toVisitTypeLabel(visit?.visit_type)}
+                </span>
+                <span className="badge">
+                  المبنى: {safeText(building?.building_name, "غير محدد")}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: "0 18px 22px" }}>
+            <section
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: "24px",
+                background: "#f8fafc",
+                padding: "16px",
+              }}
+            >
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>
+                البيانات الأساسية
+              </div>
+              <div style={{ fontSize: "14px", color: "#64748b", marginTop: "6px" }}>
+                لقطة سريعة عن المنشأة والزيارة وحالة التقرير
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: "12px",
+                  marginTop: "16px",
+                }}
+              >
+                <StatMiniCard
+                  label="المنشأة"
+                  value={safeText(facility?.facility_name || facility?.facility_name_ar)}
+                  hint={safeText(building?.building_name, "بدون مبنى محدد")}
+                />
+                <StatMiniCard
+                  label="نسبة الامتثال"
+                  value={`${overallCompliance}%`}
+                  hint="البنود القابلة للتقييم فقط"
+                />
+                <StatMiniCard
+                  label="البنود المطابقة"
+                  value={compliantCount}
+                  hint="إجمالي البنود المطابقة"
+                />
+                <StatMiniCard
+                  label="البنود غير المطابقة"
+                  value={nonCompliantCount}
+                  hint="إجمالي البنود غير المطابقة"
+                />
+                <StatMiniCard
+                  label="المخالفات"
+                  value={visitFindings.length}
+                  hint="ناتجة عن هذه الزيارة"
+                />
+                <StatMiniCard
+                  label="الاستحقاق التالي"
+                  value={safeText(visit?.next_due_date)}
+                  hint="الموعد المتوقع التالي"
                 />
               </div>
-              <div className="report-progress-text">
-                نسبة الامتثال الكلية: {overallCompliance}%
+
+              <div
+                style={{
+                  marginTop: "14px",
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span className="badge">غير منطبق: {notApplicableCount}</span>
+                <span className="badge">حرج: {criticalCount}</span>
+                <span className="badge">مرتفع: {majorCount}</span>
+                <span className="badge">منخفض: {minorCount}</span>
+                <span className="badge">
+                  النتيجة العامة: {toArabicSummary(String(visit?.summary_result || "pending"))}
+                </span>
               </div>
-            </div>
+            </section>
 
-            <div className="report-highlight-grid">
-              <div className="report-highlight-card">
-                <div className="report-highlight-value">{compliantCount}</div>
-                <div className="report-highlight-label">بنود مطابقة</div>
+            <section
+              style={{
+                marginTop: "16px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "24px",
+                background: "#ffffff",
+                padding: "16px",
+              }}
+            >
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>
+                نطاق الفحص ومنهجية العمل
+              </div>
+              <div style={{ fontSize: "14px", color: "#64748b", marginTop: "6px" }}>
+                وصف مختصر لنطاق الزيارة وكيفية تسجيل النتائج داخل النظام
               </div>
 
-              <div className="report-highlight-card">
-                <div className="report-highlight-value">{nonCompliantCount}</div>
-                <div className="report-highlight-label">بنود غير مطابقة</div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                  gap: "12px",
+                  marginTop: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "18px",
+                    padding: "14px",
+                    background: "#f8fafc",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>نطاق الفحص</div>
+                  <div style={{ color: "#475569", fontSize: "14px", lineHeight: 1.9, marginTop: "8px" }}>
+                    شمل الفحص الأنظمة المرتبطة بهذه الزيارة كما هي مسجلة داخل المنصة،
+                    وتم تقييم البنود وفق قائمة الفحص المرتبطة بكل نظام.
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "18px",
+                    padding: "14px",
+                    background: "#f8fafc",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>منهجية التقييم</div>
+                  <div style={{ color: "#475569", fontSize: "14px", lineHeight: 1.9, marginTop: "8px" }}>
+                    تم تسجيل البنود كالتالي: مطابق، غير مطابق، أو غير منطبق، مع
+                    احتساب نسبة الامتثال بناءً على البنود القابلة للتقييم فقط.
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "18px",
+                    padding: "14px",
+                    background: "#f8fafc",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>مخرجات الفحص</div>
+                  <div style={{ color: "#475569", fontSize: "14px", lineHeight: 1.9, marginTop: "8px" }}>
+                    تم إنشاء المخالفات تلقائيًا للبنود غير المطابقة، وربطها بالإجراءات
+                    التصحيحية وحالة الإغلاق عند توفرها.
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section
+              style={{
+                marginTop: "16px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "24px",
+                background: "#ffffff",
+                padding: "16px",
+              }}
+            >
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>
+                الأنظمة المشمولة بالفحص
+              </div>
+              <div style={{ fontSize: "14px", color: "#64748b", marginTop: "6px" }}>
+                ملخص نتائج الأنظمة المشمولة بهذه الزيارة
               </div>
 
-              <div className="report-highlight-card">
-                <div className="report-highlight-value">{visitFindings.length}</div>
-                <div className="report-highlight-label">عدد المخالفات</div>
-              </div>
-            </div>
-
-            <div className="report-badge-row">
-              <span className="badge">غير منطبق: {notApplicableCount}</span>
-              <span className="badge">حرج: {criticalCount}</span>
-              <span className="badge">مرتفع: {majorCount}</span>
-              <span className="badge">منخفض: {minorCount}</span>
-              <span className="badge">
-                الاستحقاق التالي: {String(visit?.next_due_date || "-")}
-              </span>
-            </div>
-          </section>
-
-          <section className="report-section">
-            <div className="report-section-title">الأنظمة المشمولة بالفحص</div>
-            <div className="report-section-subtitle">
-              ملخص نتائج الأنظمة المشمولة بهذه الزيارة
-            </div>
-
-            <div className="report-table-wrap">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th>النظام</th>
-                    <th>الحالة</th>
-                    <th>النتيجة</th>
-                    <th>الامتثال</th>
-                    <th>حرج</th>
-                    <th>مرتفع</th>
-                    <th>منخفض</th>
-                    <th>الاستحقاق التالي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {systems.length === 0 ? (
-                    <tr>
-                      <td colSpan={8}>لا توجد أنظمة مرتبطة بهذه الزيارة</td>
-                    </tr>
-                  ) : (
-                    systems.map((system) => (
-                      <tr key={String(system.visit_system_id)}>
-                        <td>{String(system.system_code || "-")}</td>
-                        <td>{String(system.status || "-")}</td>
-                        <td>
-                          {toArabicSummary(
-                            String(system.result_summary || "pending")
-                          )}
-                        </td>
-                        <td>{String(system.compliance_percent || 0)}%</td>
-                        <td>{String(system.critical_count || 0)}</td>
-                        <td>{String(system.major_count || 0)}</td>
-                        <td>{String(system.minor_count || 0)}</td>
-                        <td>{String(system.next_due_date || "-")}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="report-section">
-            <div className="report-section-title">المخالفات والملاحظات التصحيحية</div>
-            <div className="report-section-subtitle">
-              جميع البنود غير المطابقة الناتجة عن هذه الزيارة
-            </div>
-
-            {visitFindings.length === 0 ? (
-              <div className="report-note-box">
-                لا توجد مخالفات مسجلة ضمن هذه الزيارة.
-              </div>
-            ) : (
-              <div className="report-finding-list">
-                {visitFindings.map((finding) => {
-                  const findingEvidence =
-                    evidenceByFindingId.get(String(finding.finding_id || "")) || [];
-
-                  const relatedAsset = assetById.get(String(finding.asset_id || ""));
-
-                  return (
+              {systems.length === 0 ? (
+                <div
+                  style={{
+                    marginTop: "16px",
+                    border: "1px dashed #cbd5e1",
+                    borderRadius: "18px",
+                    padding: "16px",
+                    color: "#64748b",
+                    background: "#f8fafc",
+                  }}
+                >
+                  لا توجد أنظمة مرتبطة بهذه الزيارة.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                    gap: "12px",
+                    marginTop: "16px",
+                  }}
+                >
+                  {systems.map((system) => (
                     <div
-                      key={String(finding.finding_id)}
-                      className="report-finding-item"
+                      key={String(system.visit_system_id)}
+                      style={{
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "18px",
+                        background: "#f8fafc",
+                        padding: "14px",
+                      }}
                     >
-                      <div className="report-finding-title">
-                        {String(finding.title || "مخالفة")}
+                      <div style={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.7 }}>
+                        {toSystemLabel(system.system_code)}
                       </div>
 
-                      <div className="report-badge-row">
-                        <SeverityBadge severity={String(finding.severity || "")} />
-                        <FindingStatusBadge
-                          status={String(
-                            finding.closure_status ||
-                              finding.compliance_status ||
-                              "open"
-                          )}
-                        />
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                          marginTop: "10px",
+                        }}
+                      >
                         <span className="badge">
-                          الكود: {String(finding.finding_code || "-")}
+                          الحالة: {safeText(system.status)}
+                        </span>
+                        <span className="badge">
+                          النتيجة: {toArabicSummary(String(system.result_summary || "pending"))}
+                        </span>
+                        <span className="badge">
+                          الامتثال: {safeText(system.compliance_percent, "0")}%
                         </span>
                       </div>
 
-                      {relatedAsset ? (
-                        <div className="report-badge-row">
-                          <span className="badge">
-                            الأصل المرتبط:{" "}
-                            {String(
-                              relatedAsset.asset_name_ar ||
-                                relatedAsset.asset_name ||
-                                relatedAsset.asset_code ||
-                                relatedAsset.asset_id
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                          gap: "8px",
+                          marginTop: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            borderRadius: "14px",
+                            background: "#fff",
+                            border: "1px solid #e2e8f0",
+                            padding: "10px",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>حرج</div>
+                          <div style={{ fontSize: "22px", fontWeight: 800 }}>{safeText(system.critical_count, "0")}</div>
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "14px",
+                            background: "#fff",
+                            border: "1px solid #e2e8f0",
+                            padding: "10px",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>مرتفع</div>
+                          <div style={{ fontSize: "22px", fontWeight: 800 }}>{safeText(system.major_count, "0")}</div>
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "14px",
+                            background: "#fff",
+                            border: "1px solid #e2e8f0",
+                            padding: "10px",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>منخفض</div>
+                          <div style={{ fontSize: "22px", fontWeight: 800 }}>{safeText(system.minor_count, "0")}</div>
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: "14px",
+                            background: "#fff",
+                            border: "1px solid #e2e8f0",
+                            padding: "10px",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>التالي</div>
+                          <div style={{ fontSize: "13px", fontWeight: 800 }}>
+                            {safeText(system.next_due_date)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              style={{
+                marginTop: "16px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "24px",
+                background: "#ffffff",
+                padding: "16px",
+              }}
+            >
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>
+                المخالفات والملاحظات التصحيحية
+              </div>
+              <div style={{ fontSize: "14px", color: "#64748b", marginTop: "6px" }}>
+                جميع البنود غير المطابقة الناتجة عن هذه الزيارة
+              </div>
+
+              {visitFindings.length === 0 ? (
+                <div
+                  style={{
+                    marginTop: "16px",
+                    border: "1px dashed #cbd5e1",
+                    borderRadius: "18px",
+                    padding: "16px",
+                    color: "#64748b",
+                    background: "#f8fafc",
+                  }}
+                >
+                  لا توجد مخالفات مسجلة ضمن هذه الزيارة.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
+                  {visitFindings.map((finding) => {
+                    const findingEvidence =
+                      evidenceByFindingId.get(String(finding.finding_id || "")) || [];
+
+                    const relatedAsset = assetById.get(String(finding.asset_id || ""));
+
+                    return (
+                      <div
+                        key={String(finding.finding_id)}
+                        style={{
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "20px",
+                          background: "#f8fafc",
+                          padding: "16px",
+                        }}
+                      >
+                        <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+                          {safeText(finding.title, "مخالفة")}
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            flexWrap: "wrap",
+                            marginTop: "10px",
+                          }}
+                        >
+                          <SeverityBadge severity={String(finding.severity || "")} />
+                          <FindingStatusBadge
+                            status={String(
+                              finding.closure_status ||
+                                finding.compliance_status ||
+                                "open"
                             )}
+                          />
+                          <span className="badge">
+                            الكود: {safeText(finding.finding_code)}
                           </span>
                         </div>
-                      ) : null}
 
-                      <div className="report-finding-text">
-                        {String(finding.description || "لا يوجد وصف")}
-                      </div>
-
-                      <div className="report-badge-row">
-                        <span className="badge">
-                          الإجراء التصحيحي:{" "}
-                          {String(finding.corrective_action || "غير مسجل")}
-                        </span>
-                        <span className="badge">
-                          المسؤول: {String(finding.responsible_party || "غير محدد")}
-                        </span>
-                        <span className="badge">
-                          الإغلاق المستهدف:{" "}
-                          {String(finding.target_close_date || "-")}
-                        </span>
-                        <span className="badge">
-                          الإغلاق الفعلي: {String(finding.actual_close_date || "-")}
-                        </span>
-                      </div>
-
-                      {findingEvidence.length > 0 ? (
-                        <div style={{ marginTop: "16px" }}>
-                          <div className="report-section-subtitle">
-                            الأدلة المرتبطة بهذه المخالفة
+                        {relatedAsset ? (
+                          <div style={{ marginTop: "10px" }}>
+                            <span className="badge">
+                              الأصل المرتبط:{" "}
+                              {safeText(
+                                relatedAsset.asset_name_ar ||
+                                  relatedAsset.asset_name ||
+                                  relatedAsset.asset_code ||
+                                  relatedAsset.asset_id
+                              )}
+                            </span>
                           </div>
+                        ) : null}
 
-                          <div
-                            style={{
-                              display: "grid",
-                              gap: "12px",
-                              marginTop: "12px",
-                            }}
-                          >
-                            {findingEvidence.map((ev: any) => (
-                              <div
-                                key={String(ev.evidence_id)}
-                                style={{
-                                  border: "1px solid #e2e8f0",
-                                  borderRadius: "16px",
-                                  padding: "12px",
-                                  background: "#fff",
-                                }}
-                              >
-                                <div className="report-badge-row">
-                                  <span className="badge">
-                                    {String(ev.evidence_type || "evidence")}
-                                  </span>
-                                  {ev.file_name ? (
-                                    <span className="badge">
-                                      {String(ev.file_name)}
-                                    </span>
-                                  ) : null}
-                                </div>
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            color: "#334155",
+                            lineHeight: 1.9,
+                            marginTop: "12px",
+                          }}
+                        >
+                          {safeText(finding.description, "لا يوجد وصف")}
+                        </div>
 
-                                {looksLikeImage(
-                                  String(ev.file_url || ""),
-                                  String(ev.evidence_type || "")
-                                ) ? (
-                                  <div style={{ marginTop: "12px" }}>
-                                    <img
-                                      src={String(ev.file_url || "")}
-                                      alt={String(ev.file_name || "Evidence")}
-                                      style={{
-                                        width: "100%",
-                                        maxHeight: "360px",
-                                        objectFit: "contain",
-                                        borderRadius: "12px",
-                                        border: "1px solid #e2e8f0",
-                                        background: "#fff",
-                                      }}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div
-                                    className="report-note-box"
-                                    style={{ marginTop: "12px" }}
-                                  >
-                                    مرفق غير صوري: {String(ev.file_name || "ملف")}
-                                  </div>
-                                )}
-
-                                {ev.caption ? (
-                                  <div
-                                    className="report-finding-text"
-                                    style={{ marginTop: "10px" }}
-                                  >
-                                    {String(ev.caption)}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ))}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                            gap: "8px",
+                            marginTop: "12px",
+                          }}
+                        >
+                          <div className="badge">
+                            الإجراء التصحيحي: {safeText(finding.corrective_action, "غير مسجل")}
+                          </div>
+                          <div className="badge">
+                            المسؤول: {safeText(finding.responsible_party, "غير محدد")}
+                          </div>
+                          <div className="badge">
+                            الإغلاق المستهدف: {safeText(finding.target_close_date)}
+                          </div>
+                          <div className="badge">
+                            الإغلاق الفعلي: {safeText(finding.actual_close_date)}
                           </div>
                         </div>
-                      ) : null}
+
+                        {findingEvidence.length > 0 ? (
+                          <div style={{ marginTop: "14px" }}>
+                            <div style={{ fontSize: "14px", color: "#64748b", fontWeight: 700 }}>
+                              الأدلة المرتبطة بهذه المخالفة
+                            </div>
+
+                            <div
+                              style={{
+                                display: "grid",
+                                gap: "12px",
+                                marginTop: "12px",
+                              }}
+                            >
+                              {findingEvidence.map((ev: any) => (
+                                <div
+                                  key={String(ev.evidence_id)}
+                                  style={{
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: "16px",
+                                    padding: "12px",
+                                    background: "#fff",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: "8px",
+                                      flexWrap: "wrap",
+                                    }}
+                                  >
+                                    <span className="badge">
+                                      {safeText(ev.evidence_type, "evidence")}
+                                    </span>
+                                    {ev.file_name ? (
+                                      <span className="badge">{String(ev.file_name)}</span>
+                                    ) : null}
+                                  </div>
+
+                                  {looksLikeImage(
+                                    String(ev.file_url || ""),
+                                    String(ev.evidence_type || "")
+                                  ) ? (
+                                    <div style={{ marginTop: "12px" }}>
+                                      <img
+                                        src={String(ev.file_url || "")}
+                                        alt={String(ev.file_name || "Evidence")}
+                                        style={{
+                                          width: "100%",
+                                          maxHeight: "360px",
+                                          objectFit: "contain",
+                                          borderRadius: "12px",
+                                          border: "1px solid #e2e8f0",
+                                          background: "#fff",
+                                        }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div
+                                      style={{
+                                        marginTop: "12px",
+                                        border: "1px dashed #cbd5e1",
+                                        borderRadius: "14px",
+                                        padding: "12px",
+                                        color: "#64748b",
+                                        background: "#f8fafc",
+                                      }}
+                                    >
+                                      مرفق غير صوري: {safeText(ev.file_name, "ملف")}
+                                    </div>
+                                  )}
+
+                                  {ev.caption ? (
+                                    <div
+                                      style={{
+                                        fontSize: "14px",
+                                        color: "#334155",
+                                        lineHeight: 1.8,
+                                        marginTop: "10px",
+                                      }}
+                                    >
+                                      {String(ev.caption)}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section
+              style={{
+                marginTop: "16px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "24px",
+                background: "#ffffff",
+                padding: "16px",
+              }}
+            >
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>
+                توصيات فنية عامة
+              </div>
+              <div style={{ fontSize: "14px", color: "#64748b", marginTop: "6px" }}>
+                توصيات مبنية على نتائج الزيارة الحالية
+              </div>
+
+              <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
+                {generalRecommendations.map((rec, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "18px",
+                      padding: "14px",
+                      background: "#f8fafc",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                      توصية {index + 1}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="report-section">
-            <div className="report-section-title">توصيات فنية عامة</div>
-            <div className="report-section-subtitle">
-              توصيات مبنية على نتائج الزيارة الحالية
-            </div>
-
-            <div className="report-recommendation-list">
-              {generalRecommendations.map((rec, index) => (
-                <div key={index} className="report-recommendation-item">
-                  <div className="report-recommendation-title">
-                    توصية {index + 1}
+                    <div
+                      style={{
+                        color: "#475569",
+                        fontSize: "14px",
+                        lineHeight: 1.9,
+                        marginTop: "8px",
+                      }}
+                    >
+                      {rec}
+                    </div>
                   </div>
-                  <div className="report-recommendation-text">{rec}</div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
 
-          <section className="report-section">
-            <div className="report-section-title">حدود التقرير واعتماد المفتش</div>
-            <div className="report-section-subtitle">
-              ملاحظات تنظيمية وإدارية خاصة بالتقرير
-            </div>
-
-            <div className="report-note-box">
-              تم إعداد هذا التقرير اعتمادًا على البيانات المدخلة في المنصة خلال
-              الزيارة الحالية، ويعكس نتائج البنود والأنظمة المشمولة فقط ضمن نطاق
-              الزيارة المسجلة. لا يمثل هذا التقرير اعتمادًا نهائيًا إلا بعد المراجعة
-              الداخلية والتوقيع النظامي من الجهة المخولة.
-            </div>
-
-            <div className="report-signature-grid">
-              <div className="report-sign-box">
-                <div className="report-sign-title">إعداد التقرير</div>
-                <div className="report-sign-line">
-                  {signatoryName} {signatoryTitle ? `· ${signatoryTitle}` : ""}
-                </div>
+            <section
+              style={{
+                marginTop: "16px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "24px",
+                background: "#ffffff",
+                padding: "16px",
+              }}
+            >
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a" }}>
+                حدود التقرير واعتماد المفتش
+              </div>
+              <div style={{ fontSize: "14px", color: "#64748b", marginTop: "6px" }}>
+                ملاحظات تنظيمية وإدارية خاصة بالتقرير
               </div>
 
-              <div className="report-sign-box">
-                <div className="report-sign-title">مراجعة واعتماد</div>
-                <div className="report-sign-line">{stampNote}</div>
+              <div
+                style={{
+                  marginTop: "16px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "18px",
+                  padding: "14px",
+                  background: "#f8fafc",
+                  color: "#475569",
+                  fontSize: "14px",
+                  lineHeight: 1.9,
+                }}
+              >
+                تم إعداد هذا التقرير اعتمادًا على البيانات المدخلة في المنصة خلال
+                الزيارة الحالية، ويعكس نتائج البنود والأنظمة المشمولة فقط ضمن نطاق
+                الزيارة المسجلة. لا يمثل هذا التقرير اعتمادًا نهائيًا إلا بعد المراجعة
+                الداخلية والتوقيع النظامي من الجهة المخولة.
               </div>
-            </div>
-          </section>
 
-          <div className="report-footer-note">{footerNote}</div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                  gap: "12px",
+                  marginTop: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "18px",
+                    padding: "14px",
+                    background: "#fff",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>إعداد التقرير</div>
+                  <div style={{ color: "#475569", marginTop: "14px" }}>
+                    {signatoryName} {signatoryTitle ? `· ${signatoryTitle}` : ""}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "18px",
+                    padding: "14px",
+                    background: "#fff",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>مراجعة واعتماد</div>
+                  <div style={{ color: "#475569", marginTop: "14px" }}>{stampNote}</div>
+                </div>
+              </div>
+            </section>
+
+            <div
+              style={{
+                marginTop: "18px",
+                textAlign: "center",
+                color: "#64748b",
+                fontSize: "13px",
+              }}
+            >
+              {footerNote}
+            </div>
+          </div>
         </div>
       </div>
     </div>
