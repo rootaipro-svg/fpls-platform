@@ -101,7 +101,6 @@ function toneStyles(tone: "teal" | "amber" | "red" | "slate") {
 
   return map[tone];
 }
-
 function SectionHeader({
   title,
   subtitle,
@@ -110,10 +109,10 @@ function SectionHeader({
   subtitle?: string;
 }) {
   return (
-    <div style={{ marginBottom: "14px" }}>
+    <div style={{ marginBottom: "12px" }}>
       <div
         style={{
-          fontSize: "28px",
+          fontSize: "22px",
           lineHeight: 1.2,
           fontWeight: 900,
           color: "#0f172a",
@@ -124,10 +123,10 @@ function SectionHeader({
       {subtitle ? (
         <div
           style={{
-            marginTop: "8px",
-            fontSize: "15px",
+            marginTop: "6px",
+            fontSize: "14px",
             color: "#64748b",
-            lineHeight: 1.8,
+            lineHeight: 1.7,
           }}
         >
           {subtitle}
