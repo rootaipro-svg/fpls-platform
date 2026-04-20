@@ -50,7 +50,20 @@ function toneForStatus(value: any) {
 }
 
 
+function responseLabel(value: any) {
+  const normalized = String(value || "").trim().toLowerCase();
 
+  const map: Record<string, string> = {
+    compliant: "مطابق",
+    non_compliant: "غير مطابق",
+    not_applicable: "غير منطبق",
+    pass: "ناجح",
+    fail: "فاشل",
+    check: "يحتاج مراجعة",
+  };
+
+  return map[normalized] || safeText(value, "-");
+}
 export default async function VisitDetailPage({
   params,
   searchParams,
