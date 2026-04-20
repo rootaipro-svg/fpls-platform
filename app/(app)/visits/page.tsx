@@ -1,16 +1,20 @@
-import { ClipboardList, Plus } from "lucide-react";
+import { ClipboardList, Clock3, PlusCircle, UserRound } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PageHero } from "@/components/page-hero";
-import { MetricCard } from "@/components/metric-card";
-import { ActionCard } from "@/components/action-card";
+import {
+  ActionCard,
+  EmptyPanel,
+  MetricCard,
+  PageHero,
+  SectionCard,
+} from "@/components/admin-page-kit";
 import { VisitCard } from "@/components/visit-card";
-import { EmptyState } from "@/components/empty-state";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 import {
   getCurrentInspector,
   isVisitAssignedToInspector,
 } from "@/lib/current-inspector";
+import { isClosedVisitStatus } from "@/lib/display";
 
 function sortByDateDesc(rows: any[], field: string) {
   return [...rows].sort((a, b) => {
@@ -45,86 +49,104 @@ export default async function VisitsPage() {
       : visits;
 
   const sortedVisits = sortByDateDesc(visibleVisits, "planned_date");
-
-  const openCount = sortedVisits.filter((v: any) => {
-    const status = String(v.visit_status || "").toLowerCase();
-    return status !== "closed" && status !== "completed";
-  }).length;
-
-  const closedCount = sortedVisits.filter((v: any) => {
-    const status = String(v.visit_status || "").toLowerCase();
-    return status === "closed" || status === "completed";
-  }).length;
+  const openCount = sortedVisits.filter((v: any) => !isClosedVisitStatus(v.visit_status)).length;
+  const closedCount = sortedVisits.filter((v: any) => isClosedVisitStatus(v.visit_status)).length;
+  const unassignedCount =
+    actor.role === "inspector"
+      ? 0
+      : sortedVisits.filter(
+          (v: any) =>
+            !isClosedVisitStatus(v.visit_status) &&
+            !String(v.assigned_inspector_id || "").trim()
+        ).length;
 
   return (
     <AppShell>
       <PageHero
         eyebrow="إدارة كل الزيارات داخل النظام"
         title="الزيارات"
-        subtitle="متابعة الزيارات المفتوحة والمغلقة وسرعة الوصول إلى التنفيذ"
+        subtitle="متابعة الزيارات المجدولة والجارية والمغلقة"
+        icon={ClipboardList}
       />
 
-      <div className="space-y-4">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "12px",
+          marginTop: "14px",
+        }}
+      >
         <MetricCard
-          title="إجمالي الزيارات"
+          label="إجمالي الزيارات"
           value={sortedVisits.length}
-          subtitle="كل الزيارات المعروضة"
+          hint="كل الزيارات المعروضة"
           icon={ClipboardList}
           tone="teal"
         />
-
         <MetricCard
-          title="مفتوحة"
+          label="مفتوحة"
           value={openCount}
-          subtitle="قيد التنفيذ أو مجدولة"
-          icon={ClipboardList}
-          tone="slate"
+          hint="قيد التنفيذ أو مجدولة"
+          icon={Clock3}
+          tone="amber"
         />
-
         <MetricCard
-          title="مغلقة"
+          label="مغلقة"
           value={closedCount}
-          subtitle="تم إغلاقها"
+          hint="تم إغلاقها"
           icon={ClipboardList}
           tone="slate"
         />
+        <MetricCard
+          label="غير مسندة"
+          value={unassignedCount}
+          hint="تحتاج تعيين مفتش"
+          icon={UserRound}
+          tone={unassignedCount > 0 ? "amber" : "slate"}
+        />
+      </div>
 
-        {actor.role !== "inspector" ? (
-          <ActionCard
-            href="/visits/new"
+      {actor.role !== "inspector" ? (
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard
             title="إنشاء زيارة"
-            text="أنشئ زيارة جديدة واختر المبنى والأنظمة والمفتش المسؤول عنها."
-            buttonLabel="زيارة جديدة"
-            icon={Plus}
-          />
-        ) : null}
-
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 text-right">
-            <div className="text-3xl font-extrabold text-slate-950">
-              سجل المهام والزيارات
+            subtitle="أنشئ زيارة جديدة وحدد المبنى والأنظمة والمفتش المسؤول"
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "12px",
+              }}
+            >
+              <ActionCard href="/visits/new" title="زيارة جديدة" icon={PlusCircle} tone="teal" />
+              <ActionCard href="/unassigned-visits" title="توزيع المهام" icon={UserRound} tone="amber" />
             </div>
-            <div className="mt-2 text-base text-slate-500">
-              متابعة سريعة لأحدث الحركة التشغيلية
-            </div>
-          </div>
+          </SectionCard>
+        </div>
+      ) : null}
 
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="قائمة الزيارات"
+          subtitle="الوصول المباشر إلى كل زيارة وحالتها الحالية"
+        >
           {sortedVisits.length === 0 ? (
-            <EmptyState
+            <EmptyPanel
               title="لا توجد زيارات"
-              description="لم يتم إنشاء أي زيارة حتى الآن."
-              icon={ClipboardList}
+              description="بعد إنشاء زيارة جديدة ستظهر هنا مباشرة."
             />
           ) : (
-            <div className="space-y-4">
+            <div style={{ display: "grid", gap: "12px" }}>
               {sortedVisits.map((visit: any) => {
                 const facility = facilities.find(
                   (f: any) =>
-                    String(f.facility_id) === String(visit.facility_id || "")
+                    String(f.facility_id || "") === String(visit.facility_id || "")
                 );
                 const building = buildings.find(
                   (b: any) =>
-                    String(b.building_id) === String(visit.building_id || "")
+                    String(b.building_id || "") === String(visit.building_id || "")
                 );
 
                 return (
@@ -138,7 +160,7 @@ export default async function VisitsPage() {
               })}
             </div>
           )}
-        </section>
+        </SectionCard>
       </div>
     </AppShell>
   );
