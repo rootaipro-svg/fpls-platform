@@ -66,28 +66,28 @@ export default async function ReportsPage() {
         <MetricCard
           label="إجمالي التقارير"
           value={reportReadyVisits.length}
-          hint="كل الزيارات القابلة للعرض كتقرير"
+          hint="كل الزيارات المغلقة"
           icon={FileText}
           tone="teal"
         />
         <MetricCard
           label="جاهز للطباعة"
           value={reportReadyVisits.length}
-          hint="زيارات مغلقة مع نتائج"
+          hint="الزيارات الجاهزة للتقرير"
           icon={FileText}
           tone="slate"
         />
         <MetricCard
           label="مطابق"
           value={compliantCount}
-          hint="زيارات نتيجتها مطابقة"
+          hint="نتيجة مطابقة"
           icon={FileText}
           tone="teal"
         />
         <MetricCard
           label="مع ملاحظات"
           value={remarksCount}
-          hint="تحتاج مراجعة النتائج"
+          hint="تحتاج مراجعة"
           icon={FileText}
           tone="amber"
         />
@@ -96,7 +96,7 @@ export default async function ReportsPage() {
       <div style={{ marginTop: "14px" }}>
         <SectionCard
           title="قائمة التقارير"
-          subtitle="الوصول إلى الزيارات المغلقة الجاهزة للتقرير"
+          subtitle="الوصول السريع إلى الزيارات المغلقة"
         >
           {reportReadyVisits.length === 0 ? (
             <EmptyPanel
