@@ -1,26 +1,34 @@
 import Link from "next/link";
-import { Building2, Plus, QrCode } from "lucide-react";
+import { Boxes, Building2, ClipboardList, QrCode, Wrench } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PageHero } from "@/components/page-hero";
-import { MetricCard } from "@/components/metric-card";
-import { ActionCard } from "@/components/action-card";
-import { FacilityCard } from "@/components/facility-card";
-import { EmptyState } from "@/components/empty-state";
+import {
+  ActionCard,
+  EmptyPanel,
+  MetricCard,
+  PageHero,
+  SectionCard,
+  SoftBadge,
+} from "@/components/admin-page-kit";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
+import { isActiveRecord } from "@/lib/display";
+
+function facilityStatusLabel(value: any) {
+  return isActiveRecord(value) ? "نشط" : "غير نشط";
+}
 
 export default async function FacilitiesPage() {
   const actor = await requirePermission("facilities", "view");
 
-  const [facilities, buildings, buildingSystems, assets] = await Promise.all([
+  const [facilities, buildings, assets, buildingSystems] = await Promise.all([
     readSheet(actor.workbookId, "FACILITIES"),
     readSheet(actor.workbookId, "BUILDINGS"),
-    readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
     readSheet(actor.workbookId, "ASSETS"),
+    readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
   ]);
 
-  const activeFacilities = facilities.filter(
-    (f: any) => String(f.status || "active").toLowerCase() === "active"
+  const activeFacilitiesCount = facilities.filter((f: any) =>
+    isActiveRecord(f.status || f.facility_status)
   ).length;
 
   return (
@@ -29,123 +37,291 @@ export default async function FacilitiesPage() {
         eyebrow="إدارة المنشآت والمباني والأنظمة المرتبطة بها"
         title="المنشآت"
         subtitle="عرض موحد ومختصر للمنشآت المسجلة داخل النظام"
+        icon={Building2}
       />
 
-      <div className="space-y-4">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "12px",
+          marginTop: "14px",
+        }}
+      >
         <MetricCard
-          title="إجمالي المنشآت"
+          label="إجمالي المنشآت"
           value={facilities.length}
-          subtitle="كل المنشآت المسجلة"
+          hint="كل المنشآت المسجلة"
           icon={Building2}
           tone="teal"
         />
-
         <MetricCard
-          title="المنشآت النشطة"
-          value={activeFacilities}
-          subtitle="المنشآت الفعالة حاليًا"
+          label="المنشآت النشطة"
+          value={activeFacilitiesCount}
+          hint="المنشآت الجاهزة للتشغيل"
           icon={Building2}
+          tone="teal"
+        />
+        <MetricCard
+          label="المباني"
+          value={buildings.length}
+          hint="إجمالي المباني التابعة"
+          icon={ClipboardList}
           tone="slate"
         />
-
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 text-right">
-            <div className="text-3xl font-extrabold text-slate-950">
-              اختصارات سريعة
-            </div>
-            <div className="mt-2 text-base text-slate-500">
-              انتقال مباشر إلى لوحة الأصول وإدارة ملصقات QR
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Link
-              href="/assets"
-              className="rounded-[24px] border border-slate-200 bg-white p-5 text-center shadow-sm"
-            >
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 text-slate-600">
-                <Building2 size={28} />
-              </div>
-              <div className="mt-4 text-2xl font-extrabold text-slate-950">
-                فتح لوحة الأصول
-              </div>
-            </Link>
-
-            <Link
-              href="/assets/labels"
-              className="rounded-[24px] border border-slate-200 bg-white p-5 text-center shadow-sm"
-            >
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 text-slate-600">
-                <QrCode size={28} />
-              </div>
-              <div className="mt-4 text-2xl font-extrabold text-slate-950">
-                ملصقات QR
-              </div>
-            </Link>
-          </div>
-        </section>
-
-        <ActionCard
-          href="/facilities/new"
-          title="إضافة منشأة"
-          text="سجل منشأة جديدة داخل النظام مع بياناتها الأساسية."
-          buttonLabel="منشأة جديدة"
-          icon={Plus}
+        <MetricCard
+          label="الأصول"
+          value={assets.length}
+          hint="كل الأصول المسجلة"
+          icon={Boxes}
+          tone="slate"
         />
+      </div>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 text-right">
-            <div className="text-3xl font-extrabold text-slate-950">قائمة المنشآت</div>
-            <div className="mt-2 text-base text-slate-500">
-              عرض موحد ومختصر للمنشآت المسجلة داخل النظام
-            </div>
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="اختصارات سريعة"
+          subtitle="انتقال مباشر إلى لوحة الأصول وإدارة ملصقات QR"
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "12px",
+            }}
+          >
+            <ActionCard href="/assets" title="فتح لوحة الأصول" icon={Boxes} tone="slate" />
+            <ActionCard href="/assets/labels" title="ملصقات QR" icon={QrCode} tone="slate" />
           </div>
+        </SectionCard>
+      </div>
 
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="إضافة منشأة"
+          subtitle="سجل منشأة جديدة داخل النظام مع بياناتها الأساسية"
+        >
+          <Link
+            href="/facilities/new"
+            className="card"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "14px",
+              textDecoration: "none",
+              padding: "18px",
+            }}
+          >
+            <div
+              style={{
+                width: "76px",
+                height: "76px",
+                borderRadius: "22px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#14b8a6",
+                color: "#fff",
+                flexShrink: 0,
+                fontSize: "34px",
+                fontWeight: 900,
+              }}
+            >
+              +
+            </div>
+
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                }}
+              >
+                إضافة منشأة
+              </div>
+              <div
+                style={{
+                  marginTop: "8px",
+                  fontSize: "15px",
+                  lineHeight: 1.8,
+                  color: "#64748b",
+                }}
+              >
+                سجل منشأة جديدة داخل النظام مع بياناتها الأساسية
+              </div>
+            </div>
+          </Link>
+        </SectionCard>
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="قائمة المنشآت"
+          subtitle="عرض مختصر وسريع للمنشآت المسجلة"
+        >
           {facilities.length === 0 ? (
-            <EmptyState
+            <EmptyPanel
               title="لا توجد منشآت"
-              description="أضف أول منشأة لتبدأ العمل."
-              icon={Building2}
+              description="ابدأ بإضافة أول منشأة داخل النظام."
             />
           ) : (
-            <div className="space-y-4">
+            <div style={{ display: "grid", gap: "12px" }}>
               {facilities.map((facility: any) => {
-                const buildingCount = buildings.filter(
-                  (b: any) =>
-                    String(b.facility_id || "") === String(facility.facility_id || "")
-                ).length;
-
-                const facilityBuildingIds = new Set(
-                  buildings
-                    .filter(
-                      (b: any) =>
-                        String(b.facility_id || "") === String(facility.facility_id || "")
-                    )
-                    .map((b: any) => String(b.building_id))
+                const facilityId = String(facility.facility_id || "");
+                const facilityBuildings = buildings.filter(
+                  (b: any) => String(b.facility_id || "") === facilityId
+                );
+                const buildingIds = new Set(
+                  facilityBuildings.map((b: any) => String(b.building_id || ""))
                 );
 
-                const systemCount = buildingSystems.filter((s: any) =>
-                  facilityBuildingIds.has(String(s.building_id || ""))
-                ).length;
+                const facilityAssets = assets.filter(
+                  (a: any) => String(a.facility_id || "") === facilityId
+                );
 
-                const assetCount = assets.filter(
-                  (a: any) =>
-                    String(a.facility_id || "") === String(facility.facility_id || "")
-                ).length;
+                const facilitySystems = buildingSystems.filter((bs: any) =>
+                  buildingIds.has(String(bs.building_id || ""))
+                );
 
                 return (
-                  <FacilityCard
-                    key={String(facility.facility_id)}
-                    facility={facility}
-                    buildingCount={buildingCount}
-                    systemCount={systemCount}
-                    assetCount={assetCount}
-                  />
+                  <Link
+                    key={facilityId}
+                    href={`/facilities/${facilityId}`}
+                    className="card"
+                    style={{
+                      display: "block",
+                      textDecoration: "none",
+                      padding: "18px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: "22px",
+                            lineHeight: 1.25,
+                            fontWeight: 900,
+                            color: "#0f172a",
+                          }}
+                        >
+                          {String(
+                            facility.facility_name_ar ||
+                              facility.facility_name ||
+                              "منشأة بدون اسم"
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "6px",
+                            fontSize: "14px",
+                            color: "#64748b",
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          {String(facility.city || "-")}
+                          {facility.occupancy_type ? ` · ${String(facility.occupancy_type)}` : ""}
+                        </div>
+
+                        {facility.address ? (
+                          <div
+                            style={{
+                              marginTop: "4px",
+                              fontSize: "14px",
+                              color: "#64748b",
+                              lineHeight: 1.7,
+                            }}
+                          >
+                            {String(facility.address)}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <SoftBadge
+                        label={facilityStatusLabel(facility.status || facility.facility_status)}
+                        tone={isActiveRecord(facility.status || facility.facility_status) ? "teal" : "slate"}
+                      />
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                        gap: "10px",
+                        marginTop: "14px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          borderRadius: "16px",
+                          background: "#f8fafc",
+                          border: "1px solid #eef2f7",
+                          padding: "12px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: "14px", color: "#64748b" }}>المباني</div>
+                        <div style={{ marginTop: "6px", fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>
+                          {facilityBuildings.length}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          borderRadius: "16px",
+                          background: "#f8fafc",
+                          border: "1px solid #eef2f7",
+                          padding: "12px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: "14px", color: "#64748b" }}>الأنظمة</div>
+                        <div style={{ marginTop: "6px", fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>
+                          {facilitySystems.length}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          borderRadius: "16px",
+                          background: "#f8fafc",
+                          border: "1px solid #eef2f7",
+                          padding: "12px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: "14px", color: "#64748b" }}>الأصول</div>
+                        <div style={{ marginTop: "6px", fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>
+                          {facilityAssets.length}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "14px",
+                        fontSize: "14px",
+                        fontWeight: 800,
+                        color: "#0f766e",
+                      }}
+                    >
+                      عرض المنشأة
+                    </div>
+                  </Link>
                 );
               })}
             </div>
           )}
-        </section>
+        </SectionCard>
       </div>
     </AppShell>
   );
