@@ -1,9 +1,18 @@
+import Link from "next/link";
 import { FileText } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PageHero } from "@/components/page-hero";
-import { MetricCard } from "@/components/metric-card";
-import { VisitCard } from "@/components/visit-card";
-import { EmptyState } from "@/components/empty-state";
+import {
+  EmptyPanel,
+  MetricCard,
+  PageHero,
+  SectionCard,
+  SoftBadge,
+} from "@/components/admin-page-kit";
+import {
+  isClosedVisitStatus,
+  toSummaryResultLabel,
+  toVisitTypeLabel,
+} from "@/lib/display";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 
@@ -24,87 +33,170 @@ export default async function ReportsPage() {
     readSheet(actor.workbookId, "BUILDINGS"),
   ]);
 
-  const reportVisits = visits.filter((visit: any) => {
-    const status = String(visit.visit_status || "").toLowerCase();
-    return status === "closed" || status === "completed";
-  });
+  const reportReadyVisits = sortByDateDesc(
+    visits.filter((visit: any) => isClosedVisitStatus(visit.visit_status)),
+    "visit_date"
+  );
 
-  const readyCount = reportVisits.filter(
-    (v: any) => String(v.summary_result || "").trim().length > 0
+  const compliantCount = reportReadyVisits.filter(
+    (visit: any) => String(visit.summary_result || "").toLowerCase() === "compliant"
   ).length;
 
-  const sortedVisits = sortByDateDesc(reportVisits, "visit_date");
+  const remarksCount = reportReadyVisits.filter(
+    (visit: any) => String(visit.summary_result || "").toLowerCase() !== "compliant"
+  ).length;
 
   return (
     <AppShell>
       <PageHero
         eyebrow="التقارير الجاهزة للطباعة والعرض"
         title="التقارير"
-        subtitle="كل الزيارات المغلقة القابلة للعرض كتقارير"
+        subtitle="الزيارات المغلقة والجاهزة للعرض والتصدير"
+        icon={FileText}
       />
 
-      <div className="space-y-4">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "12px",
+          marginTop: "14px",
+        }}
+      >
         <MetricCard
-          title="إجمالي التقارير"
-          value={reportVisits.length}
-          subtitle="كل الزيارات القابلة للعرض كتقارير"
+          label="إجمالي التقارير"
+          value={reportReadyVisits.length}
+          hint="كل الزيارات القابلة للعرض كتقرير"
           icon={FileText}
           tone="teal"
         />
-
         <MetricCard
-          title="جاهز للطباعة"
-          value={readyCount}
-          subtitle="الزيارات المغلقة مع نتائج"
+          label="جاهز للطباعة"
+          value={reportReadyVisits.length}
+          hint="زيارات مغلقة مع نتائج"
           icon={FileText}
           tone="slate"
         />
-
         <MetricCard
-          title="مغلقة"
-          value={reportVisits.length}
-          subtitle="تم إغلاقها"
+          label="مطابق"
+          value={compliantCount}
+          hint="زيارات نتيجتها مطابقة"
           icon={FileText}
-          tone="slate"
+          tone="teal"
         />
+        <MetricCard
+          label="مع ملاحظات"
+          value={remarksCount}
+          hint="تحتاج مراجعة النتائج"
+          icon={FileText}
+          tone="amber"
+        />
+      </div>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 text-right">
-            <div className="text-3xl font-extrabold text-slate-950">
-              قائمة التقارير
-            </div>
-          </div>
-
-          {sortedVisits.length === 0 ? (
-            <EmptyState
-              title="لا توجد تقارير"
-              description="أغلق زيارة مع نتائج حتى تظهر هنا."
-              icon={FileText}
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="قائمة التقارير"
+          subtitle="الوصول إلى الزيارات المغلقة الجاهزة للتقرير"
+        >
+          {reportReadyVisits.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد تقارير جاهزة"
+              description="عند إغلاق زيارة مع نتائج ستظهر هنا."
             />
           ) : (
-            <div className="space-y-4">
-              {sortedVisits.map((visit: any) => {
+            <div style={{ display: "grid", gap: "12px" }}>
+              {reportReadyVisits.map((visit: any) => {
                 const facility = facilities.find(
                   (f: any) =>
-                    String(f.facility_id) === String(visit.facility_id || "")
-                );
-                const building = buildings.find(
-                  (b: any) =>
-                    String(b.building_id) === String(visit.building_id || "")
+                    String(f.facility_id || "") === String(visit.facility_id || "")
                 );
 
+                const building = buildings.find(
+                  (b: any) =>
+                    String(b.building_id || "") === String(visit.building_id || "")
+                );
+
+                const compliant =
+                  String(visit.summary_result || "").toLowerCase() === "compliant";
+
                 return (
-                  <VisitCard
+                  <Link
                     key={String(visit.visit_id)}
-                    visit={visit}
-                    facilityName={String(facility?.facility_name || "")}
-                    buildingName={String(building?.building_name || "")}
-                  />
+                    href={`/reports/${String(visit.visit_id)}`}
+                    className="card"
+                    style={{
+                      display: "block",
+                      padding: "16px",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: "17px",
+                            lineHeight: 1.45,
+                            fontWeight: 900,
+                            color: "#0f172a",
+                          }}
+                        >
+                          {toVisitTypeLabel(visit.visit_type)}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "5px",
+                            fontSize: "13px",
+                            color: "#64748b",
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          {String(facility?.facility_name || "منشأة غير محددة")}
+                          {building ? ` · ${String(building.building_name || "")}` : ""}
+                          {` · التاريخ: ${String(visit.visit_date || visit.planned_date || "-")}`}
+                        </div>
+                      </div>
+
+                      <SoftBadge
+                        label={compliant ? "مطابق" : "مع ملاحظات"}
+                        tone={compliant ? "teal" : "amber"}
+                      />
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        fontSize: "13px",
+                        color: "#64748b",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {toSummaryResultLabel(visit.summary_result)}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        fontSize: "13px",
+                        fontWeight: 800,
+                        color: "#0f766e",
+                      }}
+                    >
+                      فتح التقرير
+                    </div>
+                  </Link>
                 );
               })}
             </div>
           )}
-        </section>
+        </SectionCard>
       </div>
     </AppShell>
   );
