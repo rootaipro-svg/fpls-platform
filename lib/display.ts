@@ -3,6 +3,16 @@ export function safeText(value: any, fallback = "-") {
   return text.length > 0 ? text : fallback;
 }
 
+export function formatDateLabel(value: any) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return raw;
+
+  return dt.toISOString().slice(0, 10);
+}
+
 export function toSystemLabel(value: any) {
   const v = String(value || "").trim().toUpperCase();
 
@@ -121,6 +131,11 @@ export function toVisitStatusLabel(value: any) {
     closed: "مغلقة (Closed)",
     draft: "مسودة (Draft)",
     cancelled: "ملغاة (Cancelled)",
+    active: "نشط (Active)",
+    inactive: "غير نشط (Inactive)",
+    compliant: "مطابق (Compliant)",
+    non_compliant: "غير مطابق (Non-Compliant)",
+    not_applicable: "غير منطبق (Not Applicable)",
   };
 
   return map[v] || safeText(value);
@@ -153,6 +168,15 @@ export function toFindingSeverityLabel(value: any) {
   };
 
   return map[v] || safeText(value);
+}
+
+/* توافق مع الملفات القديمة */
+export function toStatusLabel(value: any) {
+  return toVisitStatusLabel(value);
+}
+
+export function toSeverityLabel(value: any) {
+  return toFindingSeverityLabel(value);
 }
 
 export function isClosedVisitStatus(value: any) {
