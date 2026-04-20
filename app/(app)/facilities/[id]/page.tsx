@@ -18,6 +18,7 @@ import {
   SectionCard,
   SoftBadge,
 } from "@/components/admin-page-kit";
+import FacilityStructureManager from "@/components/facility-structure-manager";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 import {
@@ -46,13 +47,14 @@ export default async function FacilityDetailPage({
   const { id } = await params;
   const actor = await requirePermission("facilities", "view");
 
-  const [facilities, buildings, buildingSystems, assets, visits, findings] =
+  const [facilities, buildings, buildingSystems, assets, visits, visitSystems, findings] =
     await Promise.all([
       readSheet(actor.workbookId, "FACILITIES"),
       readSheet(actor.workbookId, "BUILDINGS"),
       readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
       readSheet(actor.workbookId, "ASSETS"),
       readSheet(actor.workbookId, "VISITS"),
+      readSheet(actor.workbookId, "VISIT_SYSTEMS"),
       readSheet(actor.workbookId, "FINDINGS"),
     ]);
 
@@ -63,7 +65,10 @@ export default async function FacilityDetailPage({
   if (!facility) {
     return (
       <AppShell>
-        <SectionCard title="تفاصيل المنشأة" subtitle="تعذر العثور على المنشأة المطلوبة">
+        <SectionCard
+          title="تفاصيل المنشأة"
+          subtitle="تعذر العثور على المنشأة المطلوبة"
+        >
           <EmptyPanel
             title="المنشأة غير موجودة"
             description="قد يكون الرابط غير صحيح أو تم حذف المنشأة."
@@ -94,8 +99,20 @@ export default async function FacilityDetailPage({
     "planned_date"
   );
 
-  const openFindingsCount = findings.filter((row: any) =>
-    isOpenFindingStatus(row.closure_status || row.compliance_status || "")
+  const facilityVisitIds = new Set(
+    facilityVisits.map((row: any) => String(row.visit_id || ""))
+  );
+
+  const facilityVisitSystemIds = new Set(
+    visitSystems
+      .filter((row: any) => facilityVisitIds.has(String(row.visit_id || "")))
+      .map((row: any) => String(row.visit_system_id || ""))
+  );
+
+  const openFindingsCount = findings.filter(
+    (row: any) =>
+      facilityVisitSystemIds.has(String(row.visit_system_id || "")) &&
+      isOpenFindingStatus(row.closure_status || row.compliance_status || "")
   ).length;
 
   const activeBuildingsCount = facilityBuildings.filter((row: any) =>
@@ -104,7 +121,7 @@ export default async function FacilityDetailPage({
 
   const systemCodes = Array.from(
     new Set(
-      facilityAssets
+      facilitySystems
         .map((row: any) => String(row.system_code || "").trim())
         .filter(Boolean)
     )
@@ -123,8 +140,10 @@ export default async function FacilityDetailPage({
         }${facility.address ? ` · ${String(facility.address)}` : ""}`}
         icon={Building2}
         pills={[
-          toFacilityTypeLabel(facility.facility_type || facility.occupancy_type),
-          isActiveRecord(facility.status || facility.facility_status)
+          toFacilityTypeLabel(
+            facility.facility_type || facility.occupancy_classification
+          ),
+          isActiveRecord(facility.active_status || facility.status)
             ? "نشطة"
             : "غير نشطة",
         ]}
@@ -210,6 +229,19 @@ export default async function FacilityDetailPage({
 
       <div style={{ marginTop: "14px" }}>
         <SectionCard
+          title="إدارة المنشأة والمباني والأنظمة"
+          subtitle="تعديل مباشر وإضافة وأرشفة آمنة"
+        >
+          <FacilityStructureManager
+            facility={facility}
+            buildings={facilityBuildings}
+            systems={facilitySystems}
+          />
+        </SectionCard>
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
           title="ملخص سريع"
           subtitle="معلومات أساسية مهمة عن المنشأة"
         >
@@ -222,29 +254,63 @@ export default async function FacilityDetailPage({
           >
             <div className="card" style={{ padding: "14px" }}>
               <div style={{ fontSize: "13px", color: "#64748b" }}>المدينة</div>
-              <div style={{ marginTop: "6px", fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
                 {safeText(facility.city, "-")}
               </div>
             </div>
 
             <div className="card" style={{ padding: "14px" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>الحي / المنطقة</div>
-              <div style={{ marginTop: "6px", fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>
+                الحي / المنطقة
+              </div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
                 {safeText(facility.district || facility.region, "-")}
               </div>
             </div>
 
             <div className="card" style={{ padding: "14px" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>نوع المنشأة</div>
-              <div style={{ marginTop: "6px", fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
-                {toFacilityTypeLabel(facility.facility_type || facility.occupancy_type)}
+              <div style={{ fontSize: "13px", color: "#64748b" }}>
+                نوع المنشأة
+              </div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
+                {toFacilityTypeLabel(
+                  facility.facility_type || facility.occupancy_classification
+                )}
               </div>
             </div>
 
             <div className="card" style={{ padding: "14px" }}>
               <div style={{ fontSize: "13px", color: "#64748b" }}>الحالة</div>
-              <div style={{ marginTop: "6px", fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>
-                {isActiveRecord(facility.status || facility.facility_status)
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
+                {isActiveRecord(facility.active_status || facility.status)
                   ? "نشطة"
                   : "غير نشطة"}
               </div>
@@ -263,7 +329,13 @@ export default async function FacilityDetailPage({
               }}
             >
               <MapPin size={18} color="#64748b" />
-              <div style={{ fontSize: "14px", color: "#334155", lineHeight: 1.7 }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: "#334155",
+                  lineHeight: 1.7,
+                }}
+              >
                 {String(facility.address)}
               </div>
             </div>
@@ -274,12 +346,12 @@ export default async function FacilityDetailPage({
       <div style={{ marginTop: "14px" }}>
         <SectionCard
           title="الأنظمة الموجودة"
-          subtitle="الأنظمة المستنتجة من الأصول المسجلة داخل المنشأة"
+          subtitle="الأنظمة المستنتجة من الأنظمة المسجلة داخل المنشأة"
         >
           {systemCodes.length === 0 ? (
             <EmptyPanel
               title="لا توجد أنظمة مسجلة"
-              description="أضف أصولًا داخل المنشأة ليتم عرض الأنظمة هنا."
+              description="أضف نظامًا داخل أحد المباني ليتم عرضه هنا."
             />
           ) : (
             <div
@@ -291,71 +363,6 @@ export default async function FacilityDetailPage({
             >
               {systemCodes.map((code) => (
                 <SoftBadge key={code} label={toSystemLabel(code)} tone="slate" />
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="المباني التابعة"
-          subtitle="المباني المرتبطة بهذه المنشأة"
-        >
-          {facilityBuildings.length === 0 ? (
-            <EmptyPanel
-              title="لا توجد مبانٍ"
-              description="أضف مبنى جديدًا للمنشأة لعرضه هنا."
-            />
-          ) : (
-            <div style={{ display: "grid", gap: "10px" }}>
-              {facilityBuildings.map((building: any) => (
-                <div key={String(building.building_id || "")} className="card" style={{ padding: "14px" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "10px",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 800,
-                          color: "#0f172a",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {safeText(building.building_name, "مبنى")}
-                      </div>
-                      <div
-                        style={{
-                          marginTop: "4px",
-                          fontSize: "13px",
-                          color: "#64748b",
-                          lineHeight: 1.7,
-                        }}
-                      >
-                        {safeText(building.building_code || building.building_id, "-")}
-                      </div>
-                    </div>
-
-                    <SoftBadge
-                      label={
-                        isActiveRecord(building.status || building.building_status)
-                          ? "نشط"
-                          : "غير نشط"
-                      }
-                      tone={
-                        isActiveRecord(building.status || building.building_status)
-                          ? "teal"
-                          : "slate"
-                      }
-                    />
-                  </div>
-                </div>
               ))}
             </div>
           )}
@@ -378,10 +385,7 @@ export default async function FacilityDetailPage({
                 <ListRow
                   key={String(asset.asset_id || "")}
                   href={`/assets/${String(asset.asset_id || "")}`}
-                  title={safeText(
-                    asset.asset_name_ar || asset.asset_name,
-                    "أصل"
-                  )}
+                  title={safeText(asset.asset_name_ar || asset.asset_name, "أصل")}
                   subtitle={`${toSystemLabel(asset.system_code)} · ${safeText(
                     asset.location_note,
                     "بدون موقع محدد"
@@ -450,15 +454,33 @@ export default async function FacilityDetailPage({
             }}
           >
             <div className="card" style={{ padding: "14px", textAlign: "center" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>المباني النشطة</div>
-              <div style={{ marginTop: "6px", fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>
+                المباني النشطة
+              </div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "30px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                }}
+              >
                 {activeBuildingsCount}
               </div>
             </div>
 
             <div className="card" style={{ padding: "14px", textAlign: "center" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>المخالفات المفتوحة</div>
-              <div style={{ marginTop: "6px", fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>
+                المخالفات المفتوحة
+              </div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "30px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                }}
+              >
                 {openFindingsCount}
               </div>
             </div>
