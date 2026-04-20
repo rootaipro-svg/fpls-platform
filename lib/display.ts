@@ -8,37 +8,50 @@ export function toSystemLabel(value: any) {
 
   const map: Record<string, string> = {
     FP_DIESEL_PUMP: "مضخة حريق ديزل (Fire Pump - Diesel)",
-    FP-DIESEL-PUMP: "مضخة حريق ديزل (Fire Pump - Diesel)",
+    "FP-DIESEL-PUMP": "مضخة حريق ديزل (Fire Pump - Diesel)",
+
     FP_ELECTRIC_PUMP: "مضخة حريق كهربائية (Fire Pump - Electric)",
-    FP-ELECTRIC-PUMP: "مضخة حريق كهربائية (Fire Pump - Electric)",
+    "FP-ELECTRIC-PUMP": "مضخة حريق كهربائية (Fire Pump - Electric)",
+
     JOCKEY_PUMP: "مضخة جوكي (Jockey Pump)",
-    JOCKEY-PUMP: "مضخة جوكي (Jockey Pump)",
+    "JOCKEY-PUMP": "مضخة جوكي (Jockey Pump)",
+
     FIRE_ALARM: "إنذار الحريق (Fire Alarm)",
     FA: "إنذار الحريق (Fire Alarm)",
-    FA-ADDR: "إنذار حريق معنْون (Addressable Fire Alarm)",
-    FA-VOICE: "إنذار صوتي (Voice Evacuation)",
+    "FA-ADDR": "إنذار حريق معنْون (Addressable Fire Alarm)",
+    "FA-VOICE": "إنذار صوتي (Voice Evacuation)",
+
     SP_WET: "رش آلي مائي (Wet Sprinkler)",
-    SP-WET: "رش آلي مائي (Wet Sprinkler)",
+    "SP-WET": "رش آلي مائي (Wet Sprinkler)",
+
     SP_DRY: "رش آلي جاف (Dry Sprinkler)",
-    SP-DRY: "رش آلي جاف (Dry Sprinkler)",
+    "SP-DRY": "رش آلي جاف (Dry Sprinkler)",
+
     HOSE_REEL: "بكرة حريق (Hose Reel)",
-    HOSE-REEL: "بكرة حريق (Hose Reel)",
+    "HOSE-REEL": "بكرة حريق (Hose Reel)",
+
     FIRE_EXTINGUISHER: "طفاية حريق (Fire Extinguisher)",
-    FIRE-EXTINGUISHER: "طفاية حريق (Fire Extinguisher)",
+    "FIRE-EXTINGUISHER": "طفاية حريق (Fire Extinguisher)",
+
     FIRE_DOOR: "باب مقاوم للحريق (Fire Door)",
-    FIRE-DOOR: "باب مقاوم للحريق (Fire Door)",
+    "FIRE-DOOR": "باب مقاوم للحريق (Fire Door)",
+
     EMERGENCY_LIGHT: "إنارة طوارئ (Emergency Light)",
-    EMERGENCY-LIGHT: "إنارة طوارئ (Emergency Light)",
+    "EMERGENCY-LIGHT": "إنارة طوارئ (Emergency Light)",
+
     EXIT_SIGN: "لوحة مخرج (Exit Sign)",
-    EXIT-SIGN: "لوحة مخرج (Exit Sign)",
+    "EXIT-SIGN": "لوحة مخرج (Exit Sign)",
+
     FM200: "نظام غاز FM200 (FM200 System)",
     CLEAN_AGENT: "نظام إطفاء غازي (Clean Agent System)",
     KITCHEN_HOOD: "إطفاء مطبخ (Kitchen Hood Suppression)",
     FOAM_SYSTEM: "نظام رغوي (Foam System)",
+
     FIRE_PUMP: "مضخة حريق (Fire Pump)",
-    FIRE-PUMP: "مضخة حريق (Fire Pump)",
+    "FIRE-PUMP": "مضخة حريق (Fire Pump)",
+
     LANDING_VALVE: "محبس حريق (Landing Valve)",
-    LANDING-VALVE: "محبس حريق (Landing Valve)",
+    "LANDING-VALVE": "محبس حريق (Landing Valve)",
   };
 
   if (map[v]) return map[v];
