@@ -1,11 +1,19 @@
-import { ShieldCheck, UserRound } from "lucide-react";
+import {
+  ClipboardList,
+  FileCheck2,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { StatusBadge } from "@/components/status-badge";
-import { ComplianceProgress } from "@/components/compliance-progress";
-import { VisitSystemSummaryCard } from "@/components/visit-system-summary-card";
 import VisitExecutionForm from "@/components/visit-execution-form";
+import {
+  EmptyPanel,
+  ListRow,
+  MetricCard,
+  PageHero,
+  SectionCard,
+  SoftBadge,
+} from "@/components/admin-page-kit";
 import { requirePermission } from "@/lib/permissions";
 import {
   getCurrentInspector,
@@ -13,27 +21,46 @@ import {
 } from "@/lib/current-inspector";
 import { readSheet } from "@/lib/sheets";
 import { getChecklistForSystem } from "@/lib/checklist";
-import type { AssetBaselineRow } from "@/lib/asset-baseline";
+import {
+  safeText,
+  toSummaryResultLabel,
+  toSystemLabel,
+  toVisitStatusLabel,
+  isOpenFindingStatus,
+} from "@/lib/display";
 
-function toArabicVisitStatus(value: string) {
+function toneForSummary(value: any) {
   const v = String(value || "").toLowerCase();
-  if (v === "planned") return "مجدولة";
-  if (v === "in_progress") return "قيد التنفيذ";
-  if (v === "open") return "مفتوحة";
-  if (v === "closed") return "مغلقة";
-  if (v === "completed") return "مكتملة";
-  return value || "-";
+
+  if (v === "compliant") return "teal" as const;
+  if (v === "critical_findings" || v === "fail_critical") return "red" as const;
+  if (v === "non_compliant" || v === "pass_with_remarks") return "amber" as const;
+
+  return "slate" as const;
 }
 
-function toArabicSummaryResult(value: string) {
+function toneForStatus(value: any) {
   const v = String(value || "").toLowerCase();
-  if (v === "pending") return "قيد الانتظار";
-  if (v === "compliant") return "مطابق";
-  if (v === "non_compliant") return "غير مطابق";
-  if (v === "critical_findings") return "مخالفات حرجة";
-  if (v === "fail_critical") return "فشل حرج";
-  if (v === "pass_with_remarks") return "مقبول مع ملاحظات";
-  return value || "-";
+
+  if (v === "closed" || v === "completed") return "teal" as const;
+  if (v === "in_progress" || v === "inprogress" || v === "open") return "amber" as const;
+
+  return "slate" as const;
+}
+
+function responseLabel(value: any) {
+  const v = String(value || "").trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    compliant: "مطابق",
+    non_compliant: "غير مطابق",
+    not_applicable: "غير منطبق",
+    pass: "ناجح",
+    fail: "فاشل",
+    check: "يحتاج مراجعة",
+  };
+
+  return map[v] || safeText(value);
 }
 
 export default async function VisitDetailPage({
@@ -60,7 +87,6 @@ export default async function VisitDetailPage({
     inspectors,
     evidence,
     assets,
-    assetBaselinesRows,
   ] = await Promise.all([
     readSheet(workbookId, "VISITS"),
     readSheet(workbookId, "VISIT_SYSTEMS"),
@@ -71,11 +97,23 @@ export default async function VisitDetailPage({
     readSheet(workbookId, "INSPECTORS"),
     readSheet(workbookId, "EVIDENCE"),
     readSheet(workbookId, "ASSETS"),
-    readSheet(workbookId, "ASSET_BASELINES"),
   ]);
 
-  const visit = visits.find((v: any) => String(v.visit_id) === id);
-  const systems = visitSystems.filter((vs: any) => String(vs.visit_id) === id);
+  const visit = visits.find((v: any) => String(v.visit_id) === String(id));
+  const systems = visitSystems.filter((vs: any) => String(vs.visit_id) === String(id));
+
+  if (!visit) {
+    return (
+      <AppShell>
+        <SectionCard title="تفاصيل الزيارة" subtitle="تعذر العثور على الزيارة المطلوبة">
+          <EmptyPanel
+            title="الزيارة غير موجودة"
+            description="قد يكون الرابط غير صحيح أو تم حذف الزيارة."
+          />
+        </SectionCard>
+      </AppShell>
+    );
+  }
 
   const currentInspector =
     actor.role === "inspector"
@@ -86,15 +124,15 @@ export default async function VisitDetailPage({
     if (!currentInspector) {
       return (
         <AppShell>
-          <PageHeader
+          <SectionCard
             title="تفاصيل الزيارة"
             subtitle="لا يوجد ملف مفتش مرتبط بهذا الحساب"
-          />
-          <EmptyState
-            title="تعذر فتح الزيارة"
-            description="اربط هذا الحساب بسجل مفتش داخل INSPECTORS أولًا."
-            icon={UserRound}
-          />
+          >
+            <EmptyPanel
+              title="تعذر فتح الزيارة"
+              description="اربط هذا الحساب بسجل مفتش داخل INSPECTORS أولًا."
+            />
+          </SectionCard>
         </AppShell>
       );
     }
@@ -102,12 +140,12 @@ export default async function VisitDetailPage({
     if (!isVisitAssignedToInspector(visit, String(currentInspector.inspector_id))) {
       return (
         <AppShell>
-          <PageHeader title="تفاصيل الزيارة" subtitle="غير مصرح" />
-          <EmptyState
-            title="هذه الزيارة ليست مخصصة لك"
-            description="يمكنك فقط الوصول إلى الزيارات المعيّنة لحسابك."
-            icon={UserRound}
-          />
+          <SectionCard title="تفاصيل الزيارة" subtitle="غير مصرح">
+            <EmptyPanel
+              title="هذه الزيارة ليست مخصصة لك"
+              description="يمكنك فقط الوصول إلى الزيارات المعيّنة لحسابك."
+            />
+          </SectionCard>
         </AppShell>
       );
     }
@@ -125,17 +163,17 @@ export default async function VisitDetailPage({
     (i: any) => String(i.inspector_id) === String(visit?.assigned_inspector_id || "")
   );
 
-  const visitSystemIds = new Set(systems.map((s: any) => String(s.visit_system_id)));
+  const visitSystemIds = new Set(systems.map((s: any) => String(s.visit_system_id || "")));
   const visitBuildingSystemIds = new Set(
     systems.map((s: any) => String(s.building_system_id || ""))
   );
 
   const responseRows = responses.filter((r: any) =>
-    visitSystemIds.has(String(r.visit_system_id))
+    visitSystemIds.has(String(r.visit_system_id || ""))
   );
 
   const findingRows = findings.filter((f: any) =>
-    visitSystemIds.has(String(f.visit_system_id))
+    visitSystemIds.has(String(f.visit_system_id || ""))
   );
 
   const visitEvidence = evidence.filter(
@@ -172,39 +210,6 @@ export default async function VisitDetailPage({
     }
   }
 
-  const activeAssetBaselines: AssetBaselineRow[] = activeAsset
-    ? assetBaselinesRows
-        .filter(
-          (row: any) =>
-            String(row.asset_id || "") === String(activeAsset.asset_id || "") &&
-            String(row.is_active || "true").toLowerCase() !== "false"
-        )
-        .map((row: any) => ({
-          baseline_id: String(row.baseline_id || ""),
-          tenant_id: String(row.tenant_id || ""),
-          asset_id: String(row.asset_id || ""),
-          system_code: String(row.system_code || ""),
-          baseline_profile_code: String(row.baseline_profile_code || ""),
-          metric_code: String(row.metric_code || ""),
-          metric_name_ar: String(row.metric_name_ar || ""),
-          metric_unit: String(row.metric_unit || ""),
-          ref_value: String(row.ref_value || ""),
-          ref_value_2: String(row.ref_value_2 || ""),
-          ref_value_3: String(row.ref_value_3 || ""),
-          low_limit: String(row.low_limit || ""),
-          high_limit: String(row.high_limit || ""),
-          allowed_dev_abs: String(row.allowed_dev_abs || ""),
-          allowed_dev_pct: String(row.allowed_dev_pct || ""),
-          compare_mode: String(row.compare_mode || ""),
-          baseline_date: String(row.baseline_date || ""),
-          baseline_source: String(row.baseline_source || ""),
-          is_active: String(row.is_active || "true").toLowerCase() !== "false",
-          notes: String(row.notes || ""),
-          created_at: String(row.created_at || ""),
-          updated_at: String(row.updated_at || ""),
-        }))
-    : [];
-
   const compliantCount = responseRows.filter(
     (r: any) => String(r.response_value || "").toLowerCase() === "compliant"
   ).length;
@@ -217,28 +222,22 @@ export default async function VisitDetailPage({
     (r: any) => String(r.response_value || "").toLowerCase() === "not_applicable"
   ).length;
 
-  const scoredTotal = compliantCount + nonCompliantCount;
-  const overallCompliance =
-    scoredTotal > 0 ? Math.round((compliantCount / scoredTotal) * 100) : 0;
-
-  const openFindingsCount = findingRows.filter(
-    (f: any) =>
-      String(f.closure_status || f.compliance_status || "").toLowerCase() !==
-      "closed"
+  const openFindingsCount = findingRows.filter((f: any) =>
+    isOpenFindingStatus(f.closure_status || f.compliance_status || "")
   ).length;
 
   const executionItemsNested = await Promise.all(
     systems.map(async (system: any) => {
       const items = await getChecklistForSystem(
         workbookId,
-        String(system.system_code)
+        String(system.system_code || "")
       );
 
       return items.map((item: any) => ({
-        visit_system_id: String(system.visit_system_id),
-        building_system_id: String(system.building_system_id),
-        system_code: String(system.system_code),
-        checklist_item_id: String(item.checklist_item_id),
+        visit_system_id: String(system.visit_system_id || ""),
+        building_system_id: String(system.building_system_id || ""),
+        system_code: String(system.system_code || ""),
+        checklist_item_id: String(item.checklist_item_id || ""),
         item_code: String(item.item_code || item.checklist_item_id || ""),
         section_name: String(item.section_name || ""),
         question_text: String(item.question_text || ""),
@@ -265,8 +264,8 @@ export default async function VisitDetailPage({
       return !rowAssetId || rowAssetId === String(activeAsset.asset_id);
     })
     .map((r: any) => ({
-      visit_system_id: String(r.visit_system_id),
-      checklist_item_id: String(r.checklist_item_id),
+      visit_system_id: String(r.visit_system_id || ""),
+      checklist_item_id: String(r.checklist_item_id || ""),
       response_value: String(r.response_value || ""),
       finding_severity: String(r.finding_severity || ""),
       comments: String(r.comments || ""),
@@ -279,152 +278,433 @@ export default async function VisitDetailPage({
       auto_judgement: String(r.auto_judgement || ""),
     }));
 
-  const visitStatusRaw = String(visit?.visit_status || "planned").toLowerCase();
-  const isReadOnly =
-    visitStatusRaw === "closed" || visitStatusRaw === "completed";
-
-  const reportReady = isReadOnly && responseRows.length > 0;
+  const reportReady =
+    String(visit?.visit_status || "").toLowerCase() === "closed" ||
+    String(visit?.visit_status || "").toLowerCase() === "completed";
 
   return (
     <AppShell>
-      <PageHeader
-        title="تفاصيل الزيارة"
-        subtitle={`${String(facility?.facility_name || "منشأة غير محددة")}${
-          building ? ` · ${building.building_name}` : ""
-        }`}
+      <PageHero
+        eyebrow="تفاصيل الزيارة والتنفيذ الفعلي والنتائج"
+        title={safeText(
+          facility?.facility_name,
+          "منشأة غير محددة"
+        )}
+        subtitle={`${building ? `${String(building.building_name || "")} · ` : ""}${String(
+          visit.planned_date || visit.visit_date || "-"
+        )}`}
+        icon={ClipboardList}
+        pills={[
+          toVisitStatusLabel(visit?.visit_status),
+          toSummaryResultLabel(visit?.summary_result || "pending"),
+        ]}
       />
 
-      <div className="badge-wrap" style={{ marginBottom: "14px" }}>
-        <span className="badge">الحالة: {toArabicVisitStatus(visitStatusRaw)}</span>
-        <span className="badge">
-          التاريخ: {String(visit?.planned_date || visit?.visit_date || "-")}
-        </span>
-        <span className="badge">النظام: {systems[0]?.system_code || "-"}</span>
-      </div>
-
       {activeAsset ? (
-        <section className="card" style={{ marginBottom: "14px" }}>
-          <div className="section-title">الأصل الجاري فحصه</div>
-          <div className="section-subtitle">
-            {String(activeAsset.asset_name_ar || activeAsset.asset_name || "أصل")}
-            {activeAsset.asset_code ? ` · ${String(activeAsset.asset_code)}` : ""}
-            {activeAsset.location_note ? ` · ${String(activeAsset.location_note)}` : ""}
-          </div>
-        </section>
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard
+            title="الأصل الجاري فحصه"
+            subtitle="هذه الزيارة مفتوحة على أصل محدد داخل النظام"
+          >
+            <div className="card" style={{ padding: "14px" }}>
+              <div
+                style={{
+                  fontSize: "17px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  lineHeight: 1.5,
+                }}
+              >
+                {safeText(activeAsset.asset_name_ar || activeAsset.asset_name, "أصل")}
+              </div>
+
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "13px",
+                  color: "#64748b",
+                  lineHeight: 1.7,
+                }}
+              >
+                {safeText(activeAsset.asset_code, "-")} ·{" "}
+                {toSystemLabel(activeAsset.system_code)}
+              </div>
+
+              {activeAsset.location_note ? (
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "13px",
+                    color: "#64748b",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {String(activeAsset.location_note)}
+                </div>
+              ) : null}
+            </div>
+          </SectionCard>
+        </div>
       ) : null}
 
-      {systems.length > 0 ? (
-        <VisitExecutionForm
-          visitId={String(id)}
-          visitSystems={systems.map((s: any) => ({
-            visit_system_id: String(s.visit_system_id),
-            building_system_id: String(s.building_system_id),
-            system_code: String(s.system_code),
-          }))}
-          checklistItems={executionItems}
-          existingResponses={existingResponses}
-          existingEvidence={visitEvidence.map((row: any) => ({
-            evidence_id: String(row.evidence_id || ""),
-            visit_id: String(row.visit_id || ""),
-            visit_system_id: String(row.visit_system_id || ""),
-            checklist_item_id: String(row.checklist_item_id || ""),
-            asset_id: String(row.asset_id || ""),
-            evidence_type: String(row.evidence_type || ""),
-            file_url: String(row.file_url || ""),
-            file_name: String(row.file_name || ""),
-            caption: String(row.caption || ""),
-            taken_by: String(row.taken_by || ""),
-            taken_at: String(row.taken_at || ""),
-          }))}
-          activeAsset={activeAsset}
-          assetBaselines={activeAssetBaselines}
-          isReadOnly={isReadOnly}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "12px",
+          marginTop: "14px",
+        }}
+      >
+        <MetricCard
+          label="الأنظمة"
+          value={systems.length}
+          hint="عدد الأنظمة داخل الزيارة"
+          icon={ShieldCheck}
+          tone="teal"
         />
-      ) : (
-        <section className="card">
-          <EmptyState
-            title="لا توجد أنظمة مرتبطة"
-            description="لم يتم ربط أي نظام بهذه الزيارة بعد."
-            icon={ShieldCheck}
-          />
-        </section>
-      )}
+        <MetricCard
+          label="مطابق"
+          value={compliantCount}
+          hint="عدد البنود المطابقة"
+          icon={ClipboardList}
+          tone="teal"
+        />
+        <MetricCard
+          label="غير مطابق"
+          value={nonCompliantCount}
+          hint="بنود تحتاج معالجة"
+          icon={ClipboardList}
+          tone={nonCompliantCount > 0 ? "amber" : "slate"}
+        />
+        <MetricCard
+          label="المخالفات"
+          value={openFindingsCount}
+          hint="مفتوحة وتحتاج متابعة"
+          icon={FileCheck2}
+          tone={openFindingsCount > 0 ? "red" : "slate"}
+        />
+      </div>
 
-      <section className="card" style={{ marginTop: "14px" }}>
-        <details>
-          <summary
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="ملخص الزيارة"
+          subtitle="الحالة العامة والمفتش والنتيجة الحالية"
+        >
+          <div
             style={{
-              cursor: "pointer",
-              listStyle: "none",
-              fontWeight: 800,
-              color: "#0f172a",
-              padding: "4px 0",
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "10px",
             }}
           >
-            ملخص الزيارة والتقرير
-          </summary>
+            <div className="card" style={{ padding: "14px" }}>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>الحالة</div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
+                {toVisitStatusLabel(visit?.visit_status)}
+              </div>
+            </div>
 
-          <div style={{ marginTop: "12px" }}>
-            <div className="badge-wrap" style={{ marginBottom: "12px" }}>
-              <StatusBadge status={String(visit?.visit_status || "planned")} />
-              <span className="badge">
-                النتيجة: {toArabicSummaryResult(String(visit?.summary_result || "pending"))}
-              </span>
-              <span className="badge">
-                المفتش:{" "}
-                {String(
+            <div className="card" style={{ padding: "14px" }}>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>النتيجة</div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
+                {toSummaryResultLabel(visit?.summary_result || "pending")}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: "14px" }}>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>المفتش</div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  lineHeight: 1.6,
+                }}
+              >
+                {safeText(
                   assignedInspector?.full_name_ar ||
                     assignedInspector?.full_name ||
-                    assignedInspector?.email ||
-                    "غير محدد"
+                    assignedInspector?.email,
+                  "غير محدد"
                 )}
-              </span>
+              </div>
             </div>
 
-            <ComplianceProgress value={overallCompliance} />
-
-            <div className="badge-wrap" style={{ marginTop: "12px" }}>
-              <span className="badge">مطابق: {compliantCount}</span>
-              <span className="badge">غير مطابق: {nonCompliantCount}</span>
-              <span className="badge">غير منطبق: {notApplicableCount}</span>
-              <span className="badge">المخالفات المفتوحة: {openFindingsCount}</span>
-              <span className="badge">
-                الاستحقاق التالي: {String(visit?.next_due_date || "-")}
-              </span>
-              <span className="badge">
-                حالة التقرير: {reportReady ? "جاهز" : "غير جاهز"}
-              </span>
+            <div className="card" style={{ padding: "14px" }}>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>التاريخ</div>
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "16px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                }}
+              >
+                {String(visit?.planned_date || visit?.visit_date || "-")}
+              </div>
             </div>
           </div>
-        </details>
-      </section>
 
-      {systems.length > 0 ? (
-        <section className="card" style={{ marginTop: "14px" }}>
-          <details>
-            <summary
+          <div style={{ marginTop: "10px" }}>
+            <SoftBadge
+              label={`غير منطبق: ${notApplicableCount}`}
+              tone="slate"
+            />
+          </div>
+
+          <div
+            className="card"
+            style={{
+              padding: "14px",
+              marginTop: "10px",
+            }}
+          >
+            <div style={{ fontSize: "13px", color: "#64748b" }}>ملاحظات الزيارة</div>
+            <div
               style={{
-                cursor: "pointer",
-                listStyle: "none",
-                fontWeight: 800,
-                color: "#0f172a",
-                padding: "4px 0",
+                marginTop: "6px",
+                fontSize: "14px",
+                color: "#334155",
+                lineHeight: 1.8,
               }}
             >
-              نتائج الأنظمة
-            </summary>
+              {safeText(visit?.notes, "لا توجد ملاحظات مسجلة لهذه الزيارة.")}
+            </div>
+          </div>
 
-            <div className="system-summary-grid" style={{ marginTop: "12px" }}>
+          <div style={{ marginTop: "10px" }}>
+            <SoftBadge
+              label={reportReady ? "جاهزة للتقرير" : "غير جاهزة للتقرير"}
+              tone={reportReady ? "teal" : "amber"}
+            />
+          </div>
+        </SectionCard>
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="الأنظمة داخل الزيارة"
+          subtitle="الأنظمة المشمولة ضمن هذه الزيارة"
+        >
+          {systems.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد أنظمة"
+              description="لم يتم ربط أي نظام بهذه الزيارة بعد."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }}>
               {systems.map((system: any) => (
-                <VisitSystemSummaryCard
-                  key={String(system.visit_system_id)}
-                  system={system}
+                <ListRow
+                  key={String(system.visit_system_id || "")}
+                  href={`/visits/${String(id)}`}
+                  title={toSystemLabel(system.system_code)}
+                  subtitle={`النظام: ${safeText(system.system_code, "-")}`}
+                  rightBadge={
+                    <SoftBadge
+                      label={safeText(system.status || system.result_summary, "system")}
+                      tone={toneForSummary(system.result_summary || system.status)}
+                    />
+                  }
                 />
               ))}
             </div>
-          </details>
-        </section>
+          )}
+        </SectionCard>
+      </div>
+
+      {systems.length > 0 ? (
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard
+            title="تنفيذ الزيارة"
+            subtitle="تسجيل النتائج الفعلية لكل بند"
+          >
+            <VisitExecutionForm
+              visitId={String(id)}
+              visitSystems={
+                systems.map((s: any) => ({
+                  visit_system_id: String(s.visit_system_id || ""),
+                  building_system_id: String(s.building_system_id || ""),
+                  system_code: String(s.system_code || ""),
+                })) as any
+              }
+              checklistItems={executionItems as any}
+              existingResponses={existingResponses as any}
+              existingEvidence={
+                visitEvidence.map((row: any) => ({
+                  evidence_id: String(row.evidence_id || ""),
+                  visit_id: String(row.visit_id || ""),
+                  visit_system_id: String(row.visit_system_id || ""),
+                  checklist_item_id: String(row.checklist_item_id || ""),
+                  asset_id: String(row.asset_id || ""),
+                  evidence_type: String(row.evidence_type || ""),
+                  file_url: String(row.file_url || ""),
+                  file_name: String(row.file_name || ""),
+                  caption: String(row.caption || ""),
+                  taken_by: String(row.taken_by || ""),
+                  taken_at: String(row.taken_at || ""),
+                })) as any
+              }
+              activeAsset={activeAsset as any}
+            />
+          </SectionCard>
+        </div>
       ) : null}
+
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="آخر النتائج المسجلة"
+          subtitle="أحدث الإجابات التي تم حفظها في هذه الزيارة"
+        >
+          {responseRows.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد نتائج"
+              description="عند تنفيذ الفحص ستظهر النتائج هنا."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }}>
+              {responseRows.slice(0, 8).map((row: any) => (
+                <ListRow
+                  key={String(row.response_id || "")}
+                  href={`/visits/${String(id)}`}
+                  title={responseLabel(row.response_value)}
+                  subtitle={safeText(row.comments, "بدون ملاحظات")}
+                  rightBadge={
+                    <SoftBadge
+                      label={safeText(row.response_at || row.updated_at, "-")}
+                      tone={
+                        String(row.response_value || "").toLowerCase() === "non_compliant"
+                          ? "amber"
+                          : "teal"
+                      }
+                    />
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="المخالفات الناتجة"
+          subtitle="المخالفات المرتبطة بهذه الزيارة"
+        >
+          {findingRows.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد مخالفات"
+              description="لم يتم تسجيل مخالفات على هذه الزيارة بعد."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }}>
+              {findingRows.slice(0, 8).map((finding: any) => (
+                <ListRow
+                  key={String(finding.finding_id || "")}
+                  href={`/findings/${String(finding.finding_id || "")}`}
+                  title={safeText(finding.title, "مخالفة")}
+                  subtitle={safeText(finding.description, "بدون وصف")}
+                  rightBadge={
+                    <SoftBadge
+                      label={toFindingSeverityLabel(finding.severity)}
+                      tone={
+                        String(finding.severity || "").toLowerCase() === "critical"
+                          ? "red"
+                          : String(finding.severity || "").toLowerCase() === "major"
+                          ? "amber"
+                          : "slate"
+                      }
+                    />
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="قائمة الفحص المرجعية"
+          subtitle="البنود المرجعية المرتبطة بالأنظمة داخل هذه الزيارة"
+        >
+          {executionItems.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد قائمة فحص"
+              description="لم يتم العثور على Checklist للأنظمة المرتبطة بهذه الزيارة."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }}>
+              {executionItems.slice(0, 10).map((item: any) => (
+                <div
+                  key={`${item.visit_system_id}-${item.checklist_item_id}`}
+                  className="card"
+                  style={{ padding: "14px" }}
+                >
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#64748b",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {toSystemLabel(item.system_code)} ·{" "}
+                    {safeText(item.section_name, "Section")}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "6px",
+                      fontSize: "16px",
+                      fontWeight: 800,
+                      color: "#0f172a",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {safeText(item.question_text, "-")}
+                  </div>
+
+                  {item.acceptance_criteria ? (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        fontSize: "13px",
+                        color: "#64748b",
+                        lineHeight: 1.8,
+                      }}
+                    >
+                      {String(item.acceptance_criteria)}
+                    </div>
+                  ) : null}
+
+                  {item.ui_hint_ar ? (
+                    <div style={{ marginTop: "8px" }}>
+                      <SoftBadge
+                        label={String(item.ui_hint_ar)}
+                        tone="slate"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </div>
     </AppShell>
   );
 }
