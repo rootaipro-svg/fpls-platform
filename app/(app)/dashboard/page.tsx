@@ -228,40 +228,7 @@ function KpiCard({
   );
 }
 
-function ActionTile({
-  href,
-  title,
-  icon: Icon,
-  tone = "slate",
-}: {
-  href: string;
-  title: string;
-  icon: any;
-  tone?: "teal" | "amber" | "red" | "slate";
-}) {
-  const theme = toneStyles(tone);
-
-  return (
-    <Link
-      href={href}
-      className="card"
-      style={{
-        minHeight: "182px",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        textDecoration: "none",
-      }}
-    >
-      <div
-        style={{
-          width: "72px",
-          height: "72px",
-          borderRadius: "22px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: theme.iconBg,
+theme.iconBg,
           color: theme.iconColor,
           border: theme.iconBorder,
         }}
@@ -341,7 +308,122 @@ function ActivityRow({
   );
 }
 
-function DueRow({
+function ActionTile({
+  href,
+  title,
+  icon: Icon,
+  tone = "slate",
+}: {
+  href: string;
+  title: string;
+  icon: any;
+  tone?: "teal" | "amber" | "red" | "slate";
+}) {
+  const theme = toneStyles(tone);
+
+  return (
+    <Link
+      href={href}
+      className="card"
+      style={{
+        minHeight: "150px",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        textDecoration: "none",
+        padding: "18px",
+      }}
+    >
+      <div
+        style={{
+          width: "60px",
+          height: "60px",
+          borderRadius: "18px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: theme.iconBg,
+          color: theme.iconColor,
+          border: theme.iconBorder,
+        }}
+      >
+        <Icon size={28} />
+      </div>
+
+      <div
+        style={{
+          marginTop: "14px",
+          fontSize: "16px",
+          lineHeight: 1.45,
+          fontWeight: 900,
+          color: "#0f172a",
+        }}
+      >
+        {title}
+      </div>
+    </Link>
+  );
+}
+
+function ActivityRow({
+  href,
+  title,
+  subline,
+  status,
+}: {
+  href: string;
+  title: string;
+  subline: string;
+  status: string;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "10px",
+        padding: "14px 16px",
+        borderRadius: "18px",
+        border: "1px solid #e2e8f0",
+        background: "#fff",
+        textDecoration: "none",
+      }}
+    >
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontSize: "16px",
+            lineHeight: 1.4,
+            fontWeight: 800,
+            color: "#0f172a",
+          }}
+        >
+          {title}
+        </div>
+
+        <div
+          style={{
+            marginTop: "4px",
+            fontSize: "13px",
+            color: "#64748b",
+            lineHeight: 1.6,
+          }}
+        >
+          {subline}
+        </div>
+      </div>
+
+      <div style={{ flexShrink: 0 }}>
+        <StatusBadge status={status} />
+      </div>
+    </Link>
+  );
+}
+
+
+      function DueRow({
   href,
   title,
   systemCode,
@@ -382,9 +464,9 @@ function DueRow({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: "12px",
-        padding: "16px 18px",
-        borderRadius: "22px",
+        gap: "10px",
+        padding: "14px 16px",
+        borderRadius: "18px",
         border: "1px solid #e2e8f0",
         background: "#fff",
         textDecoration: "none",
@@ -393,9 +475,9 @@ function DueRow({
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            fontSize: "18px",
-            lineHeight: 1.45,
-            fontWeight: 900,
+            fontSize: "16px",
+            lineHeight: 1.4,
+            fontWeight: 800,
             color: "#0f172a",
           }}
         >
@@ -403,10 +485,10 @@ function DueRow({
         </div>
         <div
           style={{
-            marginTop: "6px",
-            fontSize: "14px",
+            marginTop: "4px",
+            fontSize: "13px",
             color: "#64748b",
-            lineHeight: 1.7,
+            lineHeight: 1.6,
           }}
         >
           {systemCode} · الاستحقاق: {dueDate}
@@ -415,12 +497,12 @@ function DueRow({
 
       <div
         style={{
-          padding: "10px 14px",
+          padding: "8px 12px",
           borderRadius: "999px",
           background: bg,
           color: tone,
           border,
-          fontSize: "14px",
+          fontSize: "13px",
           fontWeight: 800,
           flexShrink: 0,
         }}
