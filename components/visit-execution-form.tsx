@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChecklistItemEvidence from "@/components/checklist-item-evidence";
 import { evaluateSmartChecklist } from "@/lib/smart-evaluation";
-
+import { safeText, toSystemLabel } from "@/lib/display";
 type VisitSystem = {
   visit_system_id: string;
   building_system_id: string;
