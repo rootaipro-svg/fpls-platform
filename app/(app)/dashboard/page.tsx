@@ -727,15 +727,15 @@ export default async function DashboardPage() {
             <span className="badge">الحالة: متصل</span>
           </div>
         </section>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "14px",
-            marginTop: "14px",
-          }}
-        >
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "12px",
+    marginTop: "12px",
+  }}
+>
+        
           <KpiCard
             label="زياراتي"
             value={visibleVisits.length}
@@ -878,11 +878,15 @@ export default async function DashboardPage() {
           title="لوحة التحكم"
           subtitle="إدارة العمليات المركزية والوصول السريع لأهم وظائف التشغيل والإدارة"
         />
-
-        <div className="badge-wrap" style={{ marginTop: "12px" }}>
-          <span className="badge">تاريخ اليوم: {todayIso}</span>
-          <span className="badge">حالة النظام: متصل</span>
-        </div>
+<div className="badge-wrap" style={{ marginTop: "10px", gap: "8px" }}>
+  <span className="badge" style={{ fontSize: "13px", padding: "8px 12px" }}>
+    تاريخ اليوم: {todayIso}
+  </span>
+  <span className="badge" style={{ fontSize: "13px", padding: "8px 12px" }}>
+    حالة النظام: متصل
+  </span>
+</div>
+        
       </section>
 
       <div
