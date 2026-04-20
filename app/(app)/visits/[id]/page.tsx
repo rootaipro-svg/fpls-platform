@@ -49,34 +49,8 @@ function toneForStatus(value: any) {
   return "slate" as const;
 }
 
-function responseLabel(value: any) {
-  const v = String(value || "").trim().toLowerCase();
 
-  const map: Record<string, string> = {
-    compliant: "مطابق",
-    non_compliant: "غير مطابق",
-    not_applicable: "غير منطبق",
-    pass: "ناجح",
-    fail: "فاشل",
-    check: "يحتاج مراجعة",
-  };
 
-  return map[v] || safeText(value);
-}
-function toFindingSeverityLabel(value: any) {
-  const normalized = String(value || "").trim().toLowerCase();
-
-  const map: Record<string, string> = {
-    critical: "حرج (Critical)",
-    major: "مرتفع (Major)",
-    minor: "منخفض (Minor)",
-    high: "مرتفع (High)",
-    medium: "متوسط (Medium)",
-    low: "منخفض (Low)",
-  };
-
-  return map[normalized] || String(value || "غير محدد");
-}
 export default async function VisitDetailPage({
   params,
   searchParams,
