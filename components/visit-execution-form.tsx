@@ -1,5 +1,5 @@
 "use client";
-
+import { EmptyPanel } from "@/components/admin-page-kit";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChecklistItemEvidence from "@/components/checklist-item-evidence";
