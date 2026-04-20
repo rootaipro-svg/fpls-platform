@@ -14,6 +14,7 @@ import {
   SectionCard,
   SoftBadge,
 } from "@/components/admin-page-kit";
+import { toFindingSeverityLabel } from "@/lib/display";
 import { requirePermission } from "@/lib/permissions";
 import {
   getCurrentInspector,
@@ -62,7 +63,20 @@ function responseLabel(value: any) {
 
   return map[v] || safeText(value);
 }
+function toFindingSeverityLabel(value: any) {
+  const normalized = String(value || "").trim().toLowerCase();
 
+  const map: Record<string, string> = {
+    critical: "حرج (Critical)",
+    major: "مرتفع (Major)",
+    minor: "منخفض (Minor)",
+    high: "مرتفع (High)",
+    medium: "متوسط (Medium)",
+    low: "منخفض (Low)",
+  };
+
+  return map[normalized] || String(value || "غير محدد");
+}
 export default async function VisitDetailPage({
   params,
   searchParams,
