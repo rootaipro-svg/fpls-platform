@@ -1,40 +1,3 @@
-export function safeText(value: any, fallback = "-") {
-  const text = String(value ?? "").trim();
-  return text || fallback;
-}
-
-export function formatDateLabel(value: any) {
-  const raw = String(value || "").trim();
-  if (!raw) return "-";
-
-  const dt = new Date(raw);
-  if (Number.isNaN(dt.getTime())) return raw;
-
-  return dt.toISOString().slice(0, 10);
-}
-
-export function toStatusLabel(value: any) {
-  const v = String(value || "").trim().toLowerCase();
-
-  const map: Record<string, string> = {
-    active: "نشط",
-    inactive: "غير نشط",
-    planned: "مجدولة",
-    open: "مفتوحة",
-    in_progress: "قيد التنفيذ",
-    completed: "مكتملة",
-    closed: "مغلقة",
-    pending: "قيد الانتظار",
-    overdue: "متأخر",
-    due: "مستحق",
-    compliant: "مطابق",
-    non_compliant: "غير مطابق",
-    not_applicable: "غير منطبق",
-  };
-
-  return map[v] || String(value || "-");
-}
-
 export function toVisitTypeLabel(value: any) {
   const v = String(value || "").trim().toLowerCase();
 
@@ -54,57 +17,64 @@ export function toVisitTypeLabel(value: any) {
   return map[v] || String(value || "زيارة");
 }
 
-export function toFacilityTypeLabel(value: any) {
+export function toVisitStatusLabel(value: any) {
   const v = String(value || "").trim().toLowerCase();
 
   const map: Record<string, string> = {
-    office: "مكتبي (Office)",
-    healthcare: "صحي (Healthcare)",
-    residential: "سكني (Residential)",
-    industrial: "صناعي (Industrial)",
-    warehouse: "مستودع (Warehouse)",
-    retail: "تجاري (Retail)",
-    hospitality: "ضيافة (Hospitality)",
-    education: "تعليمي (Education)",
-    mixed_use: "متعدد الاستخدامات (Mixed Use)",
-    single_building: "مبنى واحد (Single Building)",
-    campus: "مجمع (Campus)",
+    planned: "مجدولة (Planned)",
+    open: "مفتوحة (Open)",
+    in_progress: "قيد التنفيذ (In Progress)",
+    inprogress: "قيد التنفيذ (In Progress)",
+    completed: "مكتملة (Completed)",
+    closed: "مغلقة (Closed)",
+    draft: "مسودة (Draft)",
+    cancelled: "ملغاة (Cancelled)",
   };
 
   return map[v] || String(value || "-");
 }
 
-export function toSystemLabel(value: any) {
-  const v = String(value || "").trim().toUpperCase();
+export function toSummaryResultLabel(value: any) {
+  const v = String(value || "").trim().toLowerCase();
 
   const map: Record<string, string> = {
-    "FP-DIESEL-PUMP": "مضخة حريق ديزل (Fire Pump - Diesel)",
-    "FP-ELECTRIC-PUMP": "مضخة حريق كهربائية (Fire Pump - Electric)",
-    "FIRE-EXTINGUISHER": "طفايات الحريق (Fire Extinguisher)",
-    "FIRE-DOOR": "أبواب الحريق (Fire Door)",
-    "FA-VOICE": "إنذار صوتي (Voice Alarm)",
-    "FA-ADDR": "إنذار معنّون (Addressable Fire Alarm)",
-    "SP-WET": "رش آلي مائي (Wet Sprinkler)",
-    "HOSE-REEL": "بكرة خرطوم (Hose Reel)",
-    "EMERGENCY-LIGHT": "إنارة طوارئ (Emergency Light)",
-    HVAC: "التكييف والتهوية (HVAC)",
-    PLUMBING: "السباكة (Plumbing)",
-    FIRE_ALARM: "إنذار الحريق (Fire Alarm)",
+    compliant: "مطابق (Compliant)",
+    non_compliant: "غير مطابق (Non-Compliant)",
+    critical_findings: "مخالفات حرجة (Critical Findings)",
+    fail_critical: "فشل حرج (Critical Failure)",
+    pass_with_remarks: "ناجح مع ملاحظات (Pass with Remarks)",
+    pending: "قيد الانتظار (Pending)",
   };
 
   return map[v] || String(value || "-");
 }
 
-export function toSeverityLabel(value: any) {
+export function toFindingSeverityLabel(value: any) {
   const v = String(value || "").trim().toLowerCase();
 
   const map: Record<string, string> = {
-    critical: "حرجة (Critical)",
-    major: "مرتفعة (Major)",
-    minor: "منخفضة (Minor)",
-    medium: "متوسطة (Medium)",
-    low: "منخفضة (Low)",
+    critical: "حرج (Critical)",
+    major: "مرتفع (Major)",
+    minor: "منخفض (Minor)",
+    medium: "متوسط (Medium)",
+    low: "منخفض (Low)",
   };
 
   return map[v] || String(value || "-");
+}
+
+export function isClosedVisitStatus(value: any) {
+  const v = String(value || "").trim().toLowerCase();
+  return v === "closed" || v === "completed";
+}
+
+export function isOpenFindingStatus(value: any) {
+  const v = String(value || "").trim().toLowerCase();
+  return v !== "closed";
+}
+
+export function isActiveRecord(value: any) {
+  const v = String(value || "").trim().toLowerCase();
+  if (!v) return true;
+  return v !== "inactive" && v !== "disabled" && v !== "archived";
 }
