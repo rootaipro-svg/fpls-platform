@@ -1,11 +1,31 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
-import {
-  formatDateLabel,
-  safeText,
-  toStatusLabel,
-  toVisitTypeLabel,
-} from "@/lib/display";
+import { toSummaryResultLabel, toVisitStatusLabel, toVisitTypeLabel } from "@/lib/display";
+
+function getStatusTheme(status: any) {
+  const v = String(status || "").toLowerCase();
+
+  if (v === "closed" || v === "completed") {
+    return {
+      bg: "#ecfdf5",
+      color: "#0f766e",
+      border: "1px solid #bbf7d0",
+    };
+  }
+
+  if (v === "in_progress" || v === "inprogress" || v === "open") {
+    return {
+      bg: "#eff6ff",
+      color: "#1d4ed8",
+      border: "1px solid #bfdbfe",
+    };
+  }
+
+  return {
+    bg: "#f8fafc",
+    color: "#475569",
+    border: "1px solid #e2e8f0",
+  };
+}
 
 type VisitCardProps = {
   visit: any;
@@ -18,47 +38,100 @@ export function VisitCard({
   facilityName = "",
   buildingName = "",
 }: VisitCardProps) {
-  const status = String(visit.visit_status || "planned").toLowerCase();
-
-  const statusClass =
-    status === "closed" || status === "completed"
-      ? "bg-slate-100 text-slate-700"
-      : status === "in_progress" || status === "open"
-      ? "bg-sky-50 text-sky-700"
-      : "bg-slate-100 text-slate-600";
+  const statusTheme = getStatusTheme(visit.visit_status);
 
   return (
     <Link
       href={`/visits/${visit.visit_id}`}
-      className="block rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300"
+      className="card"
+      style={{
+        display: "block",
+        padding: "16px",
+        textDecoration: "none",
+      }}
     >
-      <div className="flex items-start justify-between gap-4">
-        <span className={`rounded-full px-4 py-2 text-sm font-bold ${statusClass}`}>
-          {toStatusLabel(visit.visit_status)}
-        </span>
-
-        <div className="flex-1 text-right">
-          <div className="text-[30px] font-extrabold leading-tight text-slate-950">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "12px",
+        }}
+      >
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              fontSize: "17px",
+              lineHeight: 1.45,
+              fontWeight: 900,
+              color: "#0f172a",
+            }}
+          >
             {toVisitTypeLabel(visit.visit_type)}
           </div>
 
-          <div className="mt-2 text-[17px] text-slate-500">
-            {safeText(facilityName, "منشأة غير محددة")}
-            {buildingName ? ` · ${buildingName}` : ""}
-          </div>
-
-          <div className="mt-2 text-[16px] text-slate-500">
-            التاريخ: {formatDateLabel(visit.planned_date || visit.visit_date)}
-          </div>
-
-          <div className="mt-3 text-[15px] leading-7 text-slate-500">
-            {safeText(visit.notes || visit.summary_result, "بدون وصف")}
+          <div
+            style={{
+              marginTop: "4px",
+              fontSize: "13px",
+              color: "#64748b",
+              lineHeight: 1.7,
+            }}
+          >
+            التاريخ: {String(visit.planned_date || visit.visit_date || "-")}
           </div>
         </div>
 
-        <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-slate-50 text-slate-400">
-          <ChevronLeft size={20} />
-        </div>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "8px 12px",
+            borderRadius: "999px",
+            background: statusTheme.bg,
+            color: statusTheme.color,
+            border: statusTheme.border,
+            fontSize: "12px",
+            fontWeight: 800,
+            flexShrink: 0,
+          }}
+        >
+          {toVisitStatusLabel(visit.visit_status)}
+        </span>
+      </div>
+
+      <div
+        style={{
+          marginTop: "10px",
+          fontSize: "14px",
+          color: "#334155",
+          lineHeight: 1.7,
+        }}
+      >
+        {facilityName ? facilityName : "منشأة غير محددة"}
+        {buildingName ? ` · ${buildingName}` : ""}
+      </div>
+
+      <div
+        style={{
+          marginTop: "6px",
+          fontSize: "13px",
+          color: "#64748b",
+          lineHeight: 1.7,
+        }}
+      >
+        {toSummaryResultLabel(visit.summary_result || visit.notes || "pending")}
+      </div>
+
+      <div
+        style={{
+          marginTop: "12px",
+          fontSize: "13px",
+          fontWeight: 800,
+          color: "#0f766e",
+        }}
+      >
+        فتح الزيارة
       </div>
     </Link>
   );
