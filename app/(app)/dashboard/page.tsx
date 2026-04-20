@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  Activity,
   AlertTriangle,
   Boxes,
   Building2,
@@ -12,14 +13,22 @@ import {
   Users,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { EmptyState } from "@/components/empty-state";
-import { StatusBadge } from "@/components/status-badge";
+import {
+  ActionCard,
+  EmptyPanel,
+  ListRow,
+  MetricCard,
+  PageHero,
+  SectionCard,
+  SoftBadge,
+} from "@/components/admin-page-kit";
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 import {
   getCurrentInspector,
   isVisitAssignedToInspector,
 } from "@/lib/current-inspector";
+import { isClosedVisitStatus, isOpenFindingStatus, toVisitTypeLabel } from "@/lib/display";
 
 function sortByDateDesc(rows: any[], field: string) {
   return [...rows].sort((a, b) => {
@@ -56,472 +65,23 @@ function getDueLabel(daysDiff: number) {
   return "مستقبلي";
 }
 
-function toVisitTypeLabel(value: any) {
-  const v = String(value || "").trim().toLowerCase();
-
-  const map: Record<string, string> = {
-    followup: "متابعة (Follow-up)",
-    asset_followup: "متابعة أصل (Asset Follow-up)",
-    handover: "تسليم واستلام (Handover)",
-    safety_inspection: "فحص سلامة (Safety Inspection)",
-    periodic_inspection: "تفتيش دوري (Periodic Inspection)",
-    initial_survey: "معاينة أولية (Initial Survey)",
-    emergency_maintenance: "صيانة طارئة (Emergency Maintenance)",
-    quality_audit: "تدقيق جودة (Quality Audit)",
-    inspection: "تفتيش (Inspection)",
-    audit: "تدقيق (Audit)",
-  };
-
-  return map[v] || String(value || "زيارة");
-}
-
-function toneStyles(tone: "teal" | "amber" | "red" | "slate") {
-  const map = {
-    teal: {
-      iconBg: "#ecfeff",
-      iconColor: "#0f766e",
-      iconBorder: "1px solid #ccfbf1",
-    },
-    amber: {
-      iconBg: "#fffbeb",
-      iconColor: "#b45309",
-      iconBorder: "1px solid #fde68a",
-    },
-    red: {
-      iconBg: "#fef2f2",
-      iconColor: "#b91c1c",
-      iconBorder: "1px solid #fecaca",
-    },
-    slate: {
-      iconBg: "#f8fafc",
-      iconColor: "#475569",
-      iconBorder: "1px solid #e2e8f0",
-    },
-  };
-
-  return map[tone];
-}
-function SectionHeader({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle?: string;
-}) {
-  return (
-    <div style={{ marginBottom: "12px" }}>
-      <div
-        style={{
-          fontSize: "22px",
-          lineHeight: 1.2,
-          fontWeight: 900,
-          color: "#0f172a",
-        }}
-      >
-        {title}
-      </div>
-      {subtitle ? (
-        <div
-          style={{
-            marginTop: "6px",
-            fontSize: "14px",
-            color: "#64748b",
-            lineHeight: 1.7,
-          }}
-        >
-          {subtitle}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function KpiCard({
-
-function KpiCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  tone = "slate",
-}: {
-  label: string;
-  value: string | number;
-  hint: string;
-  icon: any;
-  tone?: "teal" | "amber" | "red" | "slate";
-}) {
-  const theme = toneStyles(tone);
-
-  return (
-    <div
-      className="card"
-      style={{
-        minHeight: "138px",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        padding: "18px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: "10px",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: "15px",
-              color: "#475569",
-              fontWeight: 700,
-            }}
-          >
-            {label}
-          </div>
-
-          <div
-            style={{
-              marginTop: "8px",
-              fontSize: "44px",
-              lineHeight: 1,
-              fontWeight: 900,
-              color: "#0f172a",
-            }}
-          >
-            {value}
-          </div>
-        </div>
-
-        <div
-          style={{
-            width: "50px",
-            height: "50px",
-            borderRadius: "16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: theme.iconBg,
-            color: theme.iconColor,
-            border: theme.iconBorder,
-            flexShrink: 0,
-          }}
-        >
-          <Icon size={24} />
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: "10px",
-          fontSize: "13px",
-          color: "#64748b",
-          lineHeight: 1.6,
-        }}
-      >
-        {hint}
-      </div>
-    </div>
-  );
-}
-
-theme.iconBg,
-          color: theme.iconColor,
-          border: theme.iconBorder,
-        }}
-      >
-        <Icon size={34} />
-      </div>
-
-      <div
-        style={{
-          marginTop: "18px",
-          fontSize: "20px",
-          lineHeight: 1.45,
-          fontWeight: 900,
-          color: "#0f172a",
-        }}
-      >
-        {title}
-      </div>
-    </Link>
-  );
-}
-
-function ActivityRow({
-  href,
-  title,
-  subline,
-  status,
-}: {
-  href: string;
-  title: string;
-  subline: string;
-  status: string;
-}) {
-  return (
-    <Link
-      href={href}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "12px",
-        padding: "16px 18px",
-        borderRadius: "22px",
-        border: "1px solid #e2e8f0",
-        background: "#fff",
-        textDecoration: "none",
-      }}
-    >
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div
-          style={{
-            fontSize: "18px",
-            lineHeight: 1.45,
-            fontWeight: 900,
-            color: "#0f172a",
-          }}
-        >
-          {title}
-        </div>
-
-        <div
-          style={{
-            marginTop: "6px",
-            fontSize: "14px",
-            color: "#64748b",
-            lineHeight: 1.7,
-          }}
-        >
-          {subline}
-        </div>
-      </div>
-
-      <div style={{ flexShrink: 0 }}>
-        <StatusBadge status={status} />
-      </div>
-    </Link>
-  );
-}
-
-function ActionTile({
-  href,
-  title,
-  icon: Icon,
-  tone = "slate",
-}: {
-  href: string;
-  title: string;
-  icon: any;
-  tone?: "teal" | "amber" | "red" | "slate";
-}) {
-  const theme = toneStyles(tone);
-
-  return (
-    <Link
-      href={href}
-      className="card"
-      style={{
-        minHeight: "150px",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        textDecoration: "none",
-        padding: "18px",
-      }}
-    >
-      <div
-        style={{
-          width: "60px",
-          height: "60px",
-          borderRadius: "18px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: theme.iconBg,
-          color: theme.iconColor,
-          border: theme.iconBorder,
-        }}
-      >
-        <Icon size={28} />
-      </div>
-
-      <div
-        style={{
-          marginTop: "14px",
-          fontSize: "16px",
-          lineHeight: 1.45,
-          fontWeight: 900,
-          color: "#0f172a",
-        }}
-      >
-        {title}
-      </div>
-    </Link>
-  );
-}
-
-function ActivityRow({
-  href,
-  title,
-  subline,
-  status,
-}: {
-  href: string;
-  title: string;
-  subline: string;
-  status: string;
-}) {
-  return (
-    <Link
-      href={href}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "10px",
-        padding: "14px 16px",
-        borderRadius: "18px",
-        border: "1px solid #e2e8f0",
-        background: "#fff",
-        textDecoration: "none",
-      }}
-    >
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div
-          style={{
-            fontSize: "16px",
-            lineHeight: 1.4,
-            fontWeight: 800,
-            color: "#0f172a",
-          }}
-        >
-          {title}
-        </div>
-
-        <div
-          style={{
-            marginTop: "4px",
-            fontSize: "13px",
-            color: "#64748b",
-            lineHeight: 1.6,
-          }}
-        >
-          {subline}
-        </div>
-      </div>
-
-      <div style={{ flexShrink: 0 }}>
-        <StatusBadge status={status} />
-      </div>
-    </Link>
-  );
-}
-
-
-      function DueRow({
-  href,
-  title,
-  systemCode,
-  dueDate,
-  dueLabel,
-}: {
-  href: string;
-  title: string;
-  systemCode: string;
-  dueDate: string;
-  dueLabel: string;
-}) {
-  const tone =
-    dueLabel === "متأخر"
-      ? "#b91c1c"
-      : dueLabel === "اليوم"
-      ? "#b45309"
-      : "#0f766e";
-
-  const bg =
-    dueLabel === "متأخر"
-      ? "#fef2f2"
-      : dueLabel === "اليوم"
-      ? "#fffbeb"
-      : "#ecfeff";
-
-  const border =
-    dueLabel === "متأخر"
-      ? "1px solid #fecaca"
-      : dueLabel === "اليوم"
-      ? "1px solid #fde68a"
-      : "1px solid #ccfbf1";
-
-  return (
-    <Link
-      href={href}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "10px",
-        padding: "14px 16px",
-        borderRadius: "18px",
-        border: "1px solid #e2e8f0",
-        background: "#fff",
-        textDecoration: "none",
-      }}
-    >
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div
-          style={{
-            fontSize: "16px",
-            lineHeight: 1.4,
-            fontWeight: 800,
-            color: "#0f172a",
-          }}
-        >
-          {title}
-        </div>
-        <div
-          style={{
-            marginTop: "4px",
-            fontSize: "13px",
-            color: "#64748b",
-            lineHeight: 1.6,
-          }}
-        >
-          {systemCode} · الاستحقاق: {dueDate}
-        </div>
-      </div>
-
-      <div
-        style={{
-          padding: "8px 12px",
-          borderRadius: "999px",
-          background: bg,
-          color: tone,
-          border,
-          fontSize: "13px",
-          fontWeight: 800,
-          flexShrink: 0,
-        }}
-      >
-        {dueLabel}
-      </div>
-    </Link>
-  );
+function getDueTone(label: string) {
+  if (label === "متأخر") return "red" as const;
+  if (label === "اليوم") return "amber" as const;
+  if (label === "قريب") return "teal" as const;
+  return "slate" as const;
 }
 
 export default async function DashboardPage() {
   const actor = await requirePermission("dashboard", "view");
 
-  const [facilities, visits, visitSystems, assets, findings] = await Promise.all([
+  const [facilities, visits, visitSystems, assets, findings, buildings] = await Promise.all([
     readSheet(actor.workbookId, "FACILITIES"),
     readSheet(actor.workbookId, "VISITS"),
     readSheet(actor.workbookId, "VISIT_SYSTEMS"),
     readSheet(actor.workbookId, "ASSETS"),
     readSheet(actor.workbookId, "FINDINGS"),
+    readSheet(actor.workbookId, "BUILDINGS"),
   ]);
 
   const today = new Date();
@@ -543,69 +103,6 @@ export default async function DashboardPage() {
         )
       : visits;
 
-  const latestByBuildingSystem = new Map<string, any>();
-
-  for (const row of visitSystems) {
-    const key = String(row.building_system_id || "");
-    if (!key) continue;
-
-    const current = latestByBuildingSystem.get(key);
-    const rowStamp = String(
-      row.updated_at || row.actual_end_time || row.next_due_date || ""
-    );
-    const currentStamp = String(
-      current?.updated_at || current?.actual_end_time || current?.next_due_date || ""
-    );
-
-    if (!current || rowStamp > currentStamp) {
-      latestByBuildingSystem.set(key, row);
-    }
-  }
-
-  const dueItems =
-    actor.role === "inspector"
-      ? []
-      : Array.from(latestByBuildingSystem.values()).filter((row) => {
-          if (!String(row.next_due_date || "").trim()) return false;
-
-          const due = new Date(String(row.next_due_date));
-          due.setHours(0, 0, 0, 0);
-
-          return daysBetween(today, due) <= 7;
-        });
-
-  const latestVisits = sortByDateDesc(visibleVisits, "planned_date").slice(0, 5);
-
-  const todaysVisits = visibleVisits.filter(
-    (visit: any) =>
-      String(visit.planned_date || visit.visit_date || "") === todayIso
-  ).length;
-
-  const overdueVisits = visibleVisits.filter((visit: any) => {
-    const status = String(visit.visit_status || "").toLowerCase();
-    const planned = String(visit.planned_date || "");
-    if (!planned) return false;
-    if (status === "closed" || status === "completed") return false;
-    return planned < todayIso;
-  }).length;
-
-  const completedVisits = visibleVisits.filter((visit: any) => {
-    const status = String(visit.visit_status || "").toLowerCase();
-    return status === "closed" || status === "completed";
-  }).length;
-
-  if (actor.role === "inspector" && !currentInspector) {
-    return (
-      <AppShell>
-        <EmptyState
-          title="لا يوجد ملف مفتش لهذا الحساب"
-          description="أضف app_user_id أو email الصحيح داخل شيت INSPECTORS لربط هذا الحساب بالمفتش."
-          icon={UserRound}
-        />
-      </AppShell>
-    );
-  }
-
   const allowedSystems =
     actor.role === "inspector"
       ? parseAllowedSystems(currentInspector?.allowed_systems)
@@ -615,9 +112,7 @@ export default async function DashboardPage() {
     actor.role === "inspector"
       ? assets.filter((asset: any) => {
           const systemCode = String(asset.system_code || "");
-          return (
-            allowedSystems.includes("*") || allowedSystems.includes(systemCode)
-          );
+          return allowedSystems.includes("*") || allowedSystems.includes(systemCode);
         })
       : assets;
 
@@ -638,13 +133,6 @@ export default async function DashboardPage() {
         )
       : findings;
 
-  const openVisibleFindingsCount = visibleFindings.filter((finding: any) => {
-    const status = String(
-      finding.closure_status || finding.compliance_status || ""
-    ).toLowerCase();
-    return status !== "closed";
-  }).length;
-
   const visibleFacilities =
     actor.role === "inspector"
       ? facilities.filter((facility: any) =>
@@ -654,13 +142,6 @@ export default async function DashboardPage() {
           )
         )
       : facilities;
-
-  const facilityNameMap = new Map(
-    visibleFacilities.map((f: any) => [
-      String(f.facility_id || ""),
-      String(f.facility_name || f.facility_name_ar || "منشأة غير محددة"),
-    ])
-  );
 
   const dueAssets = sortByDueDateAsc(
     visibleAssets
@@ -673,91 +154,107 @@ export default async function DashboardPage() {
 
         due.setHours(0, 0, 0, 0);
         const daysDiff = daysBetween(today, due);
-
         if (daysDiff > 7) return null;
 
         return {
           asset_id: String(asset.asset_id || ""),
-          asset_code: String(asset.asset_code || ""),
-          asset_name: String(asset.asset_name || ""),
-          asset_name_ar: String(asset.asset_name_ar || ""),
-          system_code: String(asset.system_code || ""),
+          asset_name: String(asset.asset_name_ar || asset.asset_name || asset.asset_code || "أصل"),
+          system_code: String(asset.system_code || "-"),
           next_due_date: nextDueDate,
-          due_days_diff: daysDiff,
           due_label: getDueLabel(daysDiff),
         };
       })
       .filter(Boolean)
   );
 
-  const overdueDueAssetsCount = dueAssets.filter(
-    (asset: any) => Number(asset.due_days_diff) < 0
+  const openVisibleFindingsCount = visibleFindings.filter((finding: any) =>
+    isOpenFindingStatus(finding.closure_status || finding.compliance_status || "")
   ).length;
+
+  const latestVisits = sortByDateDesc(visibleVisits, "planned_date").slice(0, 5);
 
   const unassignedOpenVisits =
     actor.role === "inspector"
       ? []
       : visits.filter((visit: any) => {
-          const status = String(visit.visit_status || "").toLowerCase();
           const assigned = String(visit.assigned_inspector_id || "").trim();
-
-          return (
-            status !== "closed" &&
-            status !== "completed" &&
-            assigned.length === 0
-          );
+          return !isClosedVisitStatus(visit.visit_status) && assigned.length === 0;
         });
+
+  const todaysVisits = visibleVisits.filter(
+    (visit: any) =>
+      String(visit.planned_date || visit.visit_date || "") === todayIso
+  ).length;
+
+  const overdueVisits = visibleVisits.filter((visit: any) => {
+    const planned = String(visit.planned_date || "");
+    if (!planned) return false;
+    if (isClosedVisitStatus(visit.visit_status)) return false;
+    return planned < todayIso;
+  }).length;
+
+  if (actor.role === "inspector" && !currentInspector) {
+    return (
+      <AppShell>
+        <SectionCard
+          title="ربط حساب المفتش"
+          subtitle="لم يتم ربط هذا الحساب بسجل مفتش داخل INSPECTORS"
+        >
+          <EmptyPanel
+            title="لا يوجد ملف مفتش لهذا الحساب"
+            description="أضف app_user_id أو email الصحيح داخل شيت INSPECTORS لربط هذا الحساب بالمفتش."
+          />
+        </SectionCard>
+      </AppShell>
+    );
+  }
 
   if (actor.role === "inspector") {
     return (
       <AppShell>
-        <section className="card">
-          <SectionHeader
-            title="لوحة المفتش"
-            subtitle={`مرحبًا ${
-              currentInspector?.full_name_ar ||
+        <PageHero
+          eyebrow="واجهة المفتش الميداني"
+          title="لوحة المفتش"
+          subtitle={`مرحبًا ${String(
+            currentInspector?.full_name_ar ||
               currentInspector?.full_name ||
               actor.email ||
               "Inspector"
-            } · الوصول السريع لأهم ما يخص التنفيذ الميداني`}
-          />
+          )}`}
+          icon={UserRound}
+          pills={[`تاريخ اليوم: ${todayIso}`, "حالة النظام: متصل"]}
+        />
 
-          <div className="badge-wrap" style={{ marginTop: "12px" }}>
-            <span className="badge">تاريخ اليوم: {todayIso}</span>
-            <span className="badge">الحالة: متصل</span>
-          </div>
-        </section>
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "12px",
-    marginTop: "12px",
-  }}
->
-        
-          <KpiCard
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "12px",
+            marginTop: "14px",
+          }}
+        >
+          <MetricCard
             label="زياراتي"
             value={visibleVisits.length}
-            hint="كل الزيارات المسندة لك"
+            hint="كل الزيارات المعينة لك"
             icon={ClipboardList}
             tone="teal"
           />
-          <KpiCard
+          <MetricCard
             label="اليوم"
             value={todaysVisits}
-            hint="المجدولة لليوم"
+            hint="الزيارات المخططة اليوم"
             icon={Clock3}
             tone="slate"
           />
-          <KpiCard
+          <MetricCard
             label="متأخرة"
             value={overdueVisits}
-            hint="تحتاج تنفيذًا عاجلًا"
+            hint="زيارات تحتاج تنفيذ"
             icon={AlertTriangle}
             tone={overdueVisits > 0 ? "amber" : "slate"}
           />
-          <KpiCard
+          <MetricCard
             label="المخالفات"
             value={openVisibleFindingsCount}
             hint="مفتوحة وتحتاج متابعة"
@@ -766,159 +263,109 @@ export default async function DashboardPage() {
           />
         </div>
 
-        <section className="card" style={{ marginTop: "14px" }}>
-          <SectionHeader
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard
             title="إجراءات سريعة"
-            subtitle="كل صف يحتوي خيارين واضحين للمفتش"
-          />
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "14px",
-            }}
+            subtitle="الوصول إلى أهم وظائف التنفيذ الميداني"
           >
-            <ActionTile
-              href="/visits"
-              title="زياراتي"
-              icon={ClipboardList}
-              tone="teal"
-            />
-            <ActionTile
-              href="/assets"
-              title="لوحة الأصول"
-              icon={Boxes}
-              tone="slate"
-            />
-            <ActionTile
-              href="/findings"
-              title="المخالفات"
-              icon={ShieldAlert}
-              tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
-            />
-            <ActionTile
-              href="/reports"
-              title="التقارير"
-              icon={QrCode}
-              tone="slate"
-            />
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: "14px" }}>
-          <SectionHeader
-            title="الأصول المستحقة الآن"
-            subtitle="الأصول التي تحتاج اهتمامًا قريبًا أو فوريًا"
-          />
-
-          {dueAssets.length === 0 ? (
-            <EmptyState
-              title="لا توجد أصول مستحقة حاليًا"
-              description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
-              icon={Clock3}
-            />
-          ) : (
-            <div className="stack-3" style={{ marginTop: "10px" }}>
-              {dueAssets.slice(0, 5).map((asset: any) => (
-                <DueRow
-                  key={String(asset.asset_id)}
-                  href={`/assets/${String(asset.asset_id)}`}
-                  title={String(
-                    asset.asset_name_ar ||
-                      asset.asset_name ||
-                      asset.asset_code ||
-                      asset.asset_id
-                  )}
-                  systemCode={String(asset.system_code || "-")}
-                  dueDate={String(asset.next_due_date || "-")}
-                  dueLabel={String(asset.due_label || "-")}
-                />
-              ))}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "12px",
+              }}
+            >
+              <ActionCard href="/visits" title="الزيارات" icon={ClipboardList} tone="teal" />
+              <ActionCard href="/assets" title="الأصول" icon={Boxes} tone="slate" />
+              <ActionCard href="/findings" title="المخالفات" icon={ShieldAlert} tone="red" />
+              <ActionCard href="/reports" title="التقارير" icon={ClipboardList} tone="slate" />
             </div>
-          )}
-        </section>
+          </SectionCard>
+        </div>
 
-        <section className="card" style={{ marginTop: "14px" }}>
-          <SectionHeader
-            title="سجل المهام والزيارات"
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard
+            title="آخر الزيارات"
             subtitle="متابعة سريعة لأحدث الحركة التشغيلية"
-          />
+          >
+            {latestVisits.length === 0 ? (
+              <EmptyPanel
+                title="لا توجد زيارات مخصصة لك"
+                description="عند تعيين زيارات لك ستظهر هنا مباشرة."
+              />
+            ) : (
+              <div style={{ display: "grid", gap: "10px" }}>
+                {latestVisits.map((visit: any) => {
+                  const facility = facilities.find(
+                    (f: any) =>
+                      String(f.facility_id || "") === String(visit.facility_id || "")
+                  );
+                  const building = buildings.find(
+                    (b: any) =>
+                      String(b.building_id || "") === String(visit.building_id || "")
+                  );
 
-          {latestVisits.length === 0 ? (
-            <EmptyState
-              title="لا توجد زيارات مخصصة لك"
-              description="عند تعيين زيارات لك ستظهر هنا مباشرة."
-              icon={ClipboardList}
-            />
-          ) : (
-            <div className="stack-3" style={{ marginTop: "10px" }}>
-              {latestVisits.map((visit: any) => (
-                <ActivityRow
-                  key={String(visit.visit_id)}
-                  href={`/visits/${String(visit.visit_id)}`}
-                  title={toVisitTypeLabel(visit.visit_type)}
-                  subline={`التاريخ: ${String(
-                    visit.planned_date || visit.visit_date || "-"
-                  )}`}
-                  status={String(visit.visit_status || "planned")}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+                  return (
+                    <ListRow
+                      key={String(visit.visit_id)}
+                      href={`/visits/${String(visit.visit_id)}`}
+                      title={toVisitTypeLabel(visit.visit_type)}
+                      subtitle={`${String(
+                        facility?.facility_name || "منشأة غير محددة"
+                      )}${building ? ` · ${String(building.building_name || "")}` : ""} · التاريخ: ${String(
+                        visit.planned_date || visit.visit_date || "-"
+                      )}`}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </SectionCard>
+        </div>
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <section className="card">
-        <SectionHeader
-          title="لوحة التحكم"
-          subtitle="إدارة العمليات المركزية والوصول السريع لأهم وظائف التشغيل والإدارة"
-        />
-<div className="badge-wrap" style={{ marginTop: "10px", gap: "8px" }}>
-  <span className="badge" style={{ fontSize: "13px", padding: "8px 12px" }}>
-    تاريخ اليوم: {todayIso}
-  </span>
-  <span className="badge" style={{ fontSize: "13px", padding: "8px 12px" }}>
-    حالة النظام: متصل
-  </span>
-</div>
-        
-      </section>
+      <PageHero
+        eyebrow="إدارة العمليات المركزية"
+        title="لوحة التحكم"
+        subtitle="الوصول السريع لأهم وظائف التشغيل والإدارة"
+        icon={Activity}
+        pills={[`تاريخ اليوم: ${todayIso}`, "حالة النظام: متصل"]}
+      />
 
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: "14px",
+          gap: "12px",
           marginTop: "14px",
         }}
       >
-        <KpiCard
+        <MetricCard
           label="المنشآت"
           value={visibleFacilities.length}
           hint="إجمالي المنشآت المسجلة"
           icon={Building2}
           tone="teal"
         />
-        <KpiCard
+        <MetricCard
           label="الأصول"
           value={visibleAssets.length}
           hint="كل الأصول المسجلة"
           icon={Boxes}
           tone="slate"
         />
-        <KpiCard
+        <MetricCard
           label="المخالفات"
           value={openVisibleFindingsCount}
           hint="مفتوحة وتحتاج متابعة"
           icon={ShieldAlert}
           tone={openVisibleFindingsCount > 0 ? "red" : "slate"}
         />
-        <KpiCard
+        <MetricCard
           label="غير مسندة"
           value={unassignedOpenVisits.length}
           hint="زيارات تحتاج توزيع"
@@ -927,169 +374,170 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <section className="card" style={{ marginTop: "14px" }}>
-        <SectionHeader
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
           title="إجراءات سريعة"
-          subtitle="كل صف يحتوي خيارين واضحين ويستغل المساحة أفضل"
-        />
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "14px",
-          }}
-        >
-          <ActionTile
-            href="/facilities"
-            title="إضافة منشأة"
-            icon={Building2}
-            tone="teal"
-          />
-          <ActionTile
-            href="/unassigned-visits"
-            title="توزيع المهام"
-            icon={Users}
-            tone={unassignedOpenVisits.length > 0 ? "amber" : "slate"}
-          />
-          <ActionTile
-            href="/assets/labels"
-            title="طباعة ملصقات"
-            icon={QrCode}
-            tone="slate"
-          />
-          <ActionTile
-            href="/settings"
-            title="الإعدادات"
-            icon={Settings}
-            tone="slate"
-          />
-        </div>
-      </section>
-
-      {unassignedOpenVisits.length > 0 ? (
-        <section
-          className="card"
-          style={{
-            marginTop: "14px",
-            border: "1px solid #fecaca",
-            background: "#fff7f7",
-          }}
+          subtitle="الوصول السريع لأهم الوظائف الإدارية"
         >
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               gap: "12px",
-              flexWrap: "wrap",
             }}
           >
-            <div style={{ flex: 1, minWidth: "200px" }}>
-              <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: 900,
-                  color: "#991b1b",
-                  lineHeight: 1.25,
-                }}
-              >
-                تنبيه تشغيلي: زيارات غير مسندة
-              </div>
-              <div
-                style={{
-                  marginTop: "8px",
-                  fontSize: "15px",
-                  color: "#b91c1c",
-                  lineHeight: 1.8,
-                }}
-              >
-                يوجد {unassignedOpenVisits.length} زيارة تحتاج تعيين مفتش فورًا.
-              </div>
-            </div>
-
-            <Link href="/unassigned-visits" className="btn btn-secondary">
-              تعيين الآن
-            </Link>
+            <ActionCard href="/facilities/new" title="إضافة منشأة" icon={Building2} tone="teal" />
+            <ActionCard href="/unassigned-visits" title="توزيع المهام" icon={Users} tone="amber" />
+            <ActionCard href="/assets/labels" title="طباعة ملصقات" icon={QrCode} tone="slate" />
+            <ActionCard href="/settings" title="الإعدادات" icon={Settings} tone="slate" />
           </div>
-        </section>
+        </SectionCard>
+      </div>
+
+      {unassignedOpenVisits.length > 0 ? (
+        <div style={{ marginTop: "14px" }}>
+          <section
+            className="card"
+            style={{
+              padding: "18px",
+              border: "1px solid #fecaca",
+              background: "#fff7f7",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 900,
+                    color: "#991b1b",
+                  }}
+                >
+                  تنبيه تشغيلي
+                </div>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "14px",
+                    lineHeight: 1.7,
+                    color: "#7f1d1d",
+                  }}
+                >
+                  يوجد {unassignedOpenVisits.length} زيارة غير مسندة وتحتاج تعيين مفتش فورًا.
+                </div>
+              </div>
+
+              <Link
+                href="/unassigned-visits"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: "112px",
+                  padding: "12px 16px",
+                  borderRadius: "16px",
+                  background: "#dc2626",
+                  color: "#fff",
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  flexShrink: 0,
+                }}
+              >
+                تعيين الآن
+              </Link>
+            </div>
+          </section>
+        </div>
       ) : null}
 
-      <section className="card" style={{ marginTop: "14px" }}>
-        <SectionHeader
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
           title="سجل المهام والزيارات"
           subtitle="متابعة سريعة لأحدث الحركة التشغيلية"
-        />
+        >
+          {latestVisits.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد حركة حديثة"
+              description="بعد إنشاء زيارات جديدة ستظهر هنا أحدث العمليات."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }}>
+              {latestVisits.map((visit: any) => {
+                const facility = facilities.find(
+                  (f: any) =>
+                    String(f.facility_id || "") === String(visit.facility_id || "")
+                );
+                const building = buildings.find(
+                  (b: any) =>
+                    String(b.building_id || "") === String(visit.building_id || "")
+                );
 
-        {latestVisits.length === 0 ? (
-          <EmptyState
-            title="لا توجد زيارات حتى الآن"
-            description="بعد إنشاء زيارة جديدة ستظهر هنا آخر الزيارات المنفذة أو المجدولة."
-            icon={ClipboardList}
-          />
-        ) : (
-          <div className="stack-3" style={{ marginTop: "10px" }}>
-            {latestVisits.map((visit: any) => {
-              const facilityName =
-                facilityNameMap.get(String(visit.facility_id || "")) ||
-                "منشأة غير محددة";
+                const badgeTone = isClosedVisitStatus(visit.visit_status)
+                  ? "teal"
+                  : "slate";
 
-              return (
-                <ActivityRow
-                  key={String(visit.visit_id)}
-                  href={`/visits/${String(visit.visit_id)}`}
-                  title={toVisitTypeLabel(visit.visit_type)}
-                  subline={`${facilityName} · التاريخ: ${String(
-                    visit.planned_date || visit.visit_date || "-"
-                  )}`}
-                  status={String(visit.visit_status || "planned")}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="card" style={{ marginTop: "14px" }}>
-        <SectionHeader
-          title="استحقاقات الأصول"
-          subtitle="الأصول المتأخرة واليوم والقريبة"
-        />
-
-        {dueAssets.length === 0 ? (
-          <EmptyState
-            title="لا توجد أصول مستحقة حاليًا"
-            description="كل الأصول ضمن المدى الزمني الحالي أو لم يتم ضبط جدولها بعد."
-            icon={Clock3}
-          />
-        ) : (
-          <>
-            <div className="badge-wrap" style={{ marginTop: "10px", marginBottom: "12px" }}>
-              <span className="badge">المستحقة الآن: {dueAssets.length}</span>
-              <span className="badge">المتأخرة: {overdueDueAssetsCount}</span>
-              <span className="badge">أنظمة قريبة: {dueItems.length}</span>
+                return (
+                  <ListRow
+                    key={String(visit.visit_id)}
+                    href={`/visits/${String(visit.visit_id)}`}
+                    title={toVisitTypeLabel(visit.visit_type)}
+                    subtitle={`${String(
+                      facility?.facility_name || "منشأة غير محددة"
+                    )}${building ? ` · ${String(building.building_name || "")}` : ""} · التاريخ: ${String(
+                      visit.planned_date || visit.visit_date || "-"
+                    )}`}
+                    rightBadge={
+                      <SoftBadge
+                        label={isClosedVisitStatus(visit.visit_status) ? "مغلقة" : "قيد التنفيذ"}
+                        tone={badgeTone}
+                      />
+                    }
+                  />
+                );
+              })}
             </div>
+          )}
+        </SectionCard>
+      </div>
 
-            <div className="stack-3">
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="استحقاقات الأصول"
+          subtitle="الأصول المتأخرة والقريبة التي تحتاج متابعة"
+        >
+          {dueAssets.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد استحقاقات حالية"
+              description="كل الأصول ضمن المدى الزمني الحالي."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }}>
               {dueAssets.slice(0, 5).map((asset: any) => (
-                <DueRow
-                  key={String(asset.asset_id)}
-                  href={`/assets/${String(asset.asset_id)}`}
-                  title={String(
-                    asset.asset_name_ar ||
-                      asset.asset_name ||
-                      asset.asset_code ||
-                      asset.asset_id
-                  )}
-                  systemCode={String(asset.system_code || "-")}
-                  dueDate={String(asset.next_due_date || "-")}
-                  dueLabel={String(asset.due_label || "-")}
+                <ListRow
+                  key={asset.asset_id}
+                  href={`/assets/${asset.asset_id}`}
+                  title={asset.asset_name}
+                  subtitle={`${asset.system_code} · الاستحقاق: ${asset.next_due_date}`}
+                  rightBadge={
+                    <SoftBadge
+                      label={asset.due_label}
+                      tone={getDueTone(asset.due_label)}
+                    />
+                  }
                 />
               ))}
             </div>
-          </>
-        )}
-      </section>
+          )}
+        </SectionCard>
+      </div>
     </AppShell>
   );
 }
