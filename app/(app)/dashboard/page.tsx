@@ -137,6 +137,8 @@ function SectionHeader({
 }
 
 function KpiCard({
+
+function KpiCard({
   label,
   value,
   hint,
@@ -155,10 +157,11 @@ function KpiCard({
     <div
       className="card"
       style={{
-        minHeight: "156px",
+        minHeight: "138px",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
+        padding: "18px",
       }}
     >
       <div
@@ -166,13 +169,13 @@ function KpiCard({
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "space-between",
-          gap: "12px",
+          gap: "10px",
         }}
       >
         <div>
           <div
             style={{
-              fontSize: "16px",
+              fontSize: "15px",
               color: "#475569",
               fontWeight: 700,
             }}
@@ -182,8 +185,8 @@ function KpiCard({
 
           <div
             style={{
-              marginTop: "10px",
-              fontSize: "56px",
+              marginTop: "8px",
+              fontSize: "44px",
               lineHeight: 1,
               fontWeight: 900,
               color: "#0f172a",
@@ -195,9 +198,9 @@ function KpiCard({
 
         <div
           style={{
-            width: "58px",
-            height: "58px",
-            borderRadius: "18px",
+            width: "50px",
+            height: "50px",
+            borderRadius: "16px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -207,16 +210,16 @@ function KpiCard({
             flexShrink: 0,
           }}
         >
-          <Icon size={28} />
+          <Icon size={24} />
         </div>
       </div>
 
       <div
         style={{
-          marginTop: "14px",
-          fontSize: "14px",
+          marginTop: "10px",
+          fontSize: "13px",
           color: "#64748b",
-          lineHeight: 1.7,
+          lineHeight: 1.6,
         }}
       >
         {hint}
