@@ -60,6 +60,36 @@ export function toSystemLabel(value: any) {
   return cleaned.length > 0 ? cleaned : "نظام غير محدد";
 }
 
+export function toFacilityTypeLabel(value: any) {
+  const v = String(value || "").trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    office: "مكتبي (Office)",
+    commercial: "تجاري (Commercial)",
+    residential: "سكني (Residential)",
+    industrial: "صناعي (Industrial)",
+    warehouse: "مستودع (Warehouse)",
+    healthcare: "صحي (Healthcare)",
+    hospital: "مستشفى (Hospital)",
+    hotel: "فندقي (Hotel)",
+    educational: "تعليمي (Educational)",
+    school: "مدرسة (School)",
+    university: "جامعة (University)",
+    mixed_use: "متعدد الاستخدام (Mixed Use)",
+    mixeduse: "متعدد الاستخدام (Mixed Use)",
+    mall: "مركز تجاري (Mall)",
+    retail: "بيع بالتجزئة (Retail)",
+    government: "حكومي (Government)",
+    airport: "مطار (Airport)",
+    mosque: "مسجد (Mosque)",
+    single_building: "مبنى واحد (Single Building)",
+    campus: "مجمع (Campus)",
+    tower: "برج (Tower)",
+  };
+
+  return map[v] || safeText(value, "نوع منشأة غير محدد");
+}
+
 export function toVisitTypeLabel(value: any) {
   const v = String(value || "").trim().toLowerCase();
 
