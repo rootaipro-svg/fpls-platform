@@ -8,36 +8,110 @@ type Props = {
   buildings: any[];
   buildingSystems: any[];
   inspectors: any[];
+  initialBuildingSystemId?: string;
 };
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function text(value: unknown, fallback = "") {
+  const output = String(value ?? "").trim();
+  return output || fallback;
+}
+
+function getFacilityName(facility: any) {
+  return text(
+    facility?.facility_name_ar || facility?.facility_name || facility?.name,
+    text(facility?.facility_id, "منشأة")
+  );
+}
+
+function getBuildingName(building: any) {
+  return text(
+    building?.building_name_ar || building?.building_name || building?.name,
+    text(building?.building_id, "مبنى")
+  );
+}
+
+function getSystemName(system: any) {
+  return text(
+    system?.system_name_override ||
+      system?.system_display_name_ar ||
+      system?.system_display_name ||
+      system?.system_name_ar ||
+      system?.system_name,
+    text(system?.system_code, "نظام")
+  );
+}
 
 export default function NewVisitForm({
   facilities,
   buildings,
   buildingSystems,
   inspectors,
+  initialBuildingSystemId = "",
 }: Props) {
   const router = useRouter();
 
-  const [facilityId, setFacilityId] = useState("");
-  const [buildingId, setBuildingId] = useState("");
+  const initialSystem = buildingSystems.find(
+    (system) =>
+      String(system.building_system_id || "") ===
+      String(initialBuildingSystemId || "")
+  );
+
+  const initialBuilding = initialSystem
+    ? buildings.find(
+        (building) =>
+          String(building.building_id || "") ===
+          String(initialSystem.building_id || "")
+      )
+    : null;
+
+  const initialFacilityId = initialBuilding
+    ? String(initialBuilding.facility_id || "")
+    : "";
+
+  const initialBuildingId = initialSystem
+    ? String(initialSystem.building_id || "")
+    : "";
+
+  const initialSelectedSystems = initialSystem
+    ? [String(initialSystem.building_system_id || "")]
+    : [];
+
+  const [facilityId, setFacilityId] = useState(initialFacilityId);
+  const [buildingId, setBuildingId] = useState(initialBuildingId);
   const [visitType, setVisitType] = useState("routine");
-  const [plannedDate, setPlannedDate] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [plannedDate, setPlannedDate] = useState(todayIso());
+  const [dueDate, setDueDate] = useState(todayIso());
   const [assignedInspectorId, setAssignedInspectorId] = useState("");
-  const [selectedSystemIds, setSelectedSystemIds] = useState<string[]>([]);
+  const [selectedSystemIds, setSelectedSystemIds] = useState<string[]>(
+    initialSelectedSystems
+  );
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
+  const openedFromQr = Boolean(initialBuildingSystemId && initialSystem);
+
+  const selectedFacility = facilities.find(
+    (facility) => String(facility.facility_id || "") === String(facilityId)
+  );
+
+  const selectedBuilding = buildings.find(
+    (building) => String(building.building_id || "") === String(buildingId)
+  );
+
   const filteredBuildings = useMemo(() => {
     return buildings.filter(
-      (b) => String(b.facility_id || "") === String(facilityId)
+      (building) => String(building.facility_id || "") === String(facilityId)
     );
   }, [buildings, facilityId]);
 
   const filteredSystems = useMemo(() => {
     return buildingSystems.filter(
-      (s) => String(s.building_id || "") === String(buildingId)
+      (system) => String(system.building_id || "") === String(buildingId)
     );
   }, [buildingSystems, buildingId]);
 
@@ -52,20 +126,21 @@ export default function NewVisitForm({
     setMessage("");
 
     const selectedSystems = filteredSystems
-      .filter((s) =>
-        selectedSystemIds.includes(String(s.building_system_id || ""))
+      .filter((system) =>
+        selectedSystemIds.includes(String(system.building_system_id || ""))
       )
-      .map((s) => ({
-        building_system_id: String(s.building_system_id || ""),
-        system_code: String(s.system_code || ""),
+      .map((system) => ({
+        building_system_id: String(system.building_system_id || ""),
+        system_code: String(system.system_code || ""),
       }))
-      .filter((s) => s.building_system_id && s.system_code);
+      .filter((system) => system.building_system_id && system.system_code);
 
     if (!facilityId) return setMessage("اختر المنشأة أولًا.");
     if (!buildingId) return setMessage("اختر المبنى أولًا.");
     if (!plannedDate) return setMessage("حدد تاريخ الزيارة.");
-    if (selectedSystems.length === 0)
+    if (selectedSystems.length === 0) {
       return setMessage("اختر نظامًا واحدًا على الأقل للفحص.");
+    }
 
     setBusy(true);
 
@@ -82,7 +157,7 @@ export default function NewVisitForm({
           planned_date: plannedDate,
           due_date: dueDate || plannedDate,
           assigned_inspector_id: assignedInspectorId,
-          system_codes: selectedSystems.map((s) => s.system_code),
+          system_codes: selectedSystems.map((system) => system.system_code),
           systems: selectedSystems,
           notes,
         }),
@@ -121,8 +196,31 @@ export default function NewVisitForm({
     marginBottom: "6px",
   };
 
+  const readonlyCardStyle: React.CSSProperties = {
+    border: "1px solid #ccfbf1",
+    background: "#ecfeff",
+    borderRadius: "18px",
+    padding: "12px",
+    color: "#0f766e",
+    fontSize: "13px",
+    fontWeight: 800,
+    lineHeight: 1.8,
+  };
+
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: "14px" }}>
+      {openedFromQr ? (
+        <div style={readonlyCardStyle}>
+          تم تحديد النظام من QR.
+          <br />
+          المنشأة: {getFacilityName(selectedFacility)}
+          <br />
+          المبنى: {getBuildingName(selectedBuilding)}
+          <br />
+          النظام: {getSystemName(initialSystem)}
+        </div>
+      ) : null}
+
       <div>
         <label style={labelStyle}>المنشأة</label>
         <select
@@ -135,9 +233,12 @@ export default function NewVisitForm({
           style={inputStyle}
         >
           <option value="">اختر المنشأة</option>
-          {facilities.map((f) => (
-            <option key={String(f.facility_id)} value={String(f.facility_id)}>
-              {String(f.facility_name || f.facility_name_ar || f.facility_id)}
+          {facilities.map((facility) => (
+            <option
+              key={String(facility.facility_id)}
+              value={String(facility.facility_id)}
+            >
+              {getFacilityName(facility)}
             </option>
           ))}
         </select>
@@ -155,9 +256,12 @@ export default function NewVisitForm({
           disabled={!facilityId}
         >
           <option value="">اختر المبنى</option>
-          {filteredBuildings.map((b) => (
-            <option key={String(b.building_id)} value={String(b.building_id)}>
-              {String(b.building_name || b.building_name_ar || b.building_id)}
+          {filteredBuildings.map((building) => (
+            <option
+              key={String(building.building_id)}
+              value={String(building.building_id)}
+            >
+              {getBuildingName(building)}
             </option>
           ))}
         </select>
@@ -214,12 +318,17 @@ export default function NewVisitForm({
           style={inputStyle}
         >
           <option value="">بدون تعيين حاليًا</option>
-          {inspectors.map((i) => (
+          {inspectors.map((inspector) => (
             <option
-              key={String(i.inspector_id)}
-              value={String(i.inspector_id)}
+              key={String(inspector.inspector_id)}
+              value={String(inspector.inspector_id)}
             >
-              {String(i.inspector_name || i.name || i.email || i.inspector_id)}
+              {String(
+                inspector.inspector_name ||
+                  inspector.name ||
+                  inspector.email ||
+                  inspector.inspector_id
+              )}
             </option>
           ))}
         </select>
@@ -254,33 +363,68 @@ export default function NewVisitForm({
           </div>
         ) : (
           <div style={{ display: "grid", gap: "8px" }}>
-            {filteredSystems.map((s) => {
-              const id = String(s.building_system_id || "");
+            {filteredSystems.map((system) => {
+              const id = String(system.building_system_id || "");
+              const active = selectedSystemIds.includes(id);
+
               return (
-                <label
+                <button
                   key={id}
+                  type="button"
+                  onClick={() => toggleSystem(id)}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    border: "1px solid #dbe4ef",
-                    borderRadius: "16px",
+                    textAlign: "right",
+                    border: active
+                      ? "1px solid #99f6e4"
+                      : "1px solid #dbe4ef",
+                    borderRadius: "18px",
                     padding: "12px",
-                    background: selectedSystemIds.includes(id)
-                      ? "#ecfeff"
-                      : "#fff",
+                    background: active ? "#ecfeff" : "#fff",
                     cursor: "pointer",
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedSystemIds.includes(id)}
-                    onChange={() => toggleSystem(id)}
-                  />
-                  <span style={{ fontWeight: 800, color: "#0f172a" }}>
-                    {String(s.system_name_ar || s.system_name || s.system_code)}
-                  </span>
-                </label>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 900,
+                        color: active ? "#0f766e" : "#0f172a",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {getSystemName(system)}
+                    </span>
+
+                    <span
+                      style={{
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "50%",
+                        border: active
+                          ? "6px solid #0f766e"
+                          : "2px solid #cbd5e1",
+                        background: "#fff",
+                        flexShrink: 0,
+                      }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "12px",
+                      color: "#64748b",
+                    }}
+                  >
+                    {String(system.system_code || "")}
+                  </div>
+                </button>
               );
             })}
           </div>
@@ -307,6 +451,7 @@ export default function NewVisitForm({
             padding: "12px",
             fontSize: "13px",
             fontWeight: 700,
+            lineHeight: 1.8,
           }}
         >
           {message}
@@ -327,7 +472,7 @@ export default function NewVisitForm({
           cursor: busy ? "not-allowed" : "pointer",
         }}
       >
-        {busy ? "جاري الحفظ..." : "إنشاء الزيارة"}
+        {busy ? "جاري إنشاء الزيارة..." : "إنشاء الزيارة وبدء الفحص"}
       </button>
     </form>
   );
