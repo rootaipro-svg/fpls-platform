@@ -1,10 +1,13 @@
 "use client";
+
 import { EmptyPanel } from "@/components/admin-page-kit";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChecklistItemEvidence from "@/components/checklist-item-evidence";
+import FirePumpTestForm from "@/components/fire-pump-test-form";
 import { evaluateSmartChecklist } from "@/lib/smart-evaluation";
 import { safeText, toSystemLabel } from "@/lib/display";
+
 type VisitSystem = {
   visit_system_id: string;
   building_system_id: string;
@@ -116,6 +119,7 @@ function defaultItemState(): ItemState {
 function responseButtonClass(active: boolean, tone: "green" | "red" | "slate") {
   const base =
     "inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-sm font-bold transition min-w-[88px]";
+
   if (!active) {
     return `${base} border-slate-200 bg-white text-slate-700`;
   }
@@ -139,10 +143,14 @@ function systemButtonClass(active: boolean) {
 
 function getSmartInputCount(item: ChecklistItem) {
   const rule = String(item.calc_rule || "").toUpperCase();
+
   if (rule === "PRESSURE_SETPOINTS") return 2;
   if (rule === "PRESSURE_STABILITY") return 3;
-  if (String(item.response_type_v2 || "").toLowerCase() === "numeric_range") return 1;
+  if (String(item.response_type_v2 || "").toLowerCase() === "numeric_range") {
+    return 1;
+  }
   if (rule === "EMERGENCY_LIGHT_DURATION") return 1;
+
   return 0;
 }
 
@@ -152,7 +160,9 @@ function smartInputLabel(item: ChecklistItem, index: number) {
 
   if (rule === "PRESSURE_SETPOINTS") {
     if (index === 1) return `ضغط تشغيل الجوكي${unit ? ` (${unit})` : ""}`;
-    if (index === 2) return `ضغط تشغيل المضخة الرئيسية${unit ? ` (${unit})` : ""}`;
+    if (index === 2) {
+      return `ضغط تشغيل المضخة الرئيسية${unit ? ` (${unit})` : ""}`;
+    }
   }
 
   if (rule === "PRESSURE_STABILITY") {
@@ -170,6 +180,20 @@ function smartInputLabel(item: ChecklistItem, index: number) {
   }
 
   return `قراءة ${index}`;
+}
+
+function isFirePumpSystemCode(systemCode: unknown) {
+  const code = String(systemCode || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, "_");
+
+  return (
+    code === "fire_pump" ||
+    code === "firepump" ||
+    code.includes("fire_pump") ||
+    code.includes("pump")
+  );
 }
 
 export default function VisitExecutionForm({
@@ -212,11 +236,15 @@ export default function VisitExecutionForm({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [openedEvidenceKey, setOpenedEvidenceKey] = useState<string | null>(null);
+  const [openedEvidenceKey, setOpenedEvidenceKey] = useState<string | null>(
+    null
+  );
 
   const selectedSystem = visitSystems.find(
     (system) => String(system.visit_system_id) === String(selectedSystemId)
   );
+
+  const isFirePumpSystem = isFirePumpSystemCode(selectedSystem?.system_code);
 
   const selectedItems = checklistItems.filter(
     (item) => String(item.visit_system_id) === String(selectedSystemId)
@@ -227,7 +255,10 @@ export default function VisitExecutionForm({
     return Boolean(String(state?.response_value || "").trim());
   }).length;
 
-  function getItemState(visitSystemId: string, checklistItemId: string): ItemState {
+  function getItemState(
+    visitSystemId: string,
+    checklistItemId: string
+  ): ItemState {
     return formMap[itemKey(visitSystemId, checklistItemId)] || defaultItemState();
   }
 
@@ -257,7 +288,9 @@ export default function VisitExecutionForm({
       ...nextState,
     };
 
-    const responseType = String(item.response_type_v2 || "pass_fail_na").toLowerCase();
+    const responseType = String(
+      item.response_type_v2 || "pass_fail_na"
+    ).toLowerCase();
     const calcRule = String(item.calc_rule || "");
 
     if (!calcRule && responseType === "pass_fail_na") {
@@ -296,7 +329,10 @@ export default function VisitExecutionForm({
 
     try {
       const rows = checklistItems.map((item) => {
-        const state = getItemState(item.visit_system_id, item.checklist_item_id);
+        const state = getItemState(
+          item.visit_system_id,
+          item.checklist_item_id
+        );
 
         return {
           visit_system_id: String(item.visit_system_id),
@@ -380,6 +416,7 @@ export default function VisitExecutionForm({
           >
             فحص أصل محدد
           </div>
+
           <div
             style={{
               marginTop: "6px",
@@ -389,8 +426,12 @@ export default function VisitExecutionForm({
             }}
           >
             {safeText(activeAsset.asset_name_ar || activeAsset.asset_name, "أصل")}
-            {activeAsset.asset_code ? ` · ${String(activeAsset.asset_code)}` : ""}
-            {activeAsset.location_note ? ` · ${String(activeAsset.location_note)}` : ""}
+            {activeAsset.asset_code
+              ? ` · ${String(activeAsset.asset_code)}`
+              : ""}
+            {activeAsset.location_note
+              ? ` · ${String(activeAsset.location_note)}`
+              : ""}
           </div>
         </div>
       ) : null}
@@ -440,6 +481,7 @@ export default function VisitExecutionForm({
           >
             النظام الحالي
           </div>
+
           <div
             style={{
               marginTop: "4px",
@@ -451,19 +493,32 @@ export default function VisitExecutionForm({
           >
             {toSystemLabel(selectedSystem.system_code)}
           </div>
+
           <div
             style={{
               marginTop: "6px",
               fontSize: "13px",
               color: "#64748b",
+              lineHeight: 1.7,
             }}
           >
-            تم إنجاز {completedCount} من {selectedItems.length} بند
+            {isFirePumpSystem
+              ? "هذا النظام يستخدم وحدة اختبار أداء مضخة الحريق بدل قائمة البنود التقليدية."
+              : `تم إنجاز ${completedCount} من ${selectedItems.length} بند`}
           </div>
         </div>
       ) : null}
 
-      {selectedItems.length === 0 ? (
+      {isFirePumpSystem && selectedSystem ? (
+        <FirePumpTestForm
+          visitId={visitId}
+          visitSystem={{
+            visit_system_id: String(selectedSystem.visit_system_id || ""),
+            building_system_id: String(selectedSystem.building_system_id || ""),
+            system_code: String(selectedSystem.system_code || ""),
+          }}
+        />
+      ) : selectedItems.length === 0 ? (
         <EmptyPanel
           title="لا توجد بنود فحص"
           description="لم يتم العثور على بنود لهذا النظام داخل الزيارة."
@@ -471,13 +526,20 @@ export default function VisitExecutionForm({
       ) : (
         <div style={{ display: "grid", gap: "10px" }}>
           {selectedItems.map((item, index) => {
-            const state = getItemState(item.visit_system_id, item.checklist_item_id);
-            const currentKey = itemKey(item.visit_system_id, item.checklist_item_id);
+            const state = getItemState(
+              item.visit_system_id,
+              item.checklist_item_id
+            );
+            const currentKey = itemKey(
+              item.visit_system_id,
+              item.checklist_item_id
+            );
 
             const itemEvidence = existingEvidence.filter((row) => {
               const sameItem =
                 String(row.visit_system_id) === String(item.visit_system_id) &&
-                String(row.checklist_item_id) === String(item.checklist_item_id);
+                String(row.checklist_item_id) ===
+                  String(item.checklist_item_id);
 
               if (!sameItem) return false;
 
@@ -789,28 +851,32 @@ export default function VisitExecutionForm({
         </div>
       )}
 
-      {message ? (
-        <div className="alert-success" style={{ marginTop: "14px" }}>
-          {message}
-        </div>
-      ) : null}
+      {!isFirePumpSystem ? (
+        <>
+          {message ? (
+            <div className="alert-success" style={{ marginTop: "14px" }}>
+              {message}
+            </div>
+          ) : null}
 
-      {error ? (
-        <div className="alert-error" style={{ marginTop: "14px" }}>
-          {error}
-        </div>
-      ) : null}
+          {error ? (
+            <div className="alert-error" style={{ marginTop: "14px" }}>
+              {error}
+            </div>
+          ) : null}
 
-      <div style={{ marginTop: "14px" }}>
-        <button
-          type="button"
-          className="btn btn-grow"
-          onClick={handleSaveAndClose}
-          disabled={saving}
-        >
-          {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
-        </button>
-      </div>
+          <div style={{ marginTop: "14px" }}>
+            <button
+              type="button"
+              className="btn btn-grow"
+              onClick={handleSaveAndClose}
+              disabled={saving}
+            >
+              {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
+            </button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
