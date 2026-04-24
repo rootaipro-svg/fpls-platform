@@ -1,15 +1,10 @@
-import {
-  ClipboardList,
-  FileCheck2,
-  ShieldCheck,
-} from "lucide-react";
+import { ClipboardList, FileCheck2, ShieldCheck } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import VisitExecutionForm from "@/components/visit-execution-form";
 
 import {
   EmptyPanel,
-  MetricCard,
   PageHero,
   SectionCard,
   SoftBadge,
@@ -33,16 +28,6 @@ import {
 } from "@/lib/display";
 
 type Row = Record<string, any>;
-
-function toneForSummary(value: any) {
-  const v = String(value || "").toLowerCase();
-
-  if (v === "compliant") return "teal" as const;
-  if (v === "critical_findings" || v === "fail_critical") return "red" as const;
-  if (v === "non_compliant" || v === "pass_with_remarks") return "amber" as const;
-
-  return "slate" as const;
-}
 
 function latestResponseKey(row: Row) {
   return `${String(row.visit_system_id || "")}__${String(
@@ -72,10 +57,7 @@ function getLatestResponsesOnly(rows: Row[]) {
       continue;
     }
 
-    const currentTime = latestResponseTime(row);
-    const existingTime = latestResponseTime(existing);
-
-    if (currentTime.localeCompare(existingTime) >= 0) {
+    if (latestResponseTime(row).localeCompare(latestResponseTime(existing)) >= 0) {
       map.set(key, row);
     }
   }
@@ -85,6 +67,10 @@ function getLatestResponsesOnly(rows: Row[]) {
 
 function itemText(item: Row, arKey: string, enKey: string) {
   return String(item?.[arKey] || item?.[enKey] || "").trim();
+}
+
+function systemTitle(system: Row) {
+  return toSystemLabel(system.system_code);
 }
 
 export default async function VisitDetailPage({
@@ -211,18 +197,6 @@ export default async function VisitDetailPage({
     (row: Row) => String(row.visit_id) === String(id)
   );
 
-  const compliantCount = responseRows.filter(
-    (r: Row) => String(r.response_value || "").toLowerCase() === "compliant"
-  ).length;
-
-  const nonCompliantCount = responseRows.filter(
-    (r: Row) => String(r.response_value || "").toLowerCase() === "non_compliant"
-  ).length;
-
-  const notApplicableCount = responseRows.filter(
-    (r: Row) => String(r.response_value || "").toLowerCase() === "not_applicable"
-  ).length;
-
   const openFindingsCount = findingRows.filter((f: Row) =>
     isOpenFindingStatus(f.closure_status || f.compliance_status || "")
   ).length;
@@ -289,192 +263,129 @@ export default async function VisitDetailPage({
 
   const totalChecklistCount = executionItems.length;
 
-  const reportReady =
-    String(visit.visit_status || "").toLowerCase() === "closed" ||
-    String(visit.visit_status || "").toLowerCase() === "completed";
+  const nonCompliantCount = responseRows.filter(
+    (r: Row) => String(r.response_value || "").toLowerCase() === "non_compliant"
+  ).length;
+
+  const mainSystem = systems[0];
+
+  const facilityName = safeText(
+    facility?.facility_name_ar || facility?.facility_name,
+    "منشأة غير محددة"
+  );
+
+  const buildingName = safeText(
+    building?.building_name_ar || building?.building_name,
+    "مبنى غير محدد"
+  );
+
+  const dateText = String(visit.planned_date || visit.visit_date || "-");
 
   return (
     <AppShell>
       <PageHero
-        eyebrow="زيارة فحص"
-        title={safeText(facility?.facility_name_ar || facility?.facility_name, "منشأة غير محددة")}
-        subtitle={`${building ? `${String(building.building_name_ar || building.building_name || "")} · ` : ""}${String(
-          visit.planned_date || visit.visit_date || "-"
-        )}`}
+        eyebrow="مهمة فحص"
+        title={facilityName}
+        subtitle={`${buildingName} · ${dateText}`}
         icon={ClipboardList}
         pills={[
           toVisitStatusLabel(visit.visit_status),
-          toSummaryResultLabel(visit.summary_result || "pending"),
+          `${completedCount}/${totalChecklistCount} بند`,
         ]}
       />
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: "12px",
-          marginTop: "14px",
-        }}
-      >
-        <MetricCard
-          label="الأنظمة"
-          value={systems.length}
-          hint="داخل الزيارة"
-          icon={ShieldCheck}
-          tone="teal"
-        />
-
-        <MetricCard
-          label="الإنجاز"
-          value={`${completedCount}/${totalChecklistCount}`}
-          hint="بنود تم تسجيلها"
-          icon={ClipboardList}
-          tone="teal"
-        />
-
-        <MetricCard
-          label="غير مطابق"
-          value={nonCompliantCount}
-          hint="بنود تحتاج معالجة"
-          icon={ClipboardList}
-          tone={nonCompliantCount > 0 ? "amber" : "slate"}
-        />
-
-        <MetricCard
-          label="المخالفات"
-          value={openFindingsCount}
-          hint="مفتوحة للمتابعة"
-          icon={FileCheck2}
-          tone={openFindingsCount > 0 ? "red" : "slate"}
-        />
-      </div>
-
       <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="ملخص الزيارة"
-          subtitle="معلومات مختصرة بدون تفاصيل مشتتة"
+        <div
+          className="card"
+          style={{
+            padding: "16px",
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+          }}
         >
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "10px",
+              display: "flex",
+              gap: "12px",
+              alignItems: "flex-start",
             }}
           >
-            <div className="card" style={{ padding: "14px" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>الحالة</div>
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 900,
-                  color: "#0f172a",
-                }}
-              >
-                {toVisitStatusLabel(visit.visit_status)}
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: "14px" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>النتيجة</div>
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 900,
-                  color: "#0f172a",
-                }}
-              >
-                {toSummaryResultLabel(visit.summary_result || "pending")}
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: "14px" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>المفتش</div>
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 900,
-                  color: "#0f172a",
-                  lineHeight: 1.6,
-                }}
-              >
-                {safeText(
-                  assignedInspector?.full_name_ar ||
-                    assignedInspector?.full_name ||
-                    assignedInspector?.email,
-                  "غير محدد"
-                )}
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: "14px" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>التاريخ</div>
-              <div
-                style={{
-                  marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 900,
-                  color: "#0f172a",
-                }}
-              >
-                {String(visit.planned_date || visit.visit_date || "-")}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
-            <SoftBadge label={`مطابق: ${compliantCount}`} tone="teal" />
-            <SoftBadge
-              label={`غير مطابق: ${nonCompliantCount}`}
-              tone={nonCompliantCount > 0 ? "amber" : "slate"}
-            />
-            <SoftBadge label={`غير منطبق: ${notApplicableCount}`} tone="slate" />
-            <SoftBadge
-              label={reportReady ? "جاهزة للتقرير" : "غير جاهزة للتقرير"}
-              tone={reportReady ? "teal" : "amber"}
-            />
-          </div>
-
-          {visit.notes ? (
             <div
-              className="card"
               style={{
-                padding: "14px",
-                marginTop: "12px",
+                width: "54px",
+                height: "54px",
+                borderRadius: "20px",
+                background: "#ecfeff",
+                color: "#0f766e",
+                border: "1px solid #ccfbf1",
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
               }}
             >
-              <div style={{ fontSize: "13px", color: "#64748b" }}>
-                ملاحظات الزيارة
+              <ShieldCheck size={28} />
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#64748b",
+                  fontWeight: 800,
+                }}
+              >
+                النظام المطلوب فحصه
               </div>
 
               <div
                 style={{
-                  marginTop: "6px",
-                  fontSize: "14px",
-                  color: "#334155",
-                  lineHeight: 1.8,
+                  marginTop: "4px",
+                  fontSize: "20px",
+                  fontWeight: 950,
+                  color: "#0f172a",
+                  lineHeight: 1.5,
                 }}
               >
-                {String(visit.notes)}
+                {systems.length === 1 && mainSystem
+                  ? systemTitle(mainSystem)
+                  : `${systems.length} أنظمة داخل هذه الزيارة`}
+              </div>
+
+              <div
+                style={{
+                  marginTop: "8px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  alignItems: "center",
+                }}
+              >
+                <SoftBadge
+                  label={`الإنجاز: ${completedCount}/${totalChecklistCount}`}
+                  tone="teal"
+                />
+
+                <SoftBadge
+                  label={`غير مطابق: ${nonCompliantCount}`}
+                  tone={nonCompliantCount > 0 ? "amber" : "slate"}
+                />
+
+                <SoftBadge
+                  label={`مخالفات: ${openFindingsCount}`}
+                  tone={openFindingsCount > 0 ? "red" : "slate"}
+                />
               </div>
             </div>
-          ) : null}
-        </SectionCard>
+          </div>
+        </div>
       </div>
 
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="الأنظمة داخل الزيارة"
-          subtitle="اختر النظام من داخل نموذج التنفيذ إذا كانت الزيارة تحتوي على أكثر من نظام"
-        >
-          {systems.length === 0 ? (
-            <EmptyPanel
-              title="لا توجد أنظمة"
-              description="لم يتم ربط أي نظام بهذه الزيارة بعد."
-            />
-          ) : (
+      {systems.length > 1 ? (
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard
+            title="الأنظمة داخل المهمة"
+            subtitle="اختر النظام من أزرار نموذج التنفيذ بالأسفل"
+          >
             <div style={{ display: "grid", gap: "10px" }}>
               {systems.map((system: Row) => (
                 <div
@@ -513,20 +424,20 @@ export default async function VisitDetailPage({
 
                   <SoftBadge
                     label={safeText(system.status || system.result_summary, "planned")}
-                    tone={toneForSummary(system.result_summary || system.status)}
+                    tone="slate"
                   />
                 </div>
               ))}
             </div>
-          )}
-        </SectionCard>
-      </div>
+          </SectionCard>
+        </div>
+      ) : null}
 
       {systems.length > 0 ? (
         <div style={{ marginTop: "14px" }}>
           <SectionCard
             title="تنفيذ الفحص"
-            subtitle="سجل نتيجة كل بند. هذه هي مساحة العمل الأساسية للمفتش."
+            subtitle="ابدأ مباشرة بتسجيل نتيجة كل بند"
           >
             <VisitExecutionForm
               visitId={String(id)}
@@ -558,7 +469,132 @@ export default async function VisitDetailPage({
             />
           </SectionCard>
         </div>
-      ) : null}
+      ) : (
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard title="تنفيذ الفحص" subtitle="لا توجد أنظمة مرتبطة">
+            <EmptyPanel
+              title="لا توجد أنظمة"
+              description="لم يتم ربط أي نظام بهذه الزيارة بعد."
+            />
+          </SectionCard>
+        </div>
+      )}
+
+      <div style={{ marginTop: "14px" }}>
+        <details>
+          <summary
+            style={{
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 900,
+              color: "#475569",
+              padding: "12px 4px",
+            }}
+          >
+            عرض تفاصيل الزيارة الإدارية
+          </summary>
+
+          <SectionCard
+            title="تفاصيل الزيارة"
+            subtitle="معلومات إدارية مخفية حتى لا تشتت المفتش أثناء الفحص"
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "10px",
+              }}
+            >
+              <div className="card" style={{ padding: "14px" }}>
+                <div style={{ fontSize: "13px", color: "#64748b" }}>الحالة</div>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "16px",
+                    fontWeight: 900,
+                    color: "#0f172a",
+                  }}
+                >
+                  {toVisitStatusLabel(visit.visit_status)}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: "14px" }}>
+                <div style={{ fontSize: "13px", color: "#64748b" }}>النتيجة</div>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "16px",
+                    fontWeight: 900,
+                    color: "#0f172a",
+                  }}
+                >
+                  {toSummaryResultLabel(visit.summary_result || "pending")}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: "14px" }}>
+                <div style={{ fontSize: "13px", color: "#64748b" }}>المفتش</div>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "16px",
+                    fontWeight: 900,
+                    color: "#0f172a",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {safeText(
+                    assignedInspector?.full_name_ar ||
+                      assignedInspector?.full_name ||
+                      assignedInspector?.email,
+                    "غير محدد"
+                  )}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: "14px" }}>
+                <div style={{ fontSize: "13px", color: "#64748b" }}>التاريخ</div>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "16px",
+                    fontWeight: 900,
+                    color: "#0f172a",
+                  }}
+                >
+                  {dateText}
+                </div>
+              </div>
+            </div>
+
+            {visit.notes ? (
+              <div
+                className="card"
+                style={{
+                  padding: "14px",
+                  marginTop: "12px",
+                }}
+              >
+                <div style={{ fontSize: "13px", color: "#64748b" }}>
+                  ملاحظات الزيارة
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "14px",
+                    color: "#334155",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {String(visit.notes)}
+                </div>
+              </div>
+            ) : null}
+          </SectionCard>
+        </details>
+      </div>
     </AppShell>
   );
 }
