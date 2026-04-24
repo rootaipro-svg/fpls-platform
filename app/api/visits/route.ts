@@ -5,6 +5,11 @@ import { appendRow, readSheet } from "@/lib/sheets";
 import { makeId } from "@/lib/ids";
 import { nowIso } from "@/lib/dates";
 
+type VisitSystemInput = {
+  building_system_id: string;
+  system_code: string;
+};
+
 export async function GET() {
   try {
     const user = await requirePermission("visits", "view");
@@ -36,35 +41,27 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    /**
-     * Normalize incoming systems data.
-     *
-     * Expected from frontend:
-     * systems: [
-     *   {
-     *     building_system_id: "...",
-     *     system_code: "fire_alarm"
-     *   }
-     * ]
-     *
-     * Optional:
-     * system_codes: ["fire_alarm", "fire_pump"]
-     */
-    const systems = Array.isArray(body.systems) ? body.systems : [];
+    const systemsRaw = Array.isArray(body.systems) ? body.systems : [];
 
-    const systemCodes = Array.isArray(body.system_codes)
+    const validSystems: VisitSystemInput[] = systemsRaw
+      .map((system: any): VisitSystemInput => {
+        return {
+          building_system_id: String(system?.building_system_id || "").trim(),
+          system_code: String(system?.system_code || "").trim(),
+        };
+      })
+      .filter((system: VisitSystemInput) => {
+        return Boolean(system.building_system_id && system.system_code);
+      });
+
+    const systemCodes: string[] = Array.isArray(body.system_codes)
       ? body.system_codes
           .map((code: any) => String(code || "").trim())
-          .filter(Boolean)
-      : systems
-          .map((system: any) => String(system?.system_code || "").trim())
-          .filter(Boolean);
+          .filter((code: string) => Boolean(code))
+      : validSystems
+          .map((system: VisitSystemInput) => system.system_code)
+          .filter((code: string) => Boolean(code));
 
-    /**
-     * Required fields validation.
-     * This prevents errors like:
-     * Cannot read properties of undefined reading "join"
-     */
     if (!body.facility_id) {
       return NextResponse.json(
         {
@@ -95,31 +92,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (systems.length === 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "At least one system is required",
-        },
-        { status: 400 }
-      );
-    }
-
-    const validSystems = systems
-      .map((system: any) => ({
-        building_system_id: String(system?.building_system_id || "").trim(),
-        system_code: String(system?.system_code || "").trim(),
-      }))
-      .filter(
-        (system: any) => system.building_system_id && system.system_code
-      );
-
     if (validSystems.length === 0) {
       return NextResponse.json(
         {
           ok: false,
           message:
-            "Selected systems are invalid. building_system_id and system_code are required.",
+            "At least one valid system is required. building_system_id and system_code are required.",
         },
         { status: 400 }
       );
@@ -141,7 +119,9 @@ export async function POST(req: NextRequest) {
       assigned_system_scope:
         systemCodes.length > 0
           ? systemCodes.join("|")
-          : validSystems.map((system) => system.system_code).join("|"),
+          : validSystems
+              .map((system: VisitSystemInput) => system.system_code)
+              .join("|"),
       visit_status: "planned",
       summary_result: "pending",
       notes: body.notes || "",
