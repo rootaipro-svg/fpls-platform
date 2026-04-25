@@ -443,8 +443,9 @@ export default async function VisitDetailPage({
             title="تنفيذ الفحص"
             subtitle="ابدأ مباشرة بتسجيل نتيجة كل بند"
           >
-            <VisitExecutionForm
-              visitId={String(id)}
+           <VisitExecutionForm
+  visitId={String(id)}
+  visitType={String(visit.visit_type || "routine")}
               visitSystems={
                 systems.map((s: Row) => ({
                   visit_system_id: String(s.visit_system_id || ""),
