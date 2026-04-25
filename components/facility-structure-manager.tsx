@@ -38,39 +38,66 @@ type SelectedSystemDraft = {
   qr_enabled: string;
 };
 
-const FALLBACK_SYSTEMS = [
-  { system_code: "FA-ADDR", system_name_ar: "إنذار حريق معنون", system_name: "Addressable Fire Alarm" },
-  { system_code: "FA-CONV", system_name_ar: "إنذار حريق تقليدي", system_name: "Conventional Fire Alarm" },
-  { system_code: "FA-VOICE", system_name_ar: "إنذار صوتي / إخلاء", system_name: "Voice Evacuation" },
-  { system_code: "FP-ELEC-PUMP", system_name_ar: "مضخة حريق كهربائية", system_name: "Electric Fire Pump" },
-  { system_code: "FP-DIESEL-PUMP", system_name_ar: "مضخة حريق ديزل", system_name: "Diesel Fire Pump" },
-  { system_code: "FP-JOCKEY", system_name_ar: "مضخة جوكي", system_name: "Jockey Pump" },
-  { system_code: "SP-WET", system_name_ar: "رش آلي مائي", system_name: "Wet Pipe Sprinkler" },
-  { system_code: "SP-DRY", system_name_ar: "رش آلي جاف", system_name: "Dry Pipe Sprinkler" },
-  { system_code: "STANDPIPE", system_name_ar: "نظام ستاندبايب", system_name: "Standpipe System" },
-  { system_code: "HOSE-REEL", system_name_ar: "بكرة حريق", system_name: "Hose Reel" },
-  { system_code: "FIRE-HYDRANT", system_name_ar: "حنفية حريق", system_name: "Fire Hydrant" },
-  { system_code: "FIRE-EXTINGUISHER", system_name_ar: "طفايات حريق", system_name: "Portable Fire Extinguisher" },
-  { system_code: "EMERGENCY-LIGHT", system_name_ar: "إنارة طوارئ", system_name: "Emergency Lighting" },
-  { system_code: "EXIT-SIGN", system_name_ar: "لوحات مخارج", system_name: "Exit Sign" },
-  { system_code: "FIRE-DOOR", system_name_ar: "أبواب مقاومة للحريق", system_name: "Fire Door" },
-  { system_code: "GENS-EPSS", system_name_ar: "نظام طاقة طوارئ", system_name: "Emergency Power Supply System" },
-];
+
 
 function text(value: any) {
   return String(value ?? "");
 }
+function isEnabledSystem(system: any) {
+  const value = String(
+    system.enabled ??
+      system.active_status ??
+      system.status ??
+      "TRUE"
+  )
+    .trim()
+    .toLowerCase();
 
-function systemOptionLabel(system: any) {
-  return safeText(
-    system.system_name_ar ||
-      system.system_display_name_ar ||
-      system.system_name ||
-      system.system_display_name ||
-      toSystemLabel(system.system_code),
-    "نظام"
+  return !["false", "0", "no", "disabled", "inactive", "archived"].includes(
+    value
   );
 }
+
+function systemArabicName(system: any) {
+  return safeText(
+    system.system_name_ar || system.system_display_name_ar,
+    ""
+  );
+}
+
+function systemEnglishName(system: any) {
+  return safeText(
+    system.system_name || system.system_display_name,
+    ""
+  );
+}
+
+function systemOptionLabel(system: any) {
+  const ar = systemArabicName(system);
+  const en = systemEnglishName(system);
+  const code = safeText(system.system_code, "SYSTEM");
+
+  if (ar && en) return `${ar} (${en})`;
+  if (ar) return ar;
+  if (en) return en;
+
+  return code;
+}
+
+function selectedSystemLabel(
+  draft: SelectedSystemDraft,
+  systemOptions: any[]
+) {
+  const ref = systemOptions.find(
+    (system: any) => String(system.system_code) === String(draft.system_code)
+  );
+
+  return (
+    safeText(draft.system_name_override, "") ||
+    systemOptionLabel(ref || draft)
+  );
+}
+
 
 function defaultNewBuilding(facilityId: string) {
   return {
@@ -121,14 +148,12 @@ function defaultNewSystem(buildingId: string) {
 }
 
 function makeSystemDraft(system: any): SelectedSystemDraft {
-  const label = systemOptionLabel(system);
-
   return {
     system_code: String(system.system_code || ""),
-    system_name_override: label,
+    system_name_override: "",
     coverage_scope: "كامل المبنى",
     protection_area: "",
-    standard_profile: String(system.standard_profile || ""),
+    standard_profile: String(system.related_standard || system.standard_profile || ""),
     system_status: "active",
     qr_enabled: "TRUE",
   };
@@ -193,19 +218,31 @@ export default function FacilityStructureManager({
   const [addingSystemBuildingId, setAddingSystemBuildingId] = useState("");
   const [editingSystemId, setEditingSystemId] = useState("");
 
-  const systemOptions = useMemo(() => {
-    const source = systemsRef.length > 0 ? systemsRef : FALLBACK_SYSTEMS;
-    const seen = new Set<string>();
+ const systemOptions = useMemo(() => {
+  const seen = new Set<string>();
 
-    return source
-      .filter((row: any) => {
-        const code = String(row.system_code || "").trim();
-        if (!code || seen.has(code)) return false;
-        seen.add(code);
-        return true;
-      })
-      .sort((a: any, b: any) => systemOptionLabel(a).localeCompare(systemOptionLabel(b)));
-  }, [systemsRef]);
+  return systemsRef
+    .filter((row: any) => {
+      const code = String(row.system_code || "").trim();
+
+      if (!code) return false;
+      if (seen.has(code)) return false;
+      if (!isEnabledSystem(row)) return false;
+
+      seen.add(code);
+      return true;
+    })
+    .sort((a: any, b: any) => {
+      const groupA = String(a.major_category || "");
+      const groupB = String(b.major_category || "");
+
+      if (groupA !== groupB) {
+        return groupA.localeCompare(groupB);
+      }
+
+      return systemOptionLabel(a).localeCompare(systemOptionLabel(b));
+    });
+}, [systemsRef]);
 
   const [facilityForm, setFacilityForm] = useState({
     facility_code: text(facility.facility_code),
@@ -1142,28 +1179,43 @@ export default function FacilityStructureManager({
                           textAlign: "right",
                         }}
                       >
-                        <div>
-                          <div
-                            style={{
-                              fontSize: "15px",
-                              fontWeight: 900,
-                              color: "#0f172a",
-                              lineHeight: 1.6,
-                            }}
-                          >
-                            {systemOptionLabel(system)}
-                          </div>
+                     <div>
+  <div
+    style={{
+      fontSize: "15px",
+      fontWeight: 900,
+      color: "#0f172a",
+      lineHeight: 1.6,
+    }}
+  >
+    {systemArabicName(system) || systemEnglishName(system) || String(system.system_code)}
+  </div>
 
-                          <div
-                            style={{
-                              marginTop: "2px",
-                              fontSize: "12px",
-                              color: "#64748b",
-                            }}
-                          >
-                            {code}
-                          </div>
-                        </div>
+  {systemEnglishName(system) ? (
+    <div
+      style={{
+        marginTop: "2px",
+        fontSize: "12px",
+        color: "#64748b",
+        lineHeight: 1.5,
+      }}
+    >
+      {systemEnglishName(system)}
+    </div>
+  ) : null}
+
+  <div
+    style={{
+      marginTop: "4px",
+      fontSize: "12px",
+      color: "#94a3b8",
+      lineHeight: 1.5,
+    }}
+  >
+    {String(system.system_code || "")}
+    {system.related_standard ? ` · ${String(system.related_standard)}` : ""}
+  </div>
+</div>
 
                         <div
                           style={{
