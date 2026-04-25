@@ -164,13 +164,13 @@ function findSystemRef(systemOptions: any[], code: string) {
   );
 }
 
-function displaySystemForCard(system: any) {
+function displaySystemForCard(system: any, ref?: any) {
   return safeText(
     system.system_name_override ||
-      system.system_display_name_ar ||
-      system.system_display_name ||
-      system.system_name_ar ||
-      system.system_name ||
+      ref?.system_name_ar ||
+      ref?.system_name ||
+      ref?.system_display_name_ar ||
+      ref?.system_display_name ||
       toSystemLabel(system.system_code),
     "نظام"
   );
@@ -1583,6 +1583,7 @@ export default function FacilityStructureManager({
                         buildingSystems.map((system: any) => {
                           const systemId = String(system.building_system_id || "");
                           const active = editingSystemId === systemId;
+                          const ref = findSystemRef(systemOptions, system.system_code);
 
                           return (
                             <button
@@ -1602,7 +1603,7 @@ export default function FacilityStructureManager({
                                 cursor: "pointer",
                               }}
                             >
-                              {displaySystemForCard(system)}
+                                    {displaySystemForCard(system, ref)}
                             </button>
                           );
                         })
