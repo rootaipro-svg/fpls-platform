@@ -1,12 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 
 type Props = {
   facilities: any[];
   buildings: any[];
   buildingSystems: any[];
+  systemsRef: any[];
   inspectors: any[];
   initialBuildingSystemId?: string;
 };
@@ -34,25 +44,115 @@ function getBuildingName(building: any) {
   );
 }
 
-function getSystemName(system: any) {
-  return text(
+function makeSystemRefMap(systemsRef: any[]) {
+  const map = new Map<string, any>();
+
+  for (const row of systemsRef || []) {
+    const code = String(row.system_code || "").trim();
+    if (code && !map.has(code)) {
+      map.set(code, row);
+    }
+  }
+
+  return map;
+}
+
+function getSystemLabels(system: any, systemRefByCode: Map<string, any>) {
+  const code = String(system?.system_code || "").trim();
+  const ref = systemRefByCode.get(code);
+
+  const ar = text(
     system?.system_name_override ||
-      system?.system_display_name_ar ||
-      system?.system_display_name ||
+      ref?.system_name_ar ||
+      ref?.system_display_name_ar ||
       system?.system_name_ar ||
-      system?.system_name,
-    text(system?.system_code, "نظام")
+      system?.system_display_name_ar,
+    ""
   );
+
+  const en = text(
+    ref?.system_name ||
+      ref?.system_display_name ||
+      system?.system_name ||
+      system?.system_display_name,
+    ""
+  );
+
+  const standard = text(ref?.related_standard || system?.standard_profile, "");
+
+  return {
+    ar: ar || en || code || "نظام",
+    en,
+    code,
+    standard,
+  };
+}
+
+function getInspectorName(inspector: any) {
+  return text(
+    inspector?.full_name_ar ||
+      inspector?.full_name ||
+      inspector?.inspector_name ||
+      inspector?.name ||
+      inspector?.email,
+    text(inspector?.inspector_id, "مفتش")
+  );
+}
+
+function inputStyle(): CSSProperties {
+  return {
+    width: "100%",
+    border: "1px solid #dbe4ef",
+    borderRadius: "16px",
+    padding: "12px 14px",
+    fontSize: "14px",
+    outline: "none",
+    background: "#fff",
+  };
+}
+
+function labelStyle(): CSSProperties {
+  return {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: 900,
+    color: "#334155",
+    marginBottom: "6px",
+  };
+}
+
+function infoCardStyle(): CSSProperties {
+  return {
+    border: "1px solid #e2e8f0",
+    borderRadius: "18px",
+    padding: "14px",
+    background: "#fff",
+  };
+}
+
+function selectedCardStyle(): CSSProperties {
+  return {
+    border: "1px solid #99f6e4",
+    background: "#ecfeff",
+    borderRadius: "22px",
+    padding: "14px",
+  };
 }
 
 export default function NewVisitForm({
   facilities,
   buildings,
   buildingSystems,
+  systemsRef,
   inspectors,
   initialBuildingSystemId = "",
 }: Props) {
   const router = useRouter();
+
+  const systemRefByCode = useMemo(
+    () => makeSystemRefMap(systemsRef),
+    [systemsRef]
+  );
 
   const initialSystem = buildingSystems.find(
     (system) =>
@@ -80,20 +180,20 @@ export default function NewVisitForm({
     ? [String(initialSystem.building_system_id || "")]
     : [];
 
+  const openedFromSystem = Boolean(initialBuildingSystemId && initialSystem);
+
   const [facilityId, setFacilityId] = useState(initialFacilityId);
   const [buildingId, setBuildingId] = useState(initialBuildingId);
   const [visitType, setVisitType] = useState("routine");
   const [plannedDate, setPlannedDate] = useState(todayIso());
   const [dueDate, setDueDate] = useState(todayIso());
   const [assignedInspectorId, setAssignedInspectorId] = useState("");
-  const [selectedSystemIds, setSelectedSystemIds] = useState<string[]>(
+  const [selectedSystemIds, setSelectedSystemIds] = useState(
     initialSelectedSystems
   );
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-
-  const openedFromQr = Boolean(initialBuildingSystemId && initialSystem);
 
   const selectedFacility = facilities.find(
     (facility) => String(facility.facility_id || "") === String(facilityId)
@@ -115,13 +215,19 @@ export default function NewVisitForm({
     );
   }, [buildingSystems, buildingId]);
 
+  const selectedInitialLabels = initialSystem
+    ? getSystemLabels(initialSystem, systemRefByCode)
+    : null;
+
   function toggleSystem(id: string) {
+    if (openedFromSystem) return;
+
     setSelectedSystemIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   }
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setMessage("");
 
@@ -138,6 +244,7 @@ export default function NewVisitForm({
     if (!facilityId) return setMessage("اختر المنشأة أولًا.");
     if (!buildingId) return setMessage("اختر المبنى أولًا.");
     if (!plannedDate) return setMessage("حدد تاريخ الزيارة.");
+
     if (selectedSystems.length === 0) {
       return setMessage("اختر نظامًا واحدًا على الأقل للفحص.");
     }
@@ -178,109 +285,184 @@ export default function NewVisitForm({
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    border: "1px solid #dbe4ef",
-    borderRadius: "16px",
-    padding: "12px 14px",
-    fontSize: "14px",
-    outline: "none",
-    background: "#fff",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontSize: "13px",
-    fontWeight: 800,
-    color: "#334155",
-    marginBottom: "6px",
-  };
-
-  const readonlyCardStyle: React.CSSProperties = {
-    border: "1px solid #ccfbf1",
-    background: "#ecfeff",
-    borderRadius: "18px",
-    padding: "12px",
-    color: "#0f766e",
-    fontSize: "13px",
-    fontWeight: 800,
-    lineHeight: 1.8,
-  };
-
   return (
-    <form onSubmit={submit} style={{ display: "grid", gap: "14px" }}>
-      {openedFromQr ? (
-        <div style={readonlyCardStyle}>
-          تم تحديد النظام من QR.
-          <br />
-          المنشأة: {getFacilityName(selectedFacility)}
-          <br />
-          المبنى: {getBuildingName(selectedBuilding)}
-          <br />
-          النظام: {getSystemName(initialSystem)}
+    <form
+      onSubmit={submit}
+      style={{
+        display: "grid",
+        gap: "14px",
+      }}
+    >
+      {openedFromSystem && initialSystem ? (
+        <div style={selectedCardStyle()}>
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                width: "56px",
+                height: "56px",
+                borderRadius: "20px",
+                background: "#fff",
+                border: "1px solid #ccfbf1",
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+              }}
+            >
+              <ShieldCheck size={28} color="#0f766e" />
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#0f766e",
+                  fontWeight: 900,
+                }}
+              >
+                النظام محدد من صفحة النظام / QR
+              </div>
+
+              <div
+                style={{
+                  marginTop: "5px",
+                  fontSize: "19px",
+                  fontWeight: 950,
+                  color: "#0f172a",
+                  lineHeight: 1.5,
+                }}
+              >
+                {selectedInitialLabels?.ar}
+              </div>
+
+              {selectedInitialLabels?.en ? (
+                <div
+                  style={{
+                    marginTop: "2px",
+                    fontSize: "13px",
+                    color: "#64748b",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {selectedInitialLabels.en}
+                </div>
+              ) : null}
+
+              <div
+                style={{
+                  marginTop: "5px",
+                  fontSize: "12px",
+                  color: "#64748b",
+                  lineHeight: 1.7,
+                }}
+              >
+                {selectedInitialLabels?.code}
+                {selectedInitialLabels?.standard
+                  ? ` · ${selectedInitialLabels.standard}`
+                  : ""}
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "10px",
+              marginTop: "12px",
+            }}
+          >
+            <div style={infoCardStyle()}>
+              <div style={{ fontSize: "12px", color: "#64748b" }}>
+                المنشأة
+              </div>
+              <div
+                style={{
+                  marginTop: "4px",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  lineHeight: 1.6,
+                }}
+              >
+                {getFacilityName(selectedFacility)}
+              </div>
+            </div>
+
+            <div style={infoCardStyle()}>
+              <div style={{ fontSize: "12px", color: "#64748b" }}>
+                المبنى
+              </div>
+              <div
+                style={{
+                  marginTop: "4px",
+                  fontSize: "14px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  lineHeight: 1.6,
+                }}
+              >
+                {getBuildingName(selectedBuilding)}
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
 
-      <div>
-        <label style={labelStyle}>المنشأة</label>
-        <select
-          value={facilityId}
-          onChange={(e) => {
-            setFacilityId(e.target.value);
-            setBuildingId("");
-            setSelectedSystemIds([]);
-          }}
-          style={inputStyle}
-        >
-          <option value="">اختر المنشأة</option>
-          {facilities.map((facility) => (
-            <option
-              key={String(facility.facility_id)}
-              value={String(facility.facility_id)}
+      {!openedFromSystem ? (
+        <>
+          <div>
+            <label style={labelStyle()}>المنشأة</label>
+            <select
+              value={facilityId}
+              onChange={(e) => {
+                setFacilityId(e.target.value);
+                setBuildingId("");
+                setSelectedSystemIds([]);
+              }}
+              style={inputStyle()}
             >
-              {getFacilityName(facility)}
-            </option>
-          ))}
-        </select>
-      </div>
+              <option value="">اختر المنشأة</option>
+              {facilities.map((facility) => (
+                <option
+                  key={String(facility.facility_id || "")}
+                  value={String(facility.facility_id || "")}
+                >
+                  {getFacilityName(facility)}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div>
-        <label style={labelStyle}>المبنى</label>
-        <select
-          value={buildingId}
-          onChange={(e) => {
-            setBuildingId(e.target.value);
-            setSelectedSystemIds([]);
-          }}
-          style={inputStyle}
-          disabled={!facilityId}
-        >
-          <option value="">اختر المبنى</option>
-          {filteredBuildings.map((building) => (
-            <option
-              key={String(building.building_id)}
-              value={String(building.building_id)}
+          <div>
+            <label style={labelStyle()}>المبنى</label>
+            <select
+              value={buildingId}
+              onChange={(e) => {
+                setBuildingId(e.target.value);
+                setSelectedSystemIds([]);
+              }}
+              style={inputStyle()}
+              disabled={!facilityId}
             >
-              {getBuildingName(building)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label style={labelStyle}>نوع الزيارة</label>
-        <select
-          value={visitType}
-          onChange={(e) => setVisitType(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="routine">زيارة دورية</option>
-          <option value="annual">زيارة سنوية</option>
-          <option value="monthly">زيارة شهرية</option>
-          <option value="corrective">زيارة تصحيحية</option>
-          <option value="complaint">بلاغ / شكوى</option>
-        </select>
-      </div>
+              <option value="">اختر المبنى</option>
+              {filteredBuildings.map((building) => (
+                <option
+                  key={String(building.building_id || "")}
+                  value={String(building.building_id || "")}
+                >
+                  {getBuildingName(building)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      ) : null}
 
       <div
         style={{
@@ -290,153 +472,185 @@ export default function NewVisitForm({
         }}
       >
         <div>
-          <label style={labelStyle}>تاريخ الزيارة</label>
+          <label style={labelStyle()}>نوع الزيارة</label>
+          <select
+            value={visitType}
+            onChange={(e) => setVisitType(e.target.value)}
+            style={inputStyle()}
+          >
+            <option value="routine">زيارة دورية</option>
+            <option value="monthly">زيارة شهرية</option>
+            <option value="annual">زيارة سنوية</option>
+            <option value="reinspection">إعادة فحص</option>
+            <option value="complaint">بلاغ / شكوى</option>
+            <option value="handover">تسليم واستلام</option>
+          </select>
+        </div>
+
+        <div>
+          <label style={labelStyle()}>المفتش المسؤول</label>
+          <select
+            value={assignedInspectorId}
+            onChange={(e) => setAssignedInspectorId(e.target.value)}
+            style={inputStyle()}
+          >
+            <option value="">بدون تعيين حاليًا</option>
+            {inspectors.map((inspector) => (
+              <option
+                key={String(inspector.inspector_id || "")}
+                value={String(inspector.inspector_id || "")}
+              >
+                {getInspectorName(inspector)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={labelStyle()}>تاريخ الزيارة</label>
           <input
             type="date"
             value={plannedDate}
             onChange={(e) => setPlannedDate(e.target.value)}
-            style={inputStyle}
+            style={inputStyle()}
           />
         </div>
 
         <div>
-          <label style={labelStyle}>تاريخ الاستحقاق</label>
+          <label style={labelStyle()}>تاريخ الاستحقاق</label>
           <input
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
-            style={inputStyle}
+            style={inputStyle()}
           />
         </div>
       </div>
 
-      <div>
-        <label style={labelStyle}>المفتش المسؤول</label>
-        <select
-          value={assignedInspectorId}
-          onChange={(e) => setAssignedInspectorId(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="">بدون تعيين حاليًا</option>
-          {inspectors.map((inspector) => (
-            <option
-              key={String(inspector.inspector_id)}
-              value={String(inspector.inspector_id)}
+      {!openedFromSystem ? (
+        <div>
+          <label style={labelStyle()}>الأنظمة المشمولة بالفحص</label>
+
+          {!buildingId ? (
+            <div
+              style={{
+                border: "1px dashed #cbd5e1",
+                borderRadius: "18px",
+                padding: "14px",
+                color: "#64748b",
+                fontSize: "13px",
+                lineHeight: 1.8,
+              }}
             >
-              {String(
-                inspector.inspector_name ||
-                  inspector.name ||
-                  inspector.email ||
-                  inspector.inspector_id
-              )}
-            </option>
-          ))}
-        </select>
-      </div>
+              اختر المبنى أولًا لعرض الأنظمة.
+            </div>
+          ) : filteredSystems.length === 0 ? (
+            <div
+              style={{
+                border: "1px dashed #cbd5e1",
+                borderRadius: "18px",
+                padding: "14px",
+                color: "#64748b",
+                fontSize: "13px",
+                lineHeight: 1.8,
+              }}
+            >
+              لا توجد أنظمة مرتبطة بهذا المبنى. أضف الأنظمة للمبنى أولًا.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "8px" }}>
+              {filteredSystems.map((system) => {
+                const id = String(system.building_system_id || "");
+                const active = selectedSystemIds.includes(id);
+                const labels = getSystemLabels(system, systemRefByCode);
 
-      <div>
-        <label style={labelStyle}>الأنظمة المشمولة بالفحص</label>
-
-        {!buildingId ? (
-          <div
-            style={{
-              border: "1px dashed #cbd5e1",
-              borderRadius: "16px",
-              padding: "14px",
-              color: "#64748b",
-              fontSize: "13px",
-            }}
-          >
-            اختر المبنى أولًا لعرض الأنظمة.
-          </div>
-        ) : filteredSystems.length === 0 ? (
-          <div
-            style={{
-              border: "1px dashed #cbd5e1",
-              borderRadius: "16px",
-              padding: "14px",
-              color: "#64748b",
-              fontSize: "13px",
-            }}
-          >
-            لا توجد أنظمة مرتبطة بهذا المبنى. أضف الأنظمة للمبنى أولًا.
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: "8px" }}>
-            {filteredSystems.map((system) => {
-              const id = String(system.building_system_id || "");
-              const active = selectedSystemIds.includes(id);
-
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleSystem(id)}
-                  style={{
-                    textAlign: "right",
-                    border: active
-                      ? "1px solid #99f6e4"
-                      : "1px solid #dbe4ef",
-                    borderRadius: "18px",
-                    padding: "12px",
-                    background: active ? "#ecfeff" : "#fff",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleSystem(id)}
                     style={{
+                      textAlign: "right",
+                      border: active
+                        ? "1px solid #99f6e4"
+                        : "1px solid #dbe4ef",
+                      borderRadius: "18px",
+                      padding: "12px",
+                      background: active ? "#ecfeff" : "#fff",
+                      cursor: "pointer",
                       display: "flex",
+                      justifyContent: "space-between",
                       gap: "10px",
                       alignItems: "center",
-                      justifyContent: "space-between",
                     }}
                   >
-                    <span
-                      style={{
-                        fontWeight: 900,
-                        color: active ? "#0f766e" : "#0f172a",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      {getSystemName(system)}
-                    </span>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "15px",
+                          fontWeight: 900,
+                          color: "#0f172a",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {labels.ar}
+                      </div>
 
-                    <span
+                      {labels.en ? (
+                        <div
+                          style={{
+                            marginTop: "2px",
+                            fontSize: "12px",
+                            color: "#64748b",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {labels.en}
+                        </div>
+                      ) : null}
+
+                      <div
+                        style={{
+                          marginTop: "3px",
+                          fontSize: "12px",
+                          color: "#94a3b8",
+                        }}
+                      >
+                        {labels.code}
+                        {labels.standard ? ` · ${labels.standard}` : ""}
+                      </div>
+                    </div>
+
+                    <div
                       style={{
-                        width: "24px",
-                        height: "24px",
+                        width: "26px",
+                        height: "26px",
                         borderRadius: "50%",
                         border: active
-                          ? "6px solid #0f766e"
+                          ? "7px solid #0f766e"
                           : "2px solid #cbd5e1",
                         background: "#fff",
                         flexShrink: 0,
                       }}
                     />
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "4px",
-                      fontSize: "12px",
-                      color: "#64748b",
-                    }}
-                  >
-                    {String(system.system_code || "")}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div>
-        <label style={labelStyle}>ملاحظات</label>
+        <label style={labelStyle()}>ملاحظات قبل بدء الزيارة</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          style={{ ...inputStyle, minHeight: "90px", resize: "vertical" }}
+          style={{
+            ...inputStyle(),
+            minHeight: "90px",
+            resize: "vertical",
+          }}
           placeholder="أي ملاحظات قبل بدء الزيارة..."
         />
       </div>
@@ -450,7 +664,7 @@ export default function NewVisitForm({
             borderRadius: "16px",
             padding: "12px",
             fontSize: "13px",
-            fontWeight: 700,
+            fontWeight: 800,
             lineHeight: 1.8,
           }}
         >
@@ -464,15 +678,35 @@ export default function NewVisitForm({
         style={{
           border: 0,
           borderRadius: "18px",
-          padding: "14px",
+          padding: "15px",
           fontSize: "15px",
-          fontWeight: 900,
+          fontWeight: 950,
           color: "#fff",
           background: busy ? "#94a3b8" : "#0f766e",
           cursor: busy ? "not-allowed" : "pointer",
+          display: "inline-flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: "8px",
+          minHeight: "54px",
         }}
       >
-        {busy ? "جاري إنشاء الزيارة..." : "إنشاء الزيارة وبدء الفحص"}
+        {busy ? (
+          <>
+            <CalendarDays size={19} />
+            جارٍ إنشاء الزيارة...
+          </>
+        ) : openedFromSystem ? (
+          <>
+            <ClipboardList size={19} />
+            إنشاء زيارة فحص لهذا النظام
+          </>
+        ) : (
+          <>
+            <CheckCircle2 size={19} />
+            إنشاء الزيارة وبدء الفحص
+          </>
+        )}
       </button>
     </form>
   );
