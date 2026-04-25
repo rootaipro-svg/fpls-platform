@@ -1,11 +1,13 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import {
   Building2,
+  ChevronLeft,
   ClipboardList,
   MapPin,
   Plus,
   QrCode,
-  ShieldAlert,
+  ShieldCheck,
   Wrench,
 } from "lucide-react";
 
@@ -56,31 +58,6 @@ function groupSystemsByBuilding(buildings: Row[], systems: Row[]) {
   return map;
 }
 
-function systemDisplayName(system: Row, systemRefByCode: Map<string, Row>) {
-  const ref = systemRefByCode.get(String(system.system_code || ""));
-
-  return safeText(
-    system.system_name_override ||
-      ref?.system_name_ar ||
-      ref?.system_name ||
-      ref?.system_display_name_ar ||
-      ref?.system_display_name ||
-      toSystemLabel(system.system_code),
-    "نظام"
-  );
-}
-
-function systemSecondaryName(system: Row, systemRefByCode: Map<string, Row>) {
-  const ref = systemRefByCode.get(String(system.system_code || ""));
-
-  const englishName = safeText(ref?.system_name || ref?.system_display_name, "");
-  const code = safeText(system.system_code, "");
-
-  if (englishName && code) return `${englishName} · ${code}`;
-  if (englishName) return englishName;
-  return code;
-}
-
 function facilityName(facility: Row) {
   return safeText(
     facility.facility_name_ar || facility.facility_name,
@@ -95,7 +72,54 @@ function buildingName(building: Row) {
   );
 }
 
-function quickCardStyle(): React.CSSProperties {
+function makeSystemRefMap(systemsRef: Row[]) {
+  const map = new Map<string, Row>();
+
+  for (const row of systemsRef) {
+    const code = String(row.system_code || "").trim();
+    if (code && !map.has(code)) {
+      map.set(code, row);
+    }
+  }
+
+  return map;
+}
+
+function getSystemLabels(system: Row, systemRefByCode: Map<string, Row>) {
+  const code = String(system.system_code || "").trim();
+  const ref = systemRefByCode.get(code);
+
+  const ar = safeText(
+    ref?.system_name_ar ||
+      ref?.system_display_name_ar ||
+      system.system_name_ar ||
+      system.system_display_name_ar ||
+      system.system_name_override,
+    ""
+  );
+
+  const en = safeText(
+    ref?.system_name ||
+      ref?.system_display_name ||
+      system.system_name ||
+      system.system_display_name,
+    ""
+  );
+
+  const standard = safeText(
+    ref?.related_standard || system.standard_profile,
+    ""
+  );
+
+  return {
+    ar: ar || en || toSystemLabel(code) || "نظام",
+    en,
+    code,
+    standard,
+  };
+}
+
+function quickCardStyle(): CSSProperties {
   return {
     border: "1px solid #e2e8f0",
     borderRadius: "24px",
@@ -112,7 +136,7 @@ function quickCardStyle(): React.CSSProperties {
   };
 }
 
-function iconBoxStyle(tone: "teal" | "amber" | "red" | "slate" = "teal") {
+function iconBoxStyle(tone: "teal" | "amber" | "slate" = "teal") {
   const map = {
     teal: {
       bg: "#ecfeff",
@@ -123,11 +147,6 @@ function iconBoxStyle(tone: "teal" | "amber" | "red" | "slate" = "teal") {
       bg: "#fffbeb",
       border: "#fde68a",
       color: "#b45309",
-    },
-    red: {
-      bg: "#fff1f2",
-      border: "#fecdd3",
-      color: "#be123c",
     },
     slate: {
       bg: "#f8fafc",
@@ -145,7 +164,100 @@ function iconBoxStyle(tone: "teal" | "amber" | "red" | "slate" = "teal") {
     background: map.bg,
     border: `1px solid ${map.border}`,
     color: map.color,
-  } as React.CSSProperties;
+  } as CSSProperties;
+}
+
+function SystemLinkCard({
+  href,
+  arLabel,
+  enLabel,
+  code,
+  standard,
+}: {
+  href: string;
+  arLabel: string;
+  enLabel?: string;
+  code?: string;
+  standard?: string;
+}) {
+  const secondary = [enLabel, code].filter(Boolean).join(" · ");
+
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "10px",
+        padding: "12px 14px",
+        borderRadius: "18px",
+        border: "1px solid #dbe4ee",
+        background: "#f8fafc",
+        textDecoration: "none",
+        color: "inherit",
+      }}
+    >
+      <div
+        style={{
+          width: "42px",
+          height: "42px",
+          borderRadius: "14px",
+          background: "#ecfeff",
+          border: "1px solid #ccfbf1",
+          display: "grid",
+          placeItems: "center",
+          flexShrink: 0,
+        }}
+      >
+        <ShieldCheck size={20} color="#0f766e" />
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: 900,
+            color: "#0f172a",
+            lineHeight: 1.6,
+          }}
+        >
+          {arLabel}
+        </div>
+
+        {secondary ? (
+          <div
+            style={{
+              marginTop: "2px",
+              fontSize: "12px",
+              color: "#64748b",
+              lineHeight: 1.5,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {secondary}
+          </div>
+        ) : null}
+
+        {standard ? (
+          <div
+            style={{
+              marginTop: "2px",
+              fontSize: "11px",
+              color: "#94a3b8",
+              lineHeight: 1.5,
+            }}
+          >
+            {standard}
+          </div>
+        ) : null}
+      </div>
+
+      <ChevronLeft size={18} color="#64748b" />
+    </Link>
+  );
 }
 
 export default async function FacilityDetailPage({
@@ -157,23 +269,23 @@ export default async function FacilityDetailPage({
 
   const actor = await requirePermission("facilities", "view");
 
- const [
-  facilities,
-  buildings,
-  buildingSystems,
-  systemsRef,
-  visits,
-  visitSystems,
-  findings,
-] = await Promise.all([
-  readSheet(actor.workbookId, "FACILITIES"),
-  readSheet(actor.workbookId, "BUILDINGS"),
-  readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
-  readSheet(actor.workbookId, "SYSTEMS_REF").catch(() => []),
-  readSheet(actor.workbookId, "VISITS"),
-  readSheet(actor.workbookId, "VISIT_SYSTEMS"),
-  readSheet(actor.workbookId, "FINDINGS"),
-]);
+  const [
+    facilities,
+    buildings,
+    buildingSystems,
+    systemsRef,
+    visits,
+    visitSystems,
+    findings,
+  ] = await Promise.all([
+    readSheet(actor.workbookId, "FACILITIES"),
+    readSheet(actor.workbookId, "BUILDINGS"),
+    readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
+    readSheet(actor.workbookId, "SYSTEMS_REF").catch(() => []),
+    readSheet(actor.workbookId, "VISITS"),
+    readSheet(actor.workbookId, "VISIT_SYSTEMS"),
+    readSheet(actor.workbookId, "FINDINGS"),
+  ]);
 
   const facility = facilities.find(
     (row: Row) => String(row.facility_id || "") === String(id)
@@ -209,6 +321,8 @@ export default async function FacilityDetailPage({
     buildingIds.has(String(row.building_id || ""))
   );
 
+  const systemRefByCode = makeSystemRefMap(systemsRef);
+
   const systemsByBuilding = groupSystemsByBuilding(
     facilityBuildings,
     facilitySystems
@@ -243,15 +357,6 @@ export default async function FacilityDetailPage({
     const status = String(row.visit_status || "").toLowerCase();
     return status === "planned" || status === "in_progress" || status === "open";
   }).length;
-
-const systemRefByCode = new Map<string, Row>();
-
-for (const row of systemsRef) {
-  const code = String(row.system_code || "").trim();
-  if (code && !systemRefByCode.has(code)) {
-    systemRefByCode.set(code, row);
-  }
-}
 
   const latestVisits = facilityVisits.slice(0, 3);
 
@@ -411,7 +516,7 @@ for (const row of systemsRef) {
         </SectionCard>
       </div>
 
-      <div id="buildings" style={{ marginTop: "14px" }}>
+      <div id="systems" style={{ marginTop: "14px" }}>
         <SectionCard
           title="المباني والأنظمة"
           subtitle="كل مبنى والأنظمة المسجلة داخله"
@@ -425,7 +530,12 @@ for (const row of systemsRef) {
             <div style={{ display: "grid", gap: "12px" }}>
               {facilityBuildings.map((building: Row) => {
                 const buildingId = String(building.building_id || "");
-                const systems = systemsByBuilding[buildingId] || [];
+                const buildingSystems = systemsByBuilding[buildingId] || [];
+                const visibleSystems = buildingSystems.slice(0, 4);
+                const hiddenCount = Math.max(
+                  0,
+                  buildingSystems.length - visibleSystems.length
+                );
 
                 return (
                   <div
@@ -466,7 +576,7 @@ for (const row of systemsRef) {
                           }}
                         >
                           {safeText(building.building_code, "-")} · الأنظمة:{" "}
-                          {systems.length}
+                          {buildingSystems.length}
                         </div>
                       </div>
 
@@ -479,7 +589,18 @@ for (const row of systemsRef) {
                       />
                     </div>
 
-                    {systems.length === 0 ? (
+                    <div
+                      style={{
+                        marginTop: "2px",
+                        fontSize: "12px",
+                        fontWeight: 900,
+                        color: "#64748b",
+                      }}
+                    >
+                      الأنظمة الموجودة داخل المبنى
+                    </div>
+
+                    {buildingSystems.length === 0 ? (
                       <div
                         style={{
                           border: "1px dashed #cbd5e1",
@@ -494,42 +615,44 @@ for (const row of systemsRef) {
                         لإضافة الأنظمة الموجودة داخل المبنى.
                       </div>
                     ) : (
-                      <div
-                        id="systems"
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: "8px",
-                        }}
-                      >
-                        {systems.map((system: Row) => {
-                          const href = `/systems/${String(
-                            system.building_system_id || ""
-                          )}`;
+                      <div style={{ display: "grid", gap: "8px" }}>
+                        {visibleSystems.map((system: Row) => {
+                          const labels = getSystemLabels(system, systemRefByCode);
 
                           return (
-                            <Link
+                            <SystemLinkCard
                               key={String(system.building_system_id || "")}
-                              href={href}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                borderRadius: "999px",
-                                border: "1px solid #e2e8f0",
-                                background: "#f8fafc",
-                                padding: "8px 12px",
-                                color: "#334155",
-                                textDecoration: "none",
-                                fontSize: "13px",
-                                fontWeight: 800,
-                                lineHeight: 1.5,
-                              }}
-                            >
-{systemDisplayName(system, systemRefByCode)}
-                            </Link>
+                              href={`/systems/${String(
+                                system.building_system_id || ""
+                              )}`}
+                              arLabel={labels.ar}
+                              enLabel={labels.en}
+                              code={labels.code}
+                              standard={labels.standard}
+                            />
                           );
                         })}
+
+                        {hiddenCount > 0 ? (
+                          <a
+                            href="#manage"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "10px 14px",
+                              borderRadius: "14px",
+                              border: "1px solid #dbe4ee",
+                              background: "#fff",
+                              color: "#0f172a",
+                              textDecoration: "none",
+                              fontSize: "13px",
+                              fontWeight: 900,
+                            }}
+                          >
+                            عرض وإدارة كل الأنظمة ({buildingSystems.length})
+                          </a>
+                        ) : null}
                       </div>
                     )}
 
@@ -541,17 +664,83 @@ for (const row of systemsRef) {
                         marginTop: "2px",
                       }}
                     >
-                      <a href="#manage" className="btn btn-secondary">
-                        إدارة المبنى والأنظمة
-                      </a>
-
                       <Link href="/visits/new" className="btn btn-secondary">
                         بدء زيارة
                       </Link>
+
+                      <a href="#manage" className="btn btn-secondary">
+                        إدارة المبنى والأنظمة
+                      </a>
                     </div>
                   </div>
                 );
               })}
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <div style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="آخر الزيارات"
+          subtitle="آخر ثلاث زيارات فقط لتقليل التشويش"
+        >
+          {latestVisits.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد زيارات"
+              description="لم يتم تسجيل زيارات لهذه المنشأة بعد."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "10px" }}>
+              {latestVisits.map((visit: Row) => (
+                <Link
+                  key={String(visit.visit_id || "")}
+                  href={`/visits/${String(visit.visit_id || "")}`}
+                  className="card"
+                  style={{
+                    padding: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {toVisitTypeLabel(visit.visit_type || "routine")}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        fontSize: "13px",
+                        color: "#64748b",
+                      }}
+                    >
+                      التاريخ:{" "}
+                      {safeText(visit.planned_date || visit.visit_date, "-")}
+                    </div>
+                  </div>
+
+                  <SoftBadge
+                    label={toVisitStatusLabel(visit.visit_status)}
+                    tone={
+                      String(visit.visit_status || "").toLowerCase() === "closed"
+                        ? "teal"
+                        : "slate"
+                    }
+                  />
+                </Link>
+              ))}
             </div>
           )}
         </SectionCard>
@@ -663,130 +852,17 @@ for (const row of systemsRef) {
         </SectionCard>
       </div>
 
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="آخر الزيارات"
-          subtitle="آخر ثلاث زيارات فقط لتقليل التشويش"
-        >
-          {latestVisits.length === 0 ? (
-            <EmptyPanel
-              title="لا توجد زيارات"
-              description="لم يتم تسجيل زيارات لهذه المنشأة بعد."
-            />
-          ) : (
-            <div style={{ display: "grid", gap: "10px" }}>
-              {latestVisits.map((visit: Row) => (
-                <Link
-                  key={String(visit.visit_id || "")}
-                  href={`/visits/${String(visit.visit_id || "")}`}
-                  className="card"
-                  style={{
-                    padding: "14px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    textDecoration: "none",
-                    color: "inherit",
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {toVisitTypeLabel(visit.visit_type || "routine")}
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "4px",
-                        fontSize: "13px",
-                        color: "#64748b",
-                      }}
-                    >
-                      التاريخ:{" "}
-                      {safeText(visit.planned_date || visit.visit_date, "-")}
-                    </div>
-                  </div>
-
-                  <SoftBadge
-                    label={toVisitStatusLabel(visit.visit_status)}
-                    tone={
-                      String(visit.visit_status || "").toLowerCase() === "closed"
-                        ? "teal"
-                        : "slate"
-                    }
-                  />
-                </Link>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="مؤشرات إضافية"
-          subtitle="قراءة سريعة للحالة التشغيلية داخل المنشأة"
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: "10px",
-            }}
-          >
-            <div className="card" style={{ padding: "18px", textAlign: "center" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>
-                المباني النشطة
-              </div>
-              <div
-                style={{
-                  marginTop: "8px",
-                  fontSize: "34px",
-                  fontWeight: 950,
-                  color: "#0f172a",
-                }}
-              >
-                {activeBuildingsCount}
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: "18px", textAlign: "center" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>
-                المخالفات المفتوحة
-              </div>
-              <div
-                style={{
-                  marginTop: "8px",
-                  fontSize: "34px",
-                  fontWeight: 950,
-                  color: "#0f172a",
-                }}
-              >
-                {openFindingsCount}
-              </div>
-            </div>
-          </div>
-        </SectionCard>
-      </div>
-
       <div id="manage" style={{ marginTop: "14px" }}>
         <SectionCard
           title="إدارة المنشأة والمباني والأنظمة"
           subtitle="تعديل البيانات، إضافة مبنى، وإدارة الأنظمة المسجلة"
         >
-        <FacilityStructureManager
-  facility={facility}
-  buildings={facilityBuildings}
-  systems={facilitySystems}
-  systemsRef={systemsRef}
-/>
+          <FacilityStructureManager
+            facility={facility}
+            buildings={facilityBuildings}
+            systems={facilitySystems}
+            systemsRef={systemsRef}
+          />
         </SectionCard>
       </div>
     </AppShell>
