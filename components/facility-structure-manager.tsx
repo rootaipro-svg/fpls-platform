@@ -1,18 +1,75 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Plus, Save, Trash2, Wrench } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  Layers3,
+  Pencil,
+  Plus,
+  QrCode,
+  Save,
+  Trash2,
+  Wrench,
+  X,
+} from "lucide-react";
 import { safeText, toSystemLabel } from "@/lib/display";
 
 type Props = {
   facility: any;
   buildings: any[];
   systems: any[];
+  systemsRef?: any[];
 };
+
+type Mode = "none" | "edit-facility" | "add-building" | "manage-buildings";
+
+type WizardStep = 1 | 2 | 3;
+
+type SelectedSystemDraft = {
+  system_code: string;
+  system_name_override: string;
+  coverage_scope: string;
+  protection_area: string;
+  standard_profile: string;
+  system_status: string;
+  qr_enabled: string;
+};
+
+const FALLBACK_SYSTEMS = [
+  { system_code: "FA-ADDR", system_name_ar: "إنذار حريق معنون", system_name: "Addressable Fire Alarm" },
+  { system_code: "FA-CONV", system_name_ar: "إنذار حريق تقليدي", system_name: "Conventional Fire Alarm" },
+  { system_code: "FA-VOICE", system_name_ar: "إنذار صوتي / إخلاء", system_name: "Voice Evacuation" },
+  { system_code: "FP-ELEC-PUMP", system_name_ar: "مضخة حريق كهربائية", system_name: "Electric Fire Pump" },
+  { system_code: "FP-DIESEL-PUMP", system_name_ar: "مضخة حريق ديزل", system_name: "Diesel Fire Pump" },
+  { system_code: "FP-JOCKEY", system_name_ar: "مضخة جوكي", system_name: "Jockey Pump" },
+  { system_code: "SP-WET", system_name_ar: "رش آلي مائي", system_name: "Wet Pipe Sprinkler" },
+  { system_code: "SP-DRY", system_name_ar: "رش آلي جاف", system_name: "Dry Pipe Sprinkler" },
+  { system_code: "STANDPIPE", system_name_ar: "نظام ستاندبايب", system_name: "Standpipe System" },
+  { system_code: "HOSE-REEL", system_name_ar: "بكرة حريق", system_name: "Hose Reel" },
+  { system_code: "FIRE-HYDRANT", system_name_ar: "حنفية حريق", system_name: "Fire Hydrant" },
+  { system_code: "FIRE-EXTINGUISHER", system_name_ar: "طفايات حريق", system_name: "Portable Fire Extinguisher" },
+  { system_code: "EMERGENCY-LIGHT", system_name_ar: "إنارة طوارئ", system_name: "Emergency Lighting" },
+  { system_code: "EXIT-SIGN", system_name_ar: "لوحات مخارج", system_name: "Exit Sign" },
+  { system_code: "FIRE-DOOR", system_name_ar: "أبواب مقاومة للحريق", system_name: "Fire Door" },
+  { system_code: "GENS-EPSS", system_name_ar: "نظام طاقة طوارئ", system_name: "Emergency Power Supply System" },
+];
 
 function text(value: any) {
   return String(value ?? "");
+}
+
+function systemOptionLabel(system: any) {
+  return safeText(
+    system.system_name_ar ||
+      system.system_display_name_ar ||
+      system.system_name ||
+      system.system_display_name ||
+      toSystemLabel(system.system_code),
+    "نظام"
+  );
 }
 
 function defaultNewBuilding(facilityId: string) {
@@ -59,19 +116,96 @@ function defaultNewSystem(buildingId: string) {
     system_status: "active",
     next_inspection_anchor_date: "",
     notes: "",
+    qr_enabled: "TRUE",
   };
+}
+
+function makeSystemDraft(system: any): SelectedSystemDraft {
+  const label = systemOptionLabel(system);
+
+  return {
+    system_code: String(system.system_code || ""),
+    system_name_override: label,
+    coverage_scope: "كامل المبنى",
+    protection_area: "",
+    standard_profile: String(system.standard_profile || ""),
+    system_status: "active",
+    qr_enabled: "TRUE",
+  };
+}
+
+function panelStyle(active = false): CSSProperties {
+  return {
+    border: active ? "1px solid #99f6e4" : "1px solid #e2e8f0",
+    background: active ? "#ecfeff" : "#fff",
+    borderRadius: "22px",
+    padding: "14px",
+  };
+}
+
+function actionCardStyle(active = false): CSSProperties {
+  return {
+    border: active ? "1px solid #99f6e4" : "1px solid #e2e8f0",
+    background: active ? "#ecfeff" : "#fff",
+    borderRadius: "24px",
+    padding: "18px",
+    minHeight: "118px",
+    display: "grid",
+    alignContent: "center",
+    justifyItems: "center",
+    textAlign: "center",
+    gap: "10px",
+    color: "#0f172a",
+    cursor: "pointer",
+  };
+}
+
+function miniLabel(textValue: string) {
+  return (
+    <div
+      style={{
+        fontSize: "12px",
+        color: "#64748b",
+        fontWeight: 800,
+        marginBottom: "6px",
+      }}
+    >
+      {textValue}
+    </div>
+  );
 }
 
 export default function FacilityStructureManager({
   facility,
   buildings,
   systems,
+  systemsRef = [],
 }: Props) {
   const router = useRouter();
 
+  const [mode, setMode] = useState<Mode>("none");
+  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const [busyKey, setBusyKey] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const [editingBuildingId, setEditingBuildingId] = useState("");
+  const [addingSystemBuildingId, setAddingSystemBuildingId] = useState("");
+  const [editingSystemId, setEditingSystemId] = useState("");
+
+  const systemOptions = useMemo(() => {
+    const source = systemsRef.length > 0 ? systemsRef : FALLBACK_SYSTEMS;
+    const seen = new Set<string>();
+
+    return source
+      .filter((row: any) => {
+        const code = String(row.system_code || "").trim();
+        if (!code || seen.has(code)) return false;
+        seen.add(code);
+        return true;
+      })
+      .sort((a: any, b: any) => systemOptionLabel(a).localeCompare(systemOptionLabel(b)));
+  }, [systemsRef]);
 
   const [facilityForm, setFacilityForm] = useState({
     facility_code: text(facility.facility_code),
@@ -94,8 +228,17 @@ export default function FacilityStructureManager({
     notes: text(facility.notes),
   });
 
+  const [newBuildingForm, setNewBuildingForm] = useState(
+    defaultNewBuilding(String(facility.facility_id || ""))
+  );
+
+  const [selectedSystems, setSelectedSystems] = useState<Record<string, SelectedSystemDraft>>(
+    {}
+  );
+
   const [buildingForms, setBuildingForms] = useState<Record<string, any>>(() => {
     const map: Record<string, any> = {};
+
     for (const building of buildings) {
       map[String(building.building_id)] = {
         building_code: text(building.building_code),
@@ -117,11 +260,13 @@ export default function FacilityStructureManager({
         notes: text(building.notes),
       };
     }
+
     return map;
   });
 
   const [systemForms, setSystemForms] = useState<Record<string, any>>(() => {
     const map: Record<string, any> = {};
+
     for (const system of systems) {
       map[String(system.building_system_id)] = {
         system_instance_code: text(system.system_instance_code),
@@ -130,47 +275,41 @@ export default function FacilityStructureManager({
         coverage_scope: text(system.coverage_scope),
         protection_area: text(system.protection_area),
         standard_profile: text(system.standard_profile),
-        authority_profile_id: text(system.authority_profile_id),
-        manufacturer: text(system.manufacturer),
-        model: text(system.model),
-        serial_no: text(system.serial_no),
-        install_date: text(system.install_date),
-        commission_date: text(system.commission_date),
-        service_provider: text(system.service_provider),
-        approval_lab_code: text(system.approval_lab_code),
-        criticality_class: text(system.criticality_class),
         system_status: text(system.system_status || "active"),
         next_inspection_anchor_date: text(system.next_inspection_anchor_date),
         notes: text(system.notes),
+        qr_enabled: text(system.qr_enabled || "TRUE"),
       };
     }
+
     return map;
   });
 
-  const [newBuildingForm, setNewBuildingForm] = useState(
-    defaultNewBuilding(String(facility.facility_id || ""))
-  );
-
   const [newSystemForms, setNewSystemForms] = useState<Record<string, any>>(() => {
     const map: Record<string, any> = {};
+
     for (const building of buildings) {
       map[String(building.building_id)] = defaultNewSystem(
         String(building.building_id || "")
       );
     }
+
     return map;
   });
 
   const systemsByBuilding = useMemo(() => {
     const map: Record<string, any[]> = {};
+
     for (const building of buildings) {
       map[String(building.building_id)] = [];
     }
+
     for (const system of systems) {
       const key = String(system.building_id || "");
       if (!map[key]) map[key] = [];
       map[key].push(system);
     }
+
     return map;
   }, [buildings, systems]);
 
@@ -188,8 +327,49 @@ export default function FacilityStructureManager({
     return busyKey === key;
   }
 
+  function openMode(nextMode: Mode) {
+    setMessage("");
+    setError("");
+    setMode(mode === nextMode ? "none" : nextMode);
+  }
+
+  function toggleSystem(system: any) {
+    const code = String(system.system_code || "");
+    if (!code) return;
+
+    setSelectedSystems((prev) => {
+      if (prev[code]) {
+        const clone = { ...prev };
+        delete clone[code];
+        return clone;
+      }
+
+      return {
+        ...prev,
+        [code]: makeSystemDraft(system),
+      };
+    });
+  }
+
+  function updateSelectedSystem(code: string, patch: Partial<SelectedSystemDraft>) {
+    setSelectedSystems((prev) => ({
+      ...prev,
+      [code]: {
+        ...prev[code],
+        ...patch,
+      },
+    }));
+  }
+
+  function resetWizard() {
+    setWizardStep(1);
+    setNewBuildingForm(defaultNewBuilding(String(facility.facility_id || "")));
+    setSelectedSystems({});
+  }
+
   async function saveFacility() {
     startBusy("facility-save");
+
     try {
       const res = await fetch(`/api/facilities/${facility.facility_id}`, {
         method: "PATCH",
@@ -198,11 +378,13 @@ export default function FacilityStructureManager({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         throw new Error(data.message || "تعذر تحديث المنشأة");
       }
 
       setMessage("تم تحديث بيانات المنشأة بنجاح");
+      setMode("none");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "تعذر تحديث المنشأة");
@@ -217,6 +399,7 @@ export default function FacilityStructureManager({
     }
 
     startBusy("facility-archive");
+
     try {
       const res = await fetch(`/api/facilities/${facility.facility_id}`, {
         method: "PATCH",
@@ -225,11 +408,13 @@ export default function FacilityStructureManager({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         throw new Error(data.message || "تعذر أرشفة المنشأة");
       }
 
       setMessage("تمت أرشفة المنشأة بنجاح");
+      setMode("none");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "تعذر أرشفة المنشأة");
@@ -238,22 +423,74 @@ export default function FacilityStructureManager({
     }
   }
 
-  async function addBuilding() {
-    startBusy("building-add");
+  async function addBuildingWithSystems() {
+    const systemsToCreate = Object.values(selectedSystems);
+
+    if (!newBuildingForm.building_name && !newBuildingForm.building_name_ar) {
+      setError("أدخل اسم المبنى أولًا.");
+      return;
+    }
+
+    startBusy("building-wizard-add");
+
     try {
-      const res = await fetch(`/api/buildings`, {
+      const buildingRes = await fetch(`/api/buildings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newBuildingForm),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.message || "تعذر إضافة المبنى");
+      const buildingData = await buildingRes.json();
+
+      if (!buildingRes.ok || !buildingData.ok) {
+        throw new Error(buildingData.message || "تعذر إضافة المبنى");
       }
 
-      setMessage("تمت إضافة المبنى بنجاح");
-      setNewBuildingForm(defaultNewBuilding(String(facility.facility_id || "")));
+      const buildingId =
+        String(
+          buildingData.buildingId ||
+            buildingData.building_id ||
+            buildingData.id ||
+            ""
+        ).trim();
+
+      if (systemsToCreate.length > 0 && !buildingId) {
+        throw new Error(
+          "تم إنشاء المبنى، لكن API لا يرجع buildingId. نحتاج تعديل بسيط في app/api/buildings/route.ts قبل إنشاء الأنظمة تلقائيًا."
+        );
+      }
+
+      for (const system of systemsToCreate) {
+        const res = await fetch(`/api/building-systems`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            building_id: buildingId,
+            system_code: system.system_code,
+            system_name_override: system.system_name_override,
+            coverage_scope: system.coverage_scope,
+            protection_area: system.protection_area,
+            standard_profile: system.standard_profile,
+            system_status: system.system_status || "active",
+            qr_enabled: system.qr_enabled || "TRUE",
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.message || `تعذر إنشاء النظام ${system.system_code}`);
+        }
+      }
+
+      setMessage(
+        systemsToCreate.length > 0
+          ? "تمت إضافة المبنى وإنشاء الأنظمة و QR لكل نظام بنجاح"
+          : "تمت إضافة المبنى بنجاح"
+      );
+
+      resetWizard();
+      setMode("none");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "تعذر إضافة المبنى");
@@ -264,6 +501,7 @@ export default function FacilityStructureManager({
 
   async function saveBuilding(buildingId: string) {
     startBusy(`building-save-${buildingId}`);
+
     try {
       const res = await fetch(`/api/buildings/${buildingId}`, {
         method: "PATCH",
@@ -272,11 +510,13 @@ export default function FacilityStructureManager({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         throw new Error(data.message || "تعذر تحديث المبنى");
       }
 
       setMessage("تم تحديث المبنى بنجاح");
+      setEditingBuildingId("");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "تعذر تحديث المبنى");
@@ -291,6 +531,7 @@ export default function FacilityStructureManager({
     }
 
     startBusy(`building-archive-${buildingId}`);
+
     try {
       const res = await fetch(`/api/buildings/${buildingId}`, {
         method: "PATCH",
@@ -299,6 +540,7 @@ export default function FacilityStructureManager({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         throw new Error(data.message || "تعذر أرشفة المبنى");
       }
@@ -313,10 +555,16 @@ export default function FacilityStructureManager({
   }
 
   async function addSystem(buildingId: string) {
-    startBusy(`system-add-${buildingId}`);
-    try {
-      const payload = newSystemForms[buildingId] || defaultNewSystem(buildingId);
+    const payload = newSystemForms[buildingId] || defaultNewSystem(buildingId);
 
+    if (!payload.system_code) {
+      setError("اختر نوع النظام أولًا.");
+      return;
+    }
+
+    startBusy(`system-add-${buildingId}`);
+
+    try {
       const res = await fetch(`/api/building-systems`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -324,11 +572,13 @@ export default function FacilityStructureManager({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         throw new Error(data.message || "تعذر إضافة النظام");
       }
 
       setMessage("تمت إضافة النظام بنجاح");
+      setAddingSystemBuildingId("");
       setNewSystemForms((prev) => ({
         ...prev,
         [buildingId]: defaultNewSystem(buildingId),
@@ -343,6 +593,7 @@ export default function FacilityStructureManager({
 
   async function saveSystem(buildingSystemId: string) {
     startBusy(`system-save-${buildingSystemId}`);
+
     try {
       const res = await fetch(`/api/building-systems/${buildingSystemId}`, {
         method: "PATCH",
@@ -351,11 +602,13 @@ export default function FacilityStructureManager({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         throw new Error(data.message || "تعذر تحديث النظام");
       }
 
       setMessage("تم تحديث النظام بنجاح");
+      setEditingSystemId("");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "تعذر تحديث النظام");
@@ -370,6 +623,7 @@ export default function FacilityStructureManager({
     }
 
     startBusy(`system-archive-${buildingSystemId}`);
+
     try {
       const res = await fetch(`/api/building-systems/${buildingSystemId}`, {
         method: "PATCH",
@@ -378,11 +632,13 @@ export default function FacilityStructureManager({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         throw new Error(data.message || "تعذر أرشفة النظام");
       }
 
       setMessage("تمت أرشفة النظام بنجاح");
+      setEditingSystemId("");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "تعذر أرشفة النظام");
@@ -405,769 +661,1275 @@ export default function FacilityStructureManager({
         </div>
       ) : null}
 
-      <div className="card" style={{ padding: "16px" }}>
-        <div
-          style={{
-            fontSize: "18px",
-            fontWeight: 900,
-            color: "#0f172a",
-            marginBottom: "12px",
-          }}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "12px",
+        }}
+      >
+        <button
+          type="button"
+          style={actionCardStyle(mode === "edit-facility")}
+          onClick={() => openMode("edit-facility")}
         >
-          تعديل بيانات المنشأة
-        </div>
+          <Pencil size={32} color="#0f766e" />
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>
+            تعديل المنشأة
+          </div>
+        </button>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "10px",
-          }}
+        <button
+          type="button"
+          style={actionCardStyle(mode === "add-building")}
+          onClick={() => openMode("add-building")}
         >
-          <input
-            className="field"
-            placeholder="كود المنشأة"
-            value={facilityForm.facility_code}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, facility_code: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="اسم المنشأة"
-            value={facilityForm.facility_name}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, facility_name: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="اسم المنشأة بالعربي"
-            value={facilityForm.facility_name_ar}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({
-                ...prev,
-                facility_name_ar: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="نوع المنشأة"
-            value={facilityForm.facility_type}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, facility_type: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="تصنيف الإشغال"
-            value={facilityForm.occupancy_classification}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({
-                ...prev,
-                occupancy_classification: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="المدينة"
-            value={facilityForm.city}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, city: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="الحي"
-            value={facilityForm.district}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, district: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="المالك"
-            value={facilityForm.owner_name}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, owner_name: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="المشغل"
-            value={facilityForm.operator_name}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, operator_name: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="الشخص المسؤول"
-            value={facilityForm.contact_person}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({
-                ...prev,
-                contact_person: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="رقم التواصل"
-            value={facilityForm.contact_phone}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({
-                ...prev,
-                contact_phone: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="البريد الإلكتروني"
-            value={facilityForm.contact_email}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({
-                ...prev,
-                contact_email: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="Latitude"
-            value={facilityForm.latitude}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, latitude: e.target.value }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="Longitude"
-            value={facilityForm.longitude}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({ ...prev, longitude: e.target.value }))
-            }
-          />
-          <select
-            className="field"
-            value={facilityForm.active_status}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({
-                ...prev,
-                active_status: e.target.value,
-              }))
-            }
-          >
-            <option value="active">نشطة</option>
-            <option value="inactive">غير نشطة</option>
-            <option value="archived">مؤرشفة</option>
-          </select>
-          <input
-            className="field"
-            placeholder="Authority Profile ID"
-            value={facilityForm.authority_profile_id}
-            onChange={(e) =>
-              setFacilityForm((prev) => ({
-                ...prev,
-                authority_profile_id: e.target.value,
-              }))
-            }
-          />
-        </div>
+          <Plus size={34} color="#0f766e" />
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>
+            إضافة مبنى
+          </div>
+        </button>
 
-        <textarea
-          className="field"
-          placeholder="العنوان"
-          value={facilityForm.address}
-          onChange={(e) =>
-            setFacilityForm((prev) => ({ ...prev, address: e.target.value }))
-          }
-          style={{ marginTop: "10px" }}
-        />
+        <button
+          type="button"
+          style={actionCardStyle(mode === "manage-buildings")}
+          onClick={() => openMode("manage-buildings")}
+        >
+          <Wrench size={32} color="#475569" />
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>
+            إدارة المباني
+          </div>
+        </button>
 
-        <textarea
-          className="field"
-          placeholder="ملاحظات"
-          value={facilityForm.notes}
-          onChange={(e) =>
-            setFacilityForm((prev) => ({ ...prev, notes: e.target.value }))
-          }
-          style={{ marginTop: "10px" }}
-        />
-
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
-          <button
-            type="button"
-            className="btn"
-            onClick={saveFacility}
-            disabled={isBusy("facility-save")}
-          >
-            <Save size={18} />
-            {isBusy("facility-save") ? "جارٍ الحفظ..." : "حفظ المنشأة"}
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={archiveFacility}
-            disabled={isBusy("facility-archive")}
-          >
-            <Trash2 size={18} />
-            {isBusy("facility-archive") ? "جارٍ الأرشفة..." : "حذف / أرشفة المنشأة"}
-          </button>
-        </div>
+        <button
+          type="button"
+          style={actionCardStyle(false)}
+          onClick={() => setMessage("قريبًا: صفحة طباعة ملصقات QR للأنظمة.")}
+        >
+          <QrCode size={32} color="#b45309" />
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>
+            QR الأنظمة
+          </div>
+        </button>
       </div>
 
-      <div className="card" style={{ padding: "16px", marginTop: "14px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            marginBottom: "12px",
-          }}
-        >
-          <Building2 size={20} />
-          <div style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>
-            إضافة مبنى جديد
+      {mode === "edit-facility" ? (
+        <div className="card" style={{ padding: "16px", marginTop: "14px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              alignItems: "center",
+              marginBottom: "12px",
+            }}
+          >
+            <div style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>
+              تعديل بيانات المنشأة
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setMode("none")}
+            >
+              <X size={18} />
+              إغلاق
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "10px",
+            }}
+          >
+            <input
+              className="field"
+              placeholder="كود المنشأة"
+              value={facilityForm.facility_code}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  facility_code: e.target.value,
+                }))
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="اسم المنشأة"
+              value={facilityForm.facility_name}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  facility_name: e.target.value,
+                }))
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="اسم المنشأة بالعربي"
+              value={facilityForm.facility_name_ar}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  facility_name_ar: e.target.value,
+                }))
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="نوع المنشأة"
+              value={facilityForm.facility_type}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  facility_type: e.target.value,
+                }))
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="المدينة"
+              value={facilityForm.city}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({ ...prev, city: e.target.value }))
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="الحي"
+              value={facilityForm.district}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  district: e.target.value,
+                }))
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="الشخص المسؤول"
+              value={facilityForm.contact_person}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  contact_person: e.target.value,
+                }))
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="رقم التواصل"
+              value={facilityForm.contact_phone}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  contact_phone: e.target.value,
+                }))
+              }
+            />
+
+            <select
+              className="field"
+              value={facilityForm.active_status}
+              onChange={(e) =>
+                setFacilityForm((prev) => ({
+                  ...prev,
+                  active_status: e.target.value,
+                }))
+              }
+            >
+              <option value="active">نشطة</option>
+              <option value="inactive">غير نشطة</option>
+              <option value="archived">مؤرشفة</option>
+            </select>
+          </div>
+
+          <textarea
+            className="field"
+            placeholder="العنوان"
+            value={facilityForm.address}
+            onChange={(e) =>
+              setFacilityForm((prev) => ({ ...prev, address: e.target.value }))
+            }
+            style={{ marginTop: "10px" }}
+          />
+
+          <textarea
+            className="field"
+            placeholder="ملاحظات"
+            value={facilityForm.notes}
+            onChange={(e) =>
+              setFacilityForm((prev) => ({ ...prev, notes: e.target.value }))
+            }
+            style={{ marginTop: "10px" }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginTop: "12px",
+            }}
+          >
+            <button
+              type="button"
+              className="btn"
+              onClick={saveFacility}
+              disabled={isBusy("facility-save")}
+            >
+              <Save size={18} />
+              {isBusy("facility-save") ? "جارٍ الحفظ..." : "حفظ المنشأة"}
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={archiveFacility}
+              disabled={isBusy("facility-archive")}
+            >
+              <Trash2 size={18} />
+              {isBusy("facility-archive")
+                ? "جارٍ الأرشفة..."
+                : "أرشفة المنشأة"}
+            </button>
           </div>
         </div>
+      ) : null}
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "10px",
-          }}
-        >
-          <input
-            className="field"
-            placeholder="كود المبنى"
-            value={newBuildingForm.building_code}
-            onChange={(e) =>
-              setNewBuildingForm((prev) => ({
-                ...prev,
-                building_code: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="اسم المبنى"
-            value={newBuildingForm.building_name}
-            onChange={(e) =>
-              setNewBuildingForm((prev) => ({
-                ...prev,
-                building_name: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="اسم المبنى بالعربي"
-            value={newBuildingForm.building_name_ar}
-            onChange={(e) =>
-              setNewBuildingForm((prev) => ({
-                ...prev,
-                building_name_ar: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="استخدام المبنى"
-            value={newBuildingForm.building_use}
-            onChange={(e) =>
-              setNewBuildingForm((prev) => ({
-                ...prev,
-                building_use: e.target.value,
-              }))
-            }
-          />
-          <input
-            className="field"
-            placeholder="عدد الأدوار"
-            value={newBuildingForm.number_of_floors}
-            onChange={(e) =>
-              setNewBuildingForm((prev) => ({
-                ...prev,
-                number_of_floors: e.target.value,
-              }))
-            }
-          />
-          <select
-            className="field"
-            value={newBuildingForm.status}
-            onChange={(e) =>
-              setNewBuildingForm((prev) => ({
-                ...prev,
-                status: e.target.value,
-              }))
-            }
+      {mode === "add-building" ? (
+        <div className="card" style={{ padding: "16px", marginTop: "14px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              alignItems: "center",
+              marginBottom: "12px",
+            }}
           >
-            <option value="active">نشط</option>
-            <option value="inactive">غير نشط</option>
-            <option value="archived">مؤرشف</option>
-          </select>
-        </div>
-
-        <textarea
-          className="field"
-          placeholder="ملاحظات المبنى"
-          value={newBuildingForm.notes}
-          onChange={(e) =>
-            setNewBuildingForm((prev) => ({
-              ...prev,
-              notes: e.target.value,
-            }))
-          }
-          style={{ marginTop: "10px" }}
-        />
-
-        <div style={{ marginTop: "12px" }}>
-          <button
-            type="button"
-            className="btn"
-            onClick={addBuilding}
-            disabled={isBusy("building-add")}
-          >
-            <Plus size={18} />
-            {isBusy("building-add") ? "جارٍ الإضافة..." : "إضافة مبنى"}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
-        {buildings.length === 0 ? (
-          <div className="card" style={{ padding: "16px" }}>
-            لا توجد مبانٍ حتى الآن.
-          </div>
-        ) : (
-          buildings.map((building: any) => {
-            const buildingId = String(building.building_id || "");
-            const form = buildingForms[buildingId] || {};
-            const buildingSystems = systemsByBuilding[buildingId] || [];
-            const newSystemForm =
-              newSystemForms[buildingId] || defaultNewSystem(buildingId);
-
-            return (
-              <details
-                key={buildingId}
-                className="card"
-                style={{ padding: "16px" }}
+            <div>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                }}
               >
-                <summary
+                إضافة مبنى جديد
+              </div>
+
+              <div
+                style={{
+                  marginTop: "4px",
+                  fontSize: "13px",
+                  color: "#64748b",
+                }}
+              >
+                خطوة {wizardStep} من 3
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                resetWizard();
+                setMode("none");
+              }}
+            >
+              <X size={18} />
+              إغلاق
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              marginBottom: "14px",
+            }}
+          >
+            {[1, 2, 3].map((step) => (
+              <div
+                key={step}
+                style={{
+                  height: "8px",
+                  flex: 1,
+                  borderRadius: "999px",
+                  background: step <= wizardStep ? "#0f766e" : "#e2e8f0",
+                }}
+              />
+            ))}
+          </div>
+
+          {wizardStep === 1 ? (
+            <div>
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  marginBottom: "10px",
+                }}
+              >
+                1. بيانات المبنى
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: "10px",
+                }}
+              >
+                <input
+                  className="field"
+                  placeholder="كود المبنى"
+                  value={newBuildingForm.building_code}
+                  onChange={(e) =>
+                    setNewBuildingForm((prev) => ({
+                      ...prev,
+                      building_code: e.target.value,
+                    }))
+                  }
+                />
+
+                <input
+                  className="field"
+                  placeholder="اسم المبنى"
+                  value={newBuildingForm.building_name}
+                  onChange={(e) =>
+                    setNewBuildingForm((prev) => ({
+                      ...prev,
+                      building_name: e.target.value,
+                    }))
+                  }
+                />
+
+                <input
+                  className="field"
+                  placeholder="اسم المبنى بالعربي"
+                  value={newBuildingForm.building_name_ar}
+                  onChange={(e) =>
+                    setNewBuildingForm((prev) => ({
+                      ...prev,
+                      building_name_ar: e.target.value,
+                    }))
+                  }
+                />
+
+                <input
+                  className="field"
+                  placeholder="استخدام المبنى"
+                  value={newBuildingForm.building_use}
+                  onChange={(e) =>
+                    setNewBuildingForm((prev) => ({
+                      ...prev,
+                      building_use: e.target.value,
+                    }))
+                  }
+                />
+
+                <input
+                  className="field"
+                  placeholder="عدد الأدوار"
+                  value={newBuildingForm.number_of_floors}
+                  onChange={(e) =>
+                    setNewBuildingForm((prev) => ({
+                      ...prev,
+                      number_of_floors: e.target.value,
+                    }))
+                  }
+                />
+
+                <select
+                  className="field"
+                  value={newBuildingForm.status}
+                  onChange={(e) =>
+                    setNewBuildingForm((prev) => ({
+                      ...prev,
+                      status: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="active">نشط</option>
+                  <option value="inactive">غير نشط</option>
+                  <option value="archived">مؤرشف</option>
+                </select>
+              </div>
+
+              <textarea
+                className="field"
+                placeholder="ملاحظات المبنى"
+                value={newBuildingForm.notes}
+                onChange={(e) =>
+                  setNewBuildingForm((prev) => ({
+                    ...prev,
+                    notes: e.target.value,
+                  }))
+                }
+                style={{ marginTop: "10px" }}
+              />
+
+              <div style={{ marginTop: "12px" }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setWizardStep(2)}
+                >
+                  التالي: اختيار الأنظمة
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {wizardStep === 2 ? (
+            <div>
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  marginBottom: "6px",
+                }}
+              >
+                2. الأنظمة الموجودة داخل المبنى
+              </div>
+
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#64748b",
+                  marginBottom: "12px",
+                  lineHeight: 1.7,
+                }}
+              >
+                اختر الأنظمة التي تريد ربطها بهذا المبنى. سيتم إنشاء QR لكل
+                نظام تلقائيًا.
+              </div>
+
+              <div style={{ display: "grid", gap: "10px" }}>
+                {systemOptions.map((system: any) => {
+                  const code = String(system.system_code || "");
+                  const selected = Boolean(selectedSystems[code]);
+
+                  return (
+                    <div key={code} style={panelStyle(selected)}>
+                      <button
+                        type="button"
+                        onClick={() => toggleSystem(system)}
+                        style={{
+                          width: "100%",
+                          border: 0,
+                          background: "transparent",
+                          padding: 0,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "10px",
+                          cursor: "pointer",
+                          textAlign: "right",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "15px",
+                              fontWeight: 900,
+                              color: "#0f172a",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {systemOptionLabel(system)}
+                          </div>
+
+                          <div
+                            style={{
+                              marginTop: "2px",
+                              fontSize: "12px",
+                              color: "#64748b",
+                            }}
+                          >
+                            {code}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            width: "28px",
+                            height: "28px",
+                            borderRadius: "50%",
+                            border: selected
+                              ? "7px solid #0f766e"
+                              : "2px solid #cbd5e1",
+                            background: "#fff",
+                            flexShrink: 0,
+                          }}
+                        />
+                      </button>
+
+                      {selected ? (
+                        <div
+                          style={{
+                            marginTop: "12px",
+                            display: "grid",
+                            gap: "8px",
+                          }}
+                        >
+                          <input
+                            className="field"
+                            placeholder="اسم العرض داخل المبنى"
+                            value={selectedSystems[code].system_name_override}
+                            onChange={(e) =>
+                              updateSelectedSystem(code, {
+                                system_name_override: e.target.value,
+                              })
+                            }
+                          />
+
+                          <input
+                            className="field"
+                            placeholder="منطقة الحماية / الموقع"
+                            value={selectedSystems[code].protection_area}
+                            onChange={(e) =>
+                              updateSelectedSystem(code, {
+                                protection_area: e.target.value,
+                              })
+                            }
+                          />
+
+                          <input
+                            className="field"
+                            placeholder="نطاق التغطية"
+                            value={selectedSystems[code].coverage_scope}
+                            onChange={(e) =>
+                              updateSelectedSystem(code, {
+                                coverage_scope: e.target.value,
+                              })
+                            }
+                          />
+
+                          <select
+                            className="field"
+                            value={selectedSystems[code].qr_enabled}
+                            onChange={(e) =>
+                              updateSelectedSystem(code, {
+                                qr_enabled: e.target.value,
+                              })
+                            }
+                          >
+                            <option value="TRUE">تفعيل QR لهذا النظام</option>
+                            <option value="FALSE">بدون QR</option>
+                          </select>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  marginTop: "12px",
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setWizardStep(1)}
+                >
+                  رجوع
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setWizardStep(3)}
+                >
+                  التالي: مراجعة
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {wizardStep === 3 ? (
+            <div>
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  marginBottom: "10px",
+                }}
+              >
+                3. مراجعة قبل الحفظ
+              </div>
+
+              <div
+                className="card"
+                style={{
+                  padding: "14px",
+                  background: "#f8fafc",
+                  marginBottom: "12px",
+                }}
+              >
+                <div style={{ fontSize: "13px", color: "#64748b" }}>
+                  المبنى
+                </div>
+
+                <div
                   style={{
-                    cursor: "pointer",
-                    listStyle: "none",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "10px",
-                    alignItems: "flex-start",
+                    marginTop: "4px",
+                    fontSize: "18px",
+                    fontWeight: 900,
+                    color: "#0f172a",
+                    lineHeight: 1.6,
                   }}
                 >
-                  <div style={{ minWidth: 0, flex: 1 }}>
+                  {safeText(
+                    newBuildingForm.building_name_ar ||
+                      newBuildingForm.building_name,
+                    "مبنى جديد"
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "13px",
+                    color: "#64748b",
+                  }}
+                >
+                  عدد الأنظمة المختارة: {Object.keys(selectedSystems).length}
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: "8px" }}>
+                {Object.values(selectedSystems).length === 0 ? (
+                  <div
+                    style={{
+                      border: "1px dashed #cbd5e1",
+                      borderRadius: "18px",
+                      padding: "14px",
+                      fontSize: "13px",
+                      color: "#64748b",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    لم يتم اختيار أنظمة. سيتم إنشاء المبنى فقط.
+                  </div>
+                ) : (
+                  Object.values(selectedSystems).map((system) => (
                     <div
+                      key={system.system_code}
+                      className="card"
                       style={{
-                        fontSize: "18px",
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        lineHeight: 1.5,
+                        padding: "12px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "10px",
                       }}
                     >
-                      {safeText(building.building_name_ar || building.building_name, "مبنى")}
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            color: "#0f172a",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {safeText(system.system_name_override, system.system_code)}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "3px",
+                            fontSize: "12px",
+                            color: "#64748b",
+                          }}
+                        >
+                          {system.system_code}
+                        </div>
+                      </div>
+
+                      {system.qr_enabled === "TRUE" ? (
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            borderRadius: "999px",
+                            padding: "6px 10px",
+                            background: "#ecfeff",
+                            border: "1px solid #ccfbf1",
+                            color: "#0f766e",
+                            fontSize: "12px",
+                            fontWeight: 800,
+                          }}
+                        >
+                          <QrCode size={14} />
+                          QR
+                        </div>
+                      ) : null}
                     </div>
-                    <div
-                      style={{
-                        marginTop: "4px",
-                        fontSize: "13px",
-                        color: "#64748b",
-                      }}
-                    >
-                      {safeText(building.building_code, "-")} · الأنظمة:{" "}
-                      {buildingSystems.length}
-                    </div>
-                  </div>
+                  ))
+                )}
+              </div>
 
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      borderRadius: "999px",
-                      padding: "6px 10px",
-                      border: "1px solid #e2e8f0",
-                      background: "#f8fafc",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      color: "#334155",
-                    }}
-                  >
-                    {safeText(form.status || building.status, "active")}
-                  </div>
-                </summary>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  marginTop: "12px",
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setWizardStep(2)}
+                >
+                  رجوع
+                </button>
 
-                <div style={{ marginTop: "14px" }}>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                      gap: "10px",
-                    }}
-                  >
-                    <input
-                      className="field"
-                      placeholder="كود المبنى"
-                      value={form.building_code || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            building_code: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="اسم المبنى"
-                      value={form.building_name || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            building_name: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="اسم المبنى بالعربي"
-                      value={form.building_name_ar || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            building_name_ar: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="استخدام المبنى"
-                      value={form.building_use || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            building_use: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="الإنشاء"
-                      value={form.construction_type || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            construction_type: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="عدد الأدوار"
-                      value={form.number_of_floors || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            number_of_floors: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="عدد البدرومات"
-                      value={form.basement_count || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            basement_count: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="الارتفاع بالمتر"
-                      value={form.building_height_m || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            building_height_m: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="المساحة م2"
-                      value={form.area_m2 || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            area_m2: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="سنة البناء"
-                      value={form.year_built || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            year_built: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="آخر ترميم كبير"
-                      value={form.last_major_renovation_year || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            last_major_renovation_year: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="رقم تصريح الدفاع المدني"
-                      value={form.civil_defense_permit_no || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            civil_defense_permit_no: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      className="field"
-                      placeholder="استراتيجية الإخلاء"
-                      value={form.evacuation_strategy || ""}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            evacuation_strategy: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <select
-                      className="field"
-                      value={form.status || "active"}
-                      onChange={(e) =>
-                        setBuildingForms((prev) => ({
-                          ...prev,
-                          [buildingId]: {
-                            ...prev[buildingId],
-                            status: e.target.value,
-                          },
-                        }))
-                      }
-                    >
-                      <option value="active">نشط</option>
-                      <option value="inactive">غير نشط</option>
-                      <option value="archived">مؤرشف</option>
-                    </select>
-                  </div>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={addBuildingWithSystems}
+                  disabled={isBusy("building-wizard-add")}
+                >
+                  <CheckCircle2 size={18} />
+                  {isBusy("building-wizard-add")
+                    ? "جارٍ الحفظ..."
+                    : "حفظ المبنى وإنشاء الأنظمة"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
-                  <textarea
-                    className="field"
-                    placeholder="ملاحظات المبنى"
-                    value={form.notes || ""}
-                    onChange={(e) =>
-                      setBuildingForms((prev) => ({
-                        ...prev,
-                        [buildingId]: {
-                          ...prev[buildingId],
-                          notes: e.target.value,
-                        },
-                      }))
-                    }
-                    style={{ marginTop: "10px" }}
-                  />
+      {mode === "manage-buildings" ? (
+        <div className="card" style={{ padding: "16px", marginTop: "14px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "10px",
+              alignItems: "center",
+              marginBottom: "12px",
+            }}
+          >
+            <div style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>
+              إدارة المباني والأنظمة
+            </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                      marginTop: "12px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => saveBuilding(buildingId)}
-                      disabled={isBusy(`building-save-${buildingId}`)}
-                    >
-                      <Save size={18} />
-                      {isBusy(`building-save-${buildingId}`)
-                        ? "جارٍ الحفظ..."
-                        : "حفظ المبنى"}
-                    </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setMode("none")}
+            >
+              <X size={18} />
+              إغلاق
+            </button>
+          </div>
 
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => archiveBuilding(buildingId)}
-                      disabled={isBusy(`building-archive-${buildingId}`)}
-                    >
-                      <Trash2 size={18} />
-                      {isBusy(`building-archive-${buildingId}`)
-                        ? "جارٍ الأرشفة..."
-                        : "حذف / أرشفة المبنى"}
-                    </button>
-                  </div>
+          {buildings.length === 0 ? (
+            <div
+              style={{
+                border: "1px dashed #cbd5e1",
+                borderRadius: "18px",
+                padding: "14px",
+                color: "#64748b",
+                fontSize: "13px",
+                lineHeight: 1.8,
+              }}
+            >
+              لا توجد مبانٍ حتى الآن.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "12px" }}>
+              {buildings.map((building: any) => {
+                const buildingId = String(building.building_id || "");
+                const form = buildingForms[buildingId] || {};
+                const buildingSystems = systemsByBuilding[buildingId] || [];
+                const newSystemForm =
+                  newSystemForms[buildingId] || defaultNewSystem(buildingId);
 
-                  <div
-                    style={{
-                      marginTop: "16px",
-                      paddingTop: "14px",
-                      borderTop: "1px solid #e2e8f0",
-                    }}
-                  >
+                return (
+                  <div key={buildingId} className="card" style={{ padding: "14px" }}>
                     <div
                       style={{
                         display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        marginBottom: "12px",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        alignItems: "flex-start",
                       }}
                     >
-                      <Wrench size={18} />
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "17px",
+                            fontWeight: 900,
+                            color: "#0f172a",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {safeText(
+                            building.building_name_ar || building.building_name,
+                            "مبنى"
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "4px",
+                            fontSize: "13px",
+                            color: "#64748b",
+                          }}
+                        >
+                          {safeText(building.building_code, "-")} · الأنظمة:{" "}
+                          {buildingSystems.length}
+                        </div>
+                      </div>
+
                       <div
                         style={{
-                          fontSize: "16px",
-                          fontWeight: 900,
-                          color: "#0f172a",
+                          display: "flex",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                          justifyContent: "flex-end",
                         }}
                       >
-                        أنظمة المبنى
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() =>
+                            setEditingBuildingId(
+                              editingBuildingId === buildingId ? "" : buildingId
+                            )
+                          }
+                        >
+                          <Pencil size={16} />
+                          تعديل
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() =>
+                            setAddingSystemBuildingId(
+                              addingSystemBuildingId === buildingId
+                                ? ""
+                                : buildingId
+                            )
+                          }
+                        >
+                          <Layers3 size={16} />
+                          إضافة نظام
+                        </button>
                       </div>
                     </div>
 
-                    {buildingSystems.length === 0 ? (
-                      <div
-                        className="card"
-                        style={{ padding: "14px", marginBottom: "12px" }}
-                      >
-                        لا توجد أنظمة لهذا المبنى حتى الآن.
-                      </div>
-                    ) : (
-                      <div style={{ display: "grid", gap: "10px" }}>
-                        {buildingSystems.map((system: any) => {
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "8px",
+                        marginTop: "12px",
+                      }}
+                    >
+                      {buildingSystems.length === 0 ? (
+                        <div
+                          style={{
+                            border: "1px dashed #cbd5e1",
+                            borderRadius: "999px",
+                            padding: "8px 12px",
+                            fontSize: "13px",
+                            color: "#64748b",
+                          }}
+                        >
+                          لا توجد أنظمة
+                        </div>
+                      ) : (
+                        buildingSystems.map((system: any) => {
                           const systemId = String(system.building_system_id || "");
-                          const systemForm = systemForms[systemId] || {};
+                          const active = editingSystemId === systemId;
 
                           return (
-                            <details
+                            <button
                               key={systemId}
-                              className="card"
-                              style={{ padding: "14px" }}
+                              type="button"
+                              onClick={() =>
+                                setEditingSystemId(active ? "" : systemId)
+                              }
+                              style={{
+                                borderRadius: "999px",
+                                border: active
+                                  ? "1px solid #99f6e4"
+                                  : "1px solid #e2e8f0",
+                                background: active ? "#ecfeff" : "#f8fafc",
+                                padding: "8px 12px",
+                                color: active ? "#0f766e" : "#334155",
+                                fontSize: "13px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                              }}
                             >
-                              <summary
-                                style={{
-                                  cursor: "pointer",
-                                  listStyle: "none",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  gap: "10px",
-                                  alignItems: "flex-start",
-                                }}
-                              >
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <div
-                                    style={{
-                                      fontSize: "16px",
-                                      fontWeight: 800,
-                                      color: "#0f172a",
-                                      lineHeight: 1.5,
-                                    }}
-                                  >
-                                    {safeText(
-                                      system.system_name_override ||
-                                        toSystemLabel(system.system_code),
-                                      "نظام"
-                                    )}
-                                  </div>
-                                  <div
-                                    style={{
-                                      marginTop: "4px",
-                                      fontSize: "13px",
-                                      color: "#64748b",
-                                    }}
-                                  >
-                                    {safeText(system.system_instance_code, "-")} ·{" "}
-                                    {toSystemLabel(system.system_code)}
-                                  </div>
-                                </div>
+                              {safeText(
+                                system.system_name_override ||
+                                  toSystemLabel(system.system_code),
+                                "نظام"
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
 
+                    {editingBuildingId === buildingId ? (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          paddingTop: "12px",
+                          borderTop: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            color: "#0f172a",
+                            marginBottom: "10px",
+                          }}
+                        >
+                          تعديل بيانات المبنى
+                        </div>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                            gap: "10px",
+                          }}
+                        >
+                          <input
+                            className="field"
+                            placeholder="كود المبنى"
+                            value={form.building_code || ""}
+                            onChange={(e) =>
+                              setBuildingForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  building_code: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+
+                          <input
+                            className="field"
+                            placeholder="اسم المبنى"
+                            value={form.building_name || ""}
+                            onChange={(e) =>
+                              setBuildingForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  building_name: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+
+                          <input
+                            className="field"
+                            placeholder="اسم المبنى بالعربي"
+                            value={form.building_name_ar || ""}
+                            onChange={(e) =>
+                              setBuildingForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  building_name_ar: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+
+                          <input
+                            className="field"
+                            placeholder="عدد الأدوار"
+                            value={form.number_of_floors || ""}
+                            onChange={(e) =>
+                              setBuildingForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  number_of_floors: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+
+                          <select
+                            className="field"
+                            value={form.status || "active"}
+                            onChange={(e) =>
+                              setBuildingForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  status: e.target.value,
+                                },
+                              }))
+                            }
+                          >
+                            <option value="active">نشط</option>
+                            <option value="inactive">غير نشط</option>
+                            <option value="archived">مؤرشف</option>
+                          </select>
+                        </div>
+
+                        <textarea
+                          className="field"
+                          placeholder="ملاحظات المبنى"
+                          value={form.notes || ""}
+                          onChange={(e) =>
+                            setBuildingForms((prev) => ({
+                              ...prev,
+                              [buildingId]: {
+                                ...prev[buildingId],
+                                notes: e.target.value,
+                              },
+                            }))
+                          }
+                          style={{ marginTop: "10px" }}
+                        />
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            flexWrap: "wrap",
+                            marginTop: "12px",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => saveBuilding(buildingId)}
+                            disabled={isBusy(`building-save-${buildingId}`)}
+                          >
+                            <Save size={18} />
+                            {isBusy(`building-save-${buildingId}`)
+                              ? "جارٍ الحفظ..."
+                              : "حفظ المبنى"}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => archiveBuilding(buildingId)}
+                            disabled={isBusy(`building-archive-${buildingId}`)}
+                          >
+                            <Trash2 size={18} />
+                            أرشفة المبنى
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {addingSystemBuildingId === buildingId ? (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          paddingTop: "12px",
+                          borderTop: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 900,
+                            color: "#0f172a",
+                            marginBottom: "10px",
+                          }}
+                        >
+                          إضافة نظام لهذا المبنى
+                        </div>
+
+                        <select
+                          className="field"
+                          value={newSystemForm.system_code || ""}
+                          onChange={(e) => {
+                            const code = e.target.value;
+                            const option = systemOptions.find(
+                              (s: any) => String(s.system_code) === code
+                            );
+
+                            setNewSystemForms((prev) => ({
+                              ...prev,
+                              [buildingId]: {
+                                ...defaultNewSystem(buildingId),
+                                system_code: code,
+                                system_name_override: option
+                                  ? systemOptionLabel(option)
+                                  : "",
+                              },
+                            }));
+                          }}
+                        >
+                          <option value="">اختر نوع النظام</option>
+                          {systemOptions.map((option: any) => (
+                            <option
+                              key={String(option.system_code)}
+                              value={String(option.system_code)}
+                            >
+                              {systemOptionLabel(option)} - {String(option.system_code)}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                            gap: "10px",
+                            marginTop: "10px",
+                          }}
+                        >
+                          <input
+                            className="field"
+                            placeholder="اسم العرض داخل المبنى"
+                            value={newSystemForm.system_name_override || ""}
+                            onChange={(e) =>
+                              setNewSystemForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  system_name_override: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+
+                          <input
+                            className="field"
+                            placeholder="منطقة الحماية / الموقع"
+                            value={newSystemForm.protection_area || ""}
+                            onChange={(e) =>
+                              setNewSystemForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  protection_area: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+
+                          <input
+                            className="field"
+                            placeholder="نطاق التغطية"
+                            value={newSystemForm.coverage_scope || ""}
+                            onChange={(e) =>
+                              setNewSystemForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  coverage_scope: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+
+                          <select
+                            className="field"
+                            value={newSystemForm.qr_enabled || "TRUE"}
+                            onChange={(e) =>
+                              setNewSystemForms((prev) => ({
+                                ...prev,
+                                [buildingId]: {
+                                  ...prev[buildingId],
+                                  qr_enabled: e.target.value,
+                                },
+                              }))
+                            }
+                          >
+                            <option value="TRUE">تفعيل QR</option>
+                            <option value="FALSE">بدون QR</option>
+                          </select>
+                        </div>
+
+                        <div style={{ marginTop: "12px" }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => addSystem(buildingId)}
+                            disabled={isBusy(`system-add-${buildingId}`)}
+                          >
+                            <Plus size={18} />
+                            {isBusy(`system-add-${buildingId}`)
+                              ? "جارٍ الإضافة..."
+                              : "إضافة النظام"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {editingSystemId &&
+                    buildingSystems.some(
+                      (s: any) =>
+                        String(s.building_system_id || "") === editingSystemId
+                    ) ? (
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          paddingTop: "12px",
+                          borderTop: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {buildingSystems
+                          .filter(
+                            (s: any) =>
+                              String(s.building_system_id || "") ===
+                              editingSystemId
+                          )
+                          .map((system: any) => {
+                            const systemId = String(system.building_system_id || "");
+                            const form = systemForms[systemId] || {};
+
+                            return (
+                              <div key={systemId}>
                                 <div
                                   style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    borderRadius: "999px",
-                                    padding: "6px 10px",
-                                    border: "1px solid #e2e8f0",
-                                    background: "#f8fafc",
-                                    fontSize: "12px",
-                                    fontWeight: 700,
-                                    color: "#334155",
+                                    fontSize: "15px",
+                                    fontWeight: 900,
+                                    color: "#0f172a",
+                                    marginBottom: "10px",
                                   }}
                                 >
-                                  {safeText(systemForm.system_status || system.system_status, "active")}
+                                  تعديل النظام
                                 </div>
-                              </summary>
 
-                              <div style={{ marginTop: "14px" }}>
                                 <div
                                   style={{
                                     display: "grid",
@@ -1178,36 +1940,8 @@ export default function FacilityStructureManager({
                                 >
                                   <input
                                     className="field"
-                                    placeholder="كود نسخة النظام"
-                                    value={systemForm.system_instance_code || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          system_instance_code: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="system_code"
-                                    value={systemForm.system_code || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          system_code: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="اسم النظام المخصص"
-                                    value={systemForm.system_name_override || ""}
+                                    placeholder="اسم النظام"
+                                    value={form.system_name_override || ""}
                                     onChange={(e) =>
                                       setSystemForms((prev) => ({
                                         ...prev,
@@ -1218,24 +1952,11 @@ export default function FacilityStructureManager({
                                       }))
                                     }
                                   />
-                                  <input
-                                    className="field"
-                                    placeholder="نطاق التغطية"
-                                    value={systemForm.coverage_scope || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          coverage_scope: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
+
                                   <input
                                     className="field"
                                     placeholder="منطقة الحماية"
-                                    value={systemForm.protection_area || ""}
+                                    value={form.protection_area || ""}
                                     onChange={(e) =>
                                       setSystemForms((prev) => ({
                                         ...prev,
@@ -1246,153 +1967,25 @@ export default function FacilityStructureManager({
                                       }))
                                     }
                                   />
+
                                   <input
                                     className="field"
-                                    placeholder="المرجع القياسي"
-                                    value={systemForm.standard_profile || ""}
+                                    placeholder="نطاق التغطية"
+                                    value={form.coverage_scope || ""}
                                     onChange={(e) =>
                                       setSystemForms((prev) => ({
                                         ...prev,
                                         [systemId]: {
                                           ...prev[systemId],
-                                          standard_profile: e.target.value,
+                                          coverage_scope: e.target.value,
                                         },
                                       }))
                                     }
                                   />
-                                  <input
-                                    className="field"
-                                    placeholder="الشركة المصنعة"
-                                    value={systemForm.manufacturer || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          manufacturer: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="الموديل"
-                                    value={systemForm.model || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          model: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="الرقم التسلسلي"
-                                    value={systemForm.serial_no || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          serial_no: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="تاريخ التركيب"
-                                    type="date"
-                                    value={systemForm.install_date || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          install_date: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="تاريخ التشغيل"
-                                    type="date"
-                                    value={systemForm.commission_date || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          commission_date: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="مزود الخدمة"
-                                    value={systemForm.service_provider || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          service_provider: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="Approval Lab Code"
-                                    value={systemForm.approval_lab_code || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          approval_lab_code: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="Criticality Class"
-                                    value={systemForm.criticality_class || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          criticality_class: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <input
-                                    className="field"
-                                    placeholder="Anchor Date"
-                                    type="date"
-                                    value={systemForm.next_inspection_anchor_date || ""}
-                                    onChange={(e) =>
-                                      setSystemForms((prev) => ({
-                                        ...prev,
-                                        [systemId]: {
-                                          ...prev[systemId],
-                                          next_inspection_anchor_date:
-                                            e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
+
                                   <select
                                     className="field"
-                                    value={systemForm.system_status || "active"}
+                                    value={form.system_status || "active"}
                                     onChange={(e) =>
                                       setSystemForms((prev) => ({
                                         ...prev,
@@ -1413,7 +2006,7 @@ export default function FacilityStructureManager({
                                 <textarea
                                   className="field"
                                   placeholder="ملاحظات النظام"
-                                  value={systemForm.notes || ""}
+                                  value={form.notes || ""}
                                   onChange={(e) =>
                                     setSystemForms((prev) => ({
                                       ...prev,
@@ -1429,7 +2022,7 @@ export default function FacilityStructureManager({
                                 <div
                                   style={{
                                     display: "flex",
-                                    gap: "10px",
+                                    gap: "8px",
                                     flexWrap: "wrap",
                                     marginTop: "12px",
                                   }}
@@ -1453,172 +2046,21 @@ export default function FacilityStructureManager({
                                     disabled={isBusy(`system-archive-${systemId}`)}
                                   >
                                     <Trash2 size={18} />
-                                    {isBusy(`system-archive-${systemId}`)
-                                      ? "جارٍ الأرشفة..."
-                                      : "حذف / أرشفة النظام"}
+                                    أرشفة النظام
                                   </button>
                                 </div>
                               </div>
-                            </details>
-                          );
-                        })}
+                            );
+                          })}
                       </div>
-                    )}
-
-                    <div
-                      className="card"
-                      style={{
-                        padding: "14px",
-                        marginTop: "12px",
-                        background: "#f8fafc",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "15px",
-                          fontWeight: 900,
-                          color: "#0f172a",
-                          marginBottom: "10px",
-                        }}
-                      >
-                        إضافة نظام جديد لهذا المبنى
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                          gap: "10px",
-                        }}
-                      >
-                        <input
-                          className="field"
-                          placeholder="كود نسخة النظام"
-                          value={newSystemForm.system_instance_code || ""}
-                          onChange={(e) =>
-                            setNewSystemForms((prev) => ({
-                              ...prev,
-                              [buildingId]: {
-                                ...prev[buildingId],
-                                system_instance_code: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                        <input
-                          className="field"
-                          placeholder="system_code"
-                          value={newSystemForm.system_code || ""}
-                          onChange={(e) =>
-                            setNewSystemForms((prev) => ({
-                              ...prev,
-                              [buildingId]: {
-                                ...prev[buildingId],
-                                system_code: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                        <input
-                          className="field"
-                          placeholder="اسم مخصص للنظام"
-                          value={newSystemForm.system_name_override || ""}
-                          onChange={(e) =>
-                            setNewSystemForms((prev) => ({
-                              ...prev,
-                              [buildingId]: {
-                                ...prev[buildingId],
-                                system_name_override: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                        <input
-                          className="field"
-                          placeholder="المرجع القياسي"
-                          value={newSystemForm.standard_profile || ""}
-                          onChange={(e) =>
-                            setNewSystemForms((prev) => ({
-                              ...prev,
-                              [buildingId]: {
-                                ...prev[buildingId],
-                                standard_profile: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                        <select
-                          className="field"
-                          value={newSystemForm.system_status || "active"}
-                          onChange={(e) =>
-                            setNewSystemForms((prev) => ({
-                              ...prev,
-                              [buildingId]: {
-                                ...prev[buildingId],
-                                system_status: e.target.value,
-                              },
-                            }))
-                          }
-                        >
-                          <option value="active">نشط</option>
-                          <option value="inactive">غير نشط</option>
-                          <option value="out_of_service">خارج الخدمة</option>
-                          <option value="archived">مؤرشف</option>
-                        </select>
-                        <input
-                          className="field"
-                          type="date"
-                          placeholder="Anchor Date"
-                          value={newSystemForm.next_inspection_anchor_date || ""}
-                          onChange={(e) =>
-                            setNewSystemForms((prev) => ({
-                              ...prev,
-                              [buildingId]: {
-                                ...prev[buildingId],
-                                next_inspection_anchor_date: e.target.value,
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-
-                      <textarea
-                        className="field"
-                        placeholder="ملاحظات النظام"
-                        value={newSystemForm.notes || ""}
-                        onChange={(e) =>
-                          setNewSystemForms((prev) => ({
-                            ...prev,
-                            [buildingId]: {
-                              ...prev[buildingId],
-                              notes: e.target.value,
-                            },
-                          }))
-                        }
-                        style={{ marginTop: "10px" }}
-                      />
-
-                      <div style={{ marginTop: "12px" }}>
-                        <button
-                          type="button"
-                          className="btn"
-                          onClick={() => addSystem(buildingId)}
-                          disabled={isBusy(`system-add-${buildingId}`)}
-                        >
-                          <Plus size={18} />
-                          {isBusy(`system-add-${buildingId}`)
-                            ? "جارٍ الإضافة..."
-                            : "إضافة نظام"}
-                        </button>
-                      </div>
-                    </div>
+                    ) : null}
                   </div>
-                </div>
-              </details>
-            );
-          })
-        )}
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
