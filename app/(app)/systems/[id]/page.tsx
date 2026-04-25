@@ -286,124 +286,144 @@ export default async function BuildingSystemPage({
         ]}
       />
 
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="ملصق QR للنظام"
-          subtitle="امسح الكود لفتح هذا النظام مباشرة وبدء الفحص"
-        >
+     <div style={{ marginTop: "14px" }}>
+  <SectionCard
+    title="أدوات QR"
+    subtitle="افتح هذا القسم عند الحاجة لتنزيل أو طباعة الكود"
+  >
+    <details
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: "18px",
+        background: "#f8fafc",
+        overflow: "hidden",
+      }}
+    >
+      <summary
+        style={{
+          listStyle: "none",
+          cursor: "pointer",
+          padding: "16px 18px",
+          fontWeight: 900,
+          fontSize: "15px",
+          color: "#0f172a",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>عرض أدوات QR</span>
+        <span style={{ fontSize: "12px", color: "#64748b" }}>
+          تنزيل • طباعة • نسخ الرابط
+        </span>
+      </summary>
+
+      <div
+        style={{
+          padding: "16px",
+          borderTop: "1px solid #e2e8f0",
+          display: "grid",
+          gap: "14px",
+          justifyItems: "center",
+          textAlign: "center",
+        }}
+      >
+        {qrDataUrl ? (
           <div
-            className="card"
             style={{
-              padding: "16px",
-              background: "#f8fafc",
+              width: "220px",
+              height: "220px",
+              padding: "12px",
+              borderRadius: "24px",
+              background: "#fff",
               border: "1px solid #e2e8f0",
+              boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
             }}
           >
-            <div
+            <img
+              src={qrDataUrl}
+              alt="QR Code"
               style={{
-                display: "grid",
-                gap: "14px",
-                justifyItems: "center",
-                textAlign: "center",
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
               }}
-            >
-              {qrDataUrl ? (
-                <div
-                  style={{
-                    width: "230px",
-                    height: "230px",
-                    padding: "12px",
-                    borderRadius: "24px",
-                    background: "#fff",
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={qrDataUrl}
-                    alt="QR Code"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "contain",
-                    }}
-                  />
-                </div>
-              ) : (
-                <div
-                  style={{
-                    border: "1px dashed #cbd5e1",
-                    borderRadius: "18px",
-                    padding: "18px",
-                    color: "#64748b",
-                    fontSize: "13px",
-                  }}
-                >
-                  تعذر توليد QR لهذا الرابط.
-                </div>
-              )}
-
-              <div>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: 950,
-                    color: "#0f172a",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {labels.ar}
-                </div>
-
-                {labels.en ? (
-                  <div
-                    style={{
-                      marginTop: "4px",
-                      fontSize: "13px",
-                      color: "#64748b",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {labels.en}
-                  </div>
-                ) : null}
-
-                <div
-                  style={{
-                    marginTop: "6px",
-                    display: "flex",
-                    justifyContent: "center",
-                    flexWrap: "wrap",
-                    gap: "6px",
-                  }}
-                >
-                  {labels.code ? (
-                    <SoftBadge label={labels.code} tone="slate" />
-                  ) : null}
-
-                  {labels.standard ? (
-                    <SoftBadge label={labels.standard} tone="teal" />
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <SystemQrTools
-              qrUrl={qrUrl}
-              qrDataUrl={qrDataUrl}
-              label={qrLabel}
-              arName={labels.ar}
-              enName={labels.en}
-              code={labels.code}
-              standard={labels.standard}
-              facilityName={facilityName}
-              buildingName={buildingName}
-              locationText={locationText}
             />
           </div>
-        </SectionCard>
+        ) : (
+          <div
+            style={{
+              border: "1px dashed #cbd5e1",
+              borderRadius: "18px",
+              padding: "18px",
+              color: "#64748b",
+              fontSize: "13px",
+            }}
+          >
+            تعذر توليد QR لهذا الرابط.
+          </div>
+        )}
+
+        <div>
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: 950,
+              color: "#0f172a",
+              lineHeight: 1.5,
+            }}
+          >
+            {labels.ar}
+          </div>
+
+          {labels.en ? (
+            <div
+              style={{
+                marginTop: "4px",
+                fontSize: "13px",
+                color: "#64748b",
+                lineHeight: 1.6,
+              }}
+            >
+              {labels.en}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              justifyContent: "center",
+              flexWrap: "wrap",
+              gap: "6px",
+            }}
+          >
+            {labels.standard ? (
+              <SoftBadge label={labels.standard} tone="teal" />
+            ) : null}
+
+            {labels.code ? (
+              <SoftBadge label={labels.code} tone="slate" />
+            ) : null}
+          </div>
+        </div>
+
+        <SystemQrTools
+          qrUrl={qrUrl}
+          qrDataUrl={qrDataUrl}
+          label={qrLabel}
+          arName={labels.ar}
+          enName={labels.en}
+          code={labels.code}
+          standard={labels.standard}
+          facilityName={facilityName}
+          buildingName={buildingName}
+          locationText={locationText}
+        />
       </div>
+    </details>
+  </SectionCard>
+</div>
 
       <div style={{ marginTop: "14px" }}>
         <Link
@@ -668,34 +688,64 @@ export default async function BuildingSystemPage({
         </SectionCard>
       </div>
 
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="بيانات QR والرابط"
-          subtitle="معلومات فنية للنسخ والتحقق"
+     <div style={{ marginTop: "14px" }}>
+  <SectionCard
+    title="بيانات تقنية"
+    subtitle="للمراجعة الفنية فقط عند الحاجة"
+  >
+    <details
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: "18px",
+        background: "#f8fafc",
+        overflow: "hidden",
+      }}
+    >
+      <summary
+        style={{
+          listStyle: "none",
+          cursor: "pointer",
+          padding: "16px 18px",
+          fontWeight: 900,
+          fontSize: "15px",
+          color: "#0f172a",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>عرض البيانات التقنية</span>
+        <span style={{ fontSize: "12px", color: "#64748b" }}>
+          الرابط • اللابل • معلومات النظام
+        </span>
+      </summary>
+
+      <div
+        className="card"
+        style={{
+          padding: "14px",
+          background: "#f8fafc",
+          borderTop: "1px solid #e2e8f0",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "13px",
+            color: "#64748b",
+            lineHeight: 1.9,
+            wordBreak: "break-word",
+          }}
         >
-          <div
-            className="card"
-            style={{
-              padding: "14px",
-              background: "#f8fafc",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#64748b",
-                lineHeight: 1.9,
-                wordBreak: "break-word",
-              }}
-            >
-              <strong>Label:</strong> {qrLabel}
-              <br />
-              <strong>URL:</strong> {qrUrl}
-            </div>
-          </div>
-        </SectionCard>
+          <strong>Label:</strong> {qrLabel}
+          <br />
+          <strong>URL:</strong> {qrUrl}
+          <br />
+          <strong>System ID:</strong> {text(buildingSystem.building_system_id)}
+        </div>
       </div>
+    </details>
+  </SectionCard>
+</div>
 
       <div
         style={{
