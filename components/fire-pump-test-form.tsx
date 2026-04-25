@@ -1,13 +1,33 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, Gauge, Save, TrendingUp } from "lucide-react";
+import { Activity, Gauge, LockKeyhole, Save } from "lucide-react";
 
 type VisitSystem = {
   visit_system_id: string;
   building_system_id: string;
   system_code: string;
+};
+
+type PumpProfile = {
+  pump_profile_id?: string;
+  building_system_id?: string;
+  system_code?: string;
+  pump_tag?: string;
+  pump_location?: string;
+  driver_type?: string;
+  manufacturer?: string;
+  model?: string;
+  serial_no?: string;
+  rated_flow_gpm?: string;
+  rated_pressure_psi?: string;
+  rated_speed_rpm?: string;
+  test_method_default?: string;
+  flow_meter_available?: string;
+  hose_header_available?: string;
+  churn_run_minutes?: string;
+  notes?: string;
 };
 
 type Props = {
@@ -52,6 +72,12 @@ function isElectricSystem(systemCode: unknown) {
   return code.includes("elec") || code.includes("electric");
 }
 
+function inferDriverType(systemCode: unknown) {
+  if (isDieselSystem(systemCode)) return "diesel";
+  if (isElectricSystem(systemCode)) return "electric";
+  return "electric";
+}
+
 function toNumber(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -65,13 +91,31 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function defaultDriverType(systemCode: unknown) {
-  if (isDieselSystem(systemCode)) return "diesel";
-  if (isElectricSystem(systemCode)) return "electric";
-  return "electric";
+function text(value: unknown, fallback = "") {
+  const output = String(value ?? "").trim();
+  return output || fallback;
 }
 
-function makePointsForVisit(visitType: unknown): PointState[] {
+function boolText(value: unknown) {
+  const v = normalize(value);
+  return v === "true" || v === "yes" || v === "1";
+}
+
+function defaultChurnMinutes(driverType: string) {
+  return driverType === "diesel" ? "30" : "10";
+}
+
+function preferredAnnualMethod(profile: PumpProfile | null) {
+  const method = normalize(profile?.test_method_default || "");
+
+  if (method && method !== "no_flow_churn") return method;
+  if (boolText(profile?.flow_meter_available)) return "flowmeter";
+  if (boolText(profile?.hose_header_available)) return "hose_header";
+
+  return "flow_test";
+}
+
+function makePointsForVisit(visitType: unknown, churnMinutes: string): PointState[] {
   const churnPoint: PointState = {
     point_type: "churn",
     label: "Churn / No Flow",
@@ -81,7 +125,7 @@ function makePointsForVisit(visitType: unknown): PointState[] {
     suction_pressure_psi: "",
     discharge_pressure_psi: "",
     rpm: "",
-    run_minutes: "",
+    run_minutes: churnMinutes,
     notes: "",
   };
 
@@ -121,6 +165,7 @@ function makePointsForVisit(visitType: unknown): PointState[] {
 function pointRequirementText(pointType: string, ratedPressure: number) {
   if (pointType === "churn") {
     const max = ratedPressure ? round1(ratedPressure * 1.4) : 0;
+
     return max
       ? `Churn pressure should not exceed 140% of rated pressure. الحد المرجعي التقريبي: ${max} PSI`
       : "Churn / No-flow test. أدخل ضغط السحب والطرد ومدة التشغيل.";
@@ -128,12 +173,14 @@ function pointRequirementText(pointType: string, ratedPressure: number) {
 
   if (pointType === "rated_100") {
     const min = ratedPressure ? round1(ratedPressure * 0.95) : 0;
+
     return min
       ? `At 100% rated flow, net pressure should be around rated pressure. الحد الأدنى المرجعي: ${min} PSI`
       : "Annual flow point at 100% of rated flow.";
   }
 
   const min = ratedPressure ? round1(ratedPressure * 0.65) : 0;
+
   return min
     ? `At 150% rated flow, net pressure should be at least 65% of rated pressure. الحد الأدنى المرجعي: ${min} PSI`
     : "Annual flow point at 150% of rated flow.";
@@ -168,10 +215,11 @@ function evaluatePoint(point: PointState, ratedPressure: number) {
 
   if (point.point_type === "churn") {
     const max = ratedPressure * 1.4;
+
     if (net > max) {
       return {
         net,
-        result: "fail",
+        result: "warning",
         label: "يحتاج مراجعة",
         tone: "#b45309",
         bg: "#fffbeb",
@@ -182,6 +230,7 @@ function evaluatePoint(point: PointState, ratedPressure: number) {
 
   if (point.point_type === "rated_100") {
     const min = ratedPressure * 0.95;
+
     if (net < min) {
       return {
         net,
@@ -196,6 +245,7 @@ function evaluatePoint(point: PointState, ratedPressure: number) {
 
   if (point.point_type === "rated_150") {
     const min = ratedPressure * 0.65;
+
     if (net < min) {
       return {
         net,
@@ -218,7 +268,7 @@ function evaluatePoint(point: PointState, ratedPressure: number) {
   };
 }
 
-function inputStyle() {
+function inputStyle(readOnly = false) {
   return {
     width: "100%",
     border: "1px solid #dbe4ef",
@@ -227,7 +277,7 @@ function inputStyle() {
     fontSize: "12px",
     fontWeight: 800,
     color: "#0f172a",
-    background: "#fff",
+    background: readOnly ? "#f8fafc" : "#fff",
     outline: "none",
   };
 }
@@ -252,12 +302,6 @@ function formatVisitProfile(visitType: unknown, driverType: string) {
   }
 
   return "No-Flow Churn Test / اختبار تشغيل بدون تدفق - كهرباء";
-}
-
-function expectedRunMinutes(driverType: string, annual: boolean) {
-  if (annual) return "";
-  if (driverType === "diesel") return "30";
-  return "10";
 }
 
 function PumpCurveChart({
@@ -324,14 +368,39 @@ function PumpCurveChart({
         viewBox={`0 0 ${width} ${height}`}
         style={{ display: "block" }}
       >
-        <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#cbd5e1" />
-        <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#cbd5e1" />
+        <line
+          x1={pad}
+          y1={height - pad}
+          x2={width - pad}
+          y2={height - pad}
+          stroke="#cbd5e1"
+        />
+        <line
+          x1={pad}
+          y1={pad}
+          x2={pad}
+          y2={height - pad}
+          stroke="#cbd5e1"
+        />
 
-        <text x={width / 2} y={height - 6} textAnchor="middle" fontSize="10" fill="#64748b">
+        <text
+          x={width / 2}
+          y={height - 6}
+          textAnchor="middle"
+          fontSize="10"
+          fill="#64748b"
+        >
           Flow GPM
         </text>
 
-        <text x="12" y={height / 2} textAnchor="middle" fontSize="10" fill="#64748b" transform={`rotate(-90 12 ${height / 2})`}>
+        <text
+          x="12"
+          y={height / 2}
+          textAnchor="middle"
+          fontSize="10"
+          fill="#64748b"
+          transform={`rotate(-90 12 ${height / 2})`}
+        >
           Net PSI
         </text>
 
@@ -350,7 +419,13 @@ function PumpCurveChart({
           p.pressure > 0 ? (
             <g key={p.label}>
               <circle cx={x(p.flow)} cy={y(p.pressure)} r="5" fill="#0f766e" />
-              <text x={x(p.flow)} y={y(p.pressure) - 8} textAnchor="middle" fontSize="9" fill="#0f172a">
+              <text
+                x={x(p.flow)}
+                y={y(p.pressure) - 8}
+                textAnchor="middle"
+                fontSize="9"
+                fill="#0f172a"
+              >
                 {p.label}
               </text>
             </g>
@@ -369,10 +444,22 @@ export default function FirePumpTestForm({
   const router = useRouter();
   const annual = isAnnualVisit(visitType);
 
+  const inferredDriver = inferDriverType(visitSystem.system_code);
+
+  const [profile, setProfile] = useState<PumpProfile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
   const [pumpTag, setPumpTag] = useState("");
-  const [driverType, setDriverType] = useState(defaultDriverType(visitSystem.system_code));
+  const [pumpLocation, setPumpLocation] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
+  const [model, setModel] = useState("");
+  const [serialNo, setSerialNo] = useState("");
+
+  const [driverType, setDriverType] = useState(inferredDriver);
   const [testDate, setTestDate] = useState(todayIso());
-  const [testMethod, setTestMethod] = useState(annual ? "flow_test" : "no_flow_churn");
+  const [testMethod, setTestMethod] = useState(
+    annual ? "flow_test" : "no_flow_churn"
+  );
 
   const [ratedFlow, setRatedFlow] = useState("");
   const [ratedPressure, setRatedPressure] = useState("");
@@ -390,18 +477,98 @@ export default function FirePumpTestForm({
 
   const [generalNotes, setGeneralNotes] = useState("");
   const [points, setPoints] = useState<PointState[]>(() =>
-    makePointsForVisit(visitType).map((point) => ({
-      ...point,
-      run_minutes:
-        point.point_type === "churn"
-          ? expectedRunMinutes(defaultDriverType(visitSystem.system_code), annual)
-          : "",
-    }))
+    makePointsForVisit(visitType, defaultChurnMinutes(inferredDriver))
   );
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfile() {
+      try {
+        setProfileLoaded(false);
+
+        const query = new URLSearchParams({
+          building_system_id: String(visitSystem.building_system_id || ""),
+          system_code: String(visitSystem.system_code || ""),
+        });
+
+        const res = await fetch(`/api/fire-pump-profiles?${query.toString()}`);
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        const loadedProfile: PumpProfile | null = data?.profile || null;
+        setProfile(loadedProfile);
+
+        const nextDriver =
+          text(loadedProfile?.driver_type, "") || inferDriverType(visitSystem.system_code);
+
+        const cleanDriver =
+          normalize(nextDriver) === "diesel" ? "diesel" : "electric";
+
+        const nextChurnMinutes =
+          text(loadedProfile?.churn_run_minutes, "") ||
+          defaultChurnMinutes(cleanDriver);
+
+        setDriverType(cleanDriver);
+        setPumpTag(text(loadedProfile?.pump_tag, ""));
+        setPumpLocation(text(loadedProfile?.pump_location, ""));
+        setManufacturer(text(loadedProfile?.manufacturer, ""));
+        setModel(text(loadedProfile?.model, ""));
+        setSerialNo(text(loadedProfile?.serial_no, ""));
+        setRatedFlow(text(loadedProfile?.rated_flow_gpm, ""));
+        setRatedPressure(text(loadedProfile?.rated_pressure_psi, ""));
+        setRatedRpm(text(loadedProfile?.rated_speed_rpm, ""));
+
+        setTestMethod(
+          annual ? preferredAnnualMethod(loadedProfile) : "no_flow_churn"
+        );
+
+        setPoints((current) => {
+          const fresh = makePointsForVisit(visitType, nextChurnMinutes);
+
+          return fresh.map((point) => {
+            const old = current.find((p) => p.point_type === point.point_type);
+
+            return {
+              ...point,
+              suction_pressure_psi: old?.suction_pressure_psi || "",
+              discharge_pressure_psi: old?.discharge_pressure_psi || "",
+              rpm: old?.rpm || "",
+              actual_flow_gpm: old?.actual_flow_gpm || point.actual_flow_gpm,
+              notes: old?.notes || "",
+            };
+          });
+        });
+      } catch {
+        if (!cancelled) {
+          setProfile(null);
+          setDriverType(inferredDriver);
+          setPoints(makePointsForVisit(visitType, defaultChurnMinutes(inferredDriver)));
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoaded(true);
+        }
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    annual,
+    inferredDriver,
+    visitSystem.building_system_id,
+    visitSystem.system_code,
+    visitType,
+  ]);
 
   const calculated = useMemo(() => {
     return points.map((point) => {
@@ -452,6 +619,7 @@ export default function FirePumpTestForm({
 
       const notesParts = [
         pumpTag ? `Pump tag: ${pumpTag}` : "",
+        pumpLocation ? `Location: ${pumpLocation}` : "",
         churn?.run_minutes ? `Run duration: ${churn.run_minutes} minutes` : "",
         generalNotes,
       ].filter(Boolean);
@@ -530,6 +698,8 @@ export default function FirePumpTestForm({
     pressure: row.evaluation.net,
   }));
 
+  const hasProfile = Boolean(profile?.pump_profile_id || profile?.building_system_id);
+
   return (
     <div
       className="card"
@@ -583,7 +753,9 @@ export default function FirePumpTestForm({
               lineHeight: 1.4,
             }}
           >
-            {annual ? "اختبار التدفق السنوي ومنحنى الأداء" : "اختبار التشغيل بدون تدفق / Churn"}
+            {annual
+              ? "اختبار التدفق السنوي ومنحنى الأداء"
+              : "اختبار التشغيل بدون تدفق / Churn"}
           </div>
 
           <div
@@ -596,6 +768,31 @@ export default function FirePumpTestForm({
           >
             {formatVisitProfile(visitType, driverType)}
           </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: hasProfile ? "1px solid #99f6e4" : "1px solid #fde68a",
+          background: hasProfile ? "#ecfeff" : "#fffbeb",
+          borderRadius: "18px",
+          padding: "12px",
+          marginBottom: "12px",
+          fontSize: "13px",
+          color: hasProfile ? "#0f766e" : "#92400e",
+          lineHeight: 1.8,
+          fontWeight: 800,
+        }}
+      >
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <LockKeyhole size={17} />
+          <span>
+            {profileLoaded
+              ? hasProfile
+                ? "تم تحميل بيانات المضخة الثابتة من FIRE_PUMP_PROFILES."
+                : "لا توجد بيانات ثابتة لهذه المضخة في FIRE_PUMP_PROFILES. أدخل بيانات Rated مؤقتًا هنا، ثم أضف ملف المضخة لاحقًا."
+              : "جارٍ تحميل بيانات المضخة الثابتة..."}
+          </span>
         </div>
       </div>
 
@@ -614,8 +811,8 @@ export default function FirePumpTestForm({
         {annual
           ? "هذه زيارة سنوية: أدخل Churn و 100% و 150% لرسم منحنى الأداء وتقييم ضغط المضخة."
           : driverType === "diesel"
-          ? "هذه زيارة تشغيل بدون تدفق لمضخة ديزل: المطلوب تشغيل المضخة وتسجيل القراءات الأساسية، ومدة التشغيل المرجعية 30 دقيقة."
-          : "هذه زيارة تشغيل بدون تدفق لمضخة كهربائية: المطلوب تشغيل المضخة وتسجيل القراءات الأساسية، ومدة التشغيل المرجعية 10 دقائق."}
+          ? "هذه زيارة تشغيل بدون تدفق لمضخة ديزل: المطلوب تشغيل المضخة وتسجيل القراءات الأساسية، ومدة التشغيل المرجعية 30 دقيقة إذا لم يحدد ملف المضخة غير ذلك."
+          : "هذه زيارة تشغيل بدون تدفق لمضخة كهربائية: المطلوب تشغيل المضخة وتسجيل القراءات الأساسية، ومدة التشغيل المرجعية 10 دقائق إذا لم يحدد ملف المضخة غير ذلك."}
       </div>
 
       <div
@@ -637,26 +834,11 @@ export default function FirePumpTestForm({
 
         <label>
           <span style={labelStyle()}>نوع المحرك</span>
-          <select
-            value={driverType}
-            onChange={(e) => {
-              setDriverType(e.target.value);
-              setPoints((prev) =>
-                prev.map((point) =>
-                  point.point_type === "churn"
-                    ? {
-                        ...point,
-                        run_minutes: expectedRunMinutes(e.target.value, annual),
-                      }
-                    : point
-                )
-              );
-            }}
-            style={inputStyle()}
-          >
-            <option value="electric">Electric</option>
-            <option value="diesel">Diesel</option>
-          </select>
+          <input
+            value={driverType === "diesel" ? "Diesel" : "Electric"}
+            readOnly
+            style={inputStyle(true)}
+          />
         </label>
 
         <label>
@@ -665,23 +847,71 @@ export default function FirePumpTestForm({
             value={pumpTag}
             onChange={(e) => setPumpTag(e.target.value)}
             placeholder="مثال: FP-01"
-            style={inputStyle()}
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
           />
         </label>
 
         <label>
           <span style={labelStyle()}>طريقة الاختبار</span>
-          <select
-            value={testMethod}
-            onChange={(e) => setTestMethod(e.target.value)}
-            style={inputStyle()}
-          >
-            <option value="no_flow_churn">No-flow / Churn</option>
-            <option value="flow_test">Annual Flow Test</option>
-            <option value="flowmeter">Flowmeter</option>
-            <option value="hose_header">Hose Header / Pitot</option>
-            <option value="closed_loop">Closed Loop</option>
-          </select>
+          {annual ? (
+            <select
+              value={testMethod}
+              onChange={(e) => setTestMethod(e.target.value)}
+              style={inputStyle()}
+            >
+              <option value="flow_test">Annual Flow Test</option>
+              <option value="flowmeter">Flowmeter</option>
+              <option value="hose_header">Hose Header / Pitot</option>
+              <option value="closed_loop">Closed Loop</option>
+            </select>
+          ) : (
+            <input value="No-flow / Churn" readOnly style={inputStyle(true)} />
+          )}
+        </label>
+
+        <label>
+          <span style={labelStyle()}>موقع المضخة</span>
+          <input
+            value={pumpLocation}
+            onChange={(e) => setPumpLocation(e.target.value)}
+            placeholder="Pump room"
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
+          />
+        </label>
+
+        <label>
+          <span style={labelStyle()}>الشركة المصنعة</span>
+          <input
+            value={manufacturer}
+            onChange={(e) => setManufacturer(e.target.value)}
+            placeholder="Manufacturer"
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
+          />
+        </label>
+
+        <label>
+          <span style={labelStyle()}>Model</span>
+          <input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="Model"
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
+          />
+        </label>
+
+        <label>
+          <span style={labelStyle()}>Serial No.</span>
+          <input
+            value={serialNo}
+            onChange={(e) => setSerialNo(e.target.value)}
+            placeholder="Serial"
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
+          />
         </label>
 
         <label>
@@ -691,7 +921,8 @@ export default function FirePumpTestForm({
             value={ratedFlow}
             onChange={(e) => setRatedFlow(e.target.value)}
             placeholder="مثال: 500"
-            style={inputStyle()}
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
           />
         </label>
 
@@ -702,7 +933,8 @@ export default function FirePumpTestForm({
             value={ratedPressure}
             onChange={(e) => setRatedPressure(e.target.value)}
             placeholder="مثال: 100"
-            style={inputStyle()}
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
           />
         </label>
 
@@ -713,7 +945,8 @@ export default function FirePumpTestForm({
             value={ratedRpm}
             onChange={(e) => setRatedRpm(e.target.value)}
             placeholder="مثال: 2950"
-            style={inputStyle()}
+            style={inputStyle(hasProfile)}
+            readOnly={hasProfile}
           />
         </label>
       </div>
@@ -752,6 +985,7 @@ export default function FirePumpTestForm({
                   >
                     نقطة اختبار
                   </div>
+
                   <div
                     style={{
                       marginTop: "3px",
@@ -799,7 +1033,7 @@ export default function FirePumpTestForm({
                       })
                     }
                     inputMode="decimal"
-                    style={inputStyle()}
+                    style={inputStyle(point.point_type === "churn")}
                     disabled={point.point_type === "churn"}
                   />
                 </label>
@@ -814,7 +1048,7 @@ export default function FirePumpTestForm({
                       })
                     }
                     inputMode="decimal"
-                    style={inputStyle()}
+                    style={inputStyle(point.point_type === "churn")}
                     disabled={point.point_type === "churn"}
                   />
                 </label>
@@ -829,7 +1063,7 @@ export default function FirePumpTestForm({
                       })
                     }
                     inputMode="decimal"
-                    style={inputStyle()}
+                    style={inputStyle(point.point_type === "churn")}
                     disabled={point.point_type === "churn"}
                   />
                 </label>
@@ -887,7 +1121,8 @@ export default function FirePumpTestForm({
                         })
                       }
                       inputMode="decimal"
-                      style={inputStyle()}
+                      style={inputStyle(Boolean(profile?.churn_run_minutes))}
+                      readOnly={Boolean(profile?.churn_run_minutes)}
                     />
                   </label>
                 ) : null}
@@ -931,7 +1166,12 @@ export default function FirePumpTestForm({
                     Flow %
                   </div>
                   <div style={{ fontSize: "18px", fontWeight: 950 }}>
-                    {ratedFlow ? Math.round((toNumber(row.actualFlow) / toNumber(ratedFlow)) * 100) : 0}%
+                    {ratedFlow
+                      ? Math.round(
+                          (toNumber(row.actualFlow) / toNumber(ratedFlow)) * 100
+                        )
+                      : 0}
+                    %
                   </div>
                 </div>
 
@@ -948,7 +1188,12 @@ export default function FirePumpTestForm({
                     Pressure %
                   </div>
                   <div style={{ fontSize: "18px", fontWeight: 950 }}>
-                    {ratedPressure ? Math.round((evaluation.net / toNumber(ratedPressure)) * 100) : 0}%
+                    {ratedPressure
+                      ? Math.round(
+                          (evaluation.net / toNumber(ratedPressure)) * 100
+                        )
+                      : 0}
+                    %
                   </div>
                 </div>
               </div>
@@ -1026,22 +1271,38 @@ export default function FirePumpTestForm({
           >
             <label>
               <span style={labelStyle()}>Voltage</span>
-              <input value={electricVoltage} onChange={(e) => setElectricVoltage(e.target.value)} style={inputStyle()} />
+              <input
+                value={electricVoltage}
+                onChange={(e) => setElectricVoltage(e.target.value)}
+                style={inputStyle()}
+              />
             </label>
 
             <label>
               <span style={labelStyle()}>Amp L1</span>
-              <input value={electricAmpL1} onChange={(e) => setElectricAmpL1(e.target.value)} style={inputStyle()} />
+              <input
+                value={electricAmpL1}
+                onChange={(e) => setElectricAmpL1(e.target.value)}
+                style={inputStyle()}
+              />
             </label>
 
             <label>
               <span style={labelStyle()}>Amp L2</span>
-              <input value={electricAmpL2} onChange={(e) => setElectricAmpL2(e.target.value)} style={inputStyle()} />
+              <input
+                value={electricAmpL2}
+                onChange={(e) => setElectricAmpL2(e.target.value)}
+                style={inputStyle()}
+              />
             </label>
 
             <label>
               <span style={labelStyle()}>Amp L3</span>
-              <input value={electricAmpL3} onChange={(e) => setElectricAmpL3(e.target.value)} style={inputStyle()} />
+              <input
+                value={electricAmpL3}
+                onChange={(e) => setElectricAmpL3(e.target.value)}
+                style={inputStyle()}
+              />
             </label>
           </div>
         </div>
@@ -1074,22 +1335,42 @@ export default function FirePumpTestForm({
           >
             <label>
               <span style={labelStyle()}>Fuel Level</span>
-              <input value={dieselFuelLevel} onChange={(e) => setDieselFuelLevel(e.target.value)} style={inputStyle()} />
+              <input
+                value={dieselFuelLevel}
+                onChange={(e) => setDieselFuelLevel(e.target.value)}
+                style={inputStyle()}
+                placeholder="Full / 3/4 / 1/2"
+              />
             </label>
 
             <label>
               <span style={labelStyle()}>Oil Pressure</span>
-              <input value={dieselOilPressure} onChange={(e) => setDieselOilPressure(e.target.value)} style={inputStyle()} />
+              <input
+                value={dieselOilPressure}
+                onChange={(e) => setDieselOilPressure(e.target.value)}
+                style={inputStyle()}
+                placeholder="PSI"
+              />
             </label>
 
             <label>
               <span style={labelStyle()}>Coolant Temp</span>
-              <input value={dieselCoolantTemp} onChange={(e) => setDieselCoolantTemp(e.target.value)} style={inputStyle()} />
+              <input
+                value={dieselCoolantTemp}
+                onChange={(e) => setDieselCoolantTemp(e.target.value)}
+                style={inputStyle()}
+                placeholder="°C"
+              />
             </label>
 
             <label>
               <span style={labelStyle()}>Battery Status</span>
-              <input value={dieselBatteryStatus} onChange={(e) => setDieselBatteryStatus(e.target.value)} style={inputStyle()} />
+              <input
+                value={dieselBatteryStatus}
+                onChange={(e) => setDieselBatteryStatus(e.target.value)}
+                style={inputStyle()}
+                placeholder="Normal / Weak / Fault"
+              />
             </label>
           </div>
         </div>
