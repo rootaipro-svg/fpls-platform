@@ -142,21 +142,23 @@ export default async function FacilityDetailPage({
 
   const actor = await requirePermission("facilities", "view");
 
-  const [
-    facilities,
-    buildings,
-    buildingSystems,
-    visits,
-    visitSystems,
-    findings,
-  ] = await Promise.all([
-    readSheet(actor.workbookId, "FACILITIES"),
-    readSheet(actor.workbookId, "BUILDINGS"),
-    readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
-    readSheet(actor.workbookId, "VISITS"),
-    readSheet(actor.workbookId, "VISIT_SYSTEMS"),
-    readSheet(actor.workbookId, "FINDINGS"),
-  ]);
+ const [
+  facilities,
+  buildings,
+  buildingSystems,
+  systemsRef,
+  visits,
+  visitSystems,
+  findings,
+] = await Promise.all([
+  readSheet(actor.workbookId, "FACILITIES"),
+  readSheet(actor.workbookId, "BUILDINGS"),
+  readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
+  readSheet(actor.workbookId, "SYSTEMS_REF").catch(() => []),
+  readSheet(actor.workbookId, "VISITS"),
+  readSheet(actor.workbookId, "VISIT_SYSTEMS"),
+  readSheet(actor.workbookId, "FINDINGS"),
+]);
 
   const facility = facilities.find(
     (row: Row) => String(row.facility_id || "") === String(id)
@@ -763,11 +765,12 @@ export default async function FacilityDetailPage({
           title="إدارة المنشأة والمباني والأنظمة"
           subtitle="تعديل البيانات، إضافة مبنى، وإدارة الأنظمة المسجلة"
         >
-          <FacilityStructureManager
-            facility={facility}
-            buildings={facilityBuildings}
-            systems={facilitySystems}
-          />
+        <FacilityStructureManager
+  facility={facility}
+  buildings={facilityBuildings}
+  systems={facilitySystems}
+  systemsRef={systemsRef}
+/>
         </SectionCard>
       </div>
     </AppShell>
