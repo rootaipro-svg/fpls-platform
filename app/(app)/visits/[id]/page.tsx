@@ -203,10 +203,14 @@ export default async function VisitDetailPage({
 
   const executionItemsNested = await Promise.all(
     systems.map(async (system: Row) => {
-      const items = await getChecklistForSystem(
-        workbookId,
-        String(system.system_code || "")
-      );
+   const items = await getChecklistForSystem(
+  workbookId,
+  String(system.system_code || ""),
+  {
+    visitType: String(visit.visit_type || "routine"),
+    visitProfile: String(visit.visit_profile || ""),
+  }
+);
 
       return items.map((item: Row) => ({
         visit_system_id: String(system.visit_system_id || ""),
