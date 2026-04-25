@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, Gauge, LockKeyhole, Save } from "lucide-react";
+import {
+  Activity,
+  Gauge,
+  HelpCircle,
+  LockKeyhole,
+  Save,
+  TestTube2,
+  X,
+} from "lucide-react";
 
 type VisitSystem = {
   visit_system_id: string;
@@ -47,6 +56,13 @@ type PointState = {
   rpm: string;
   run_minutes: string;
   notes: string;
+};
+
+type HelpContent = {
+  title: string;
+  body: string;
+  example?: string;
+  warning?: string;
 };
 
 function normalize(value: unknown) {
@@ -108,11 +124,14 @@ function defaultChurnMinutes(driverType: string) {
 function preferredAnnualMethod(profile: PumpProfile | null) {
   const method = normalize(profile?.test_method_default || "");
 
-  if (method && method !== "no_flow_churn") return method;
+  if (["flowmeter", "hose_header", "closed_loop"].includes(method)) {
+    return method;
+  }
+
   if (boolText(profile?.flow_meter_available)) return "flowmeter";
   if (boolText(profile?.hose_header_available)) return "hose_header";
 
-  return "flow_test";
+  return "flowmeter";
 }
 
 function makePointsForVisit(visitType: unknown, churnMinutes: string): PointState[] {
@@ -167,23 +186,23 @@ function pointRequirementText(pointType: string, ratedPressure: number) {
     const max = ratedPressure ? round1(ratedPressure * 1.4) : 0;
 
     return max
-      ? `Churn pressure should not exceed 140% of rated pressure. الحد المرجعي التقريبي: ${max} PSI`
-      : "Churn / No-flow test. أدخل ضغط السحب والطرد ومدة التشغيل.";
+      ? `يجب ألا يزيد ضغط Churn تقريبًا عن 140% من الضغط المقنن. الحد المرجعي التقريبي: ${max} PSI`
+      : "اختبار Churn / No-flow: أدخل ضغط السحب والطرد ومدة التشغيل.";
   }
 
   if (pointType === "rated_100") {
     const min = ratedPressure ? round1(ratedPressure * 0.95) : 0;
 
     return min
-      ? `At 100% rated flow, net pressure should be around rated pressure. الحد الأدنى المرجعي: ${min} PSI`
-      : "Annual flow point at 100% of rated flow.";
+      ? `عند 100% من التدفق المقنن، يفضل أن يكون صافي الضغط قريبًا من الضغط المقنن. الحد الأدنى المرجعي: ${min} PSI`
+      : "نقطة اختبار التدفق السنوي عند 100% من التدفق المقنن.";
   }
 
   const min = ratedPressure ? round1(ratedPressure * 0.65) : 0;
 
   return min
-    ? `At 150% rated flow, net pressure should be at least 65% of rated pressure. الحد الأدنى المرجعي: ${min} PSI`
-    : "Annual flow point at 150% of rated flow.";
+    ? `عند 150% من التدفق المقنن، يجب ألا يقل صافي الضغط تقريبًا عن 65% من الضغط المقنن. الحد الأدنى المرجعي: ${min} PSI`
+    : "نقطة اختبار التدفق السنوي عند 150% من التدفق المقنن.";
 }
 
 function evaluatePoint(point: PointState, ratedPressure: number) {
@@ -268,7 +287,7 @@ function evaluatePoint(point: PointState, ratedPressure: number) {
   };
 }
 
-function inputStyle(readOnly = false) {
+function inputStyle(readOnly = false): CSSProperties {
   return {
     width: "100%",
     border: "1px solid #dbe4ef",
@@ -282,7 +301,7 @@ function inputStyle(readOnly = false) {
   };
 }
 
-function labelStyle() {
+function labelStyle(): CSSProperties {
   return {
     display: "block",
     marginBottom: "5px",
@@ -302,6 +321,278 @@ function formatVisitProfile(visitType: unknown, driverType: string) {
   }
 
   return "No-Flow Churn Test / اختبار تشغيل بدون تدفق - كهرباء";
+}
+
+function methodLabel(method: string) {
+  if (method === "flowmeter") return "Flowmeter / عداد تدفق";
+  if (method === "hose_header") return "Hose Header / Pitot";
+  if (method === "closed_loop") return "Closed Loop";
+  return "Flowmeter / عداد تدفق";
+}
+
+function methodGuidance(method: string): HelpContent {
+  if (method === "flowmeter") {
+    return {
+      title: "وسيلة القياس: Flowmeter",
+      body:
+        "استخدم هذه الطريقة عندما يكون النظام مزودًا بعداد تدفق معتمد أو مناسب للاختبار. أدخل Actual Flow GPM من قراءة العداد مباشرة عند كل نقطة اختبار.",
+      example: "مثال: عند نقطة 100% أدخل Actual Flow = 500 GPM.",
+      warning:
+        "لا تكتب رقمًا تقديريًا. استخدم قراءة الجهاز وقت الاختبار.",
+    };
+  }
+
+  if (method === "hose_header") {
+    return {
+      title: "وسيلة القياس: Hose Header / Pitot",
+      body:
+        "تستخدم هذه الطريقة عند فتح مخارج الاختبار وقياس ضغط Pitot لحساب التدفق. في هذه النسخة أدخل Actual Flow GPM بعد حسابه خارجيًا أو من جهاز القياس.",
+      example:
+        "مثال: إذا تم حساب التدفق من قراءات Pitot وكان الناتج 750 GPM، اكتب 750 في Actual Flow.",
+      warning:
+        "لاحقًا سنضيف حاسبة Pitot داخل التطبيق حتى لا يحسب المفتش يدويًا.",
+    };
+  }
+
+  return {
+    title: "وسيلة القياس: Closed Loop",
+    body:
+      "تستخدم في بعض المواقع التي لديها نظام اختبار مغلق. يجب التأكد أن الطريقة مقبولة لدى الجهة المختصة وأن القراءات تمثل أداء المضخة فعليًا.",
+    example: "أدخل Actual Flow GPM من نظام القياس المعتمد في الموقع.",
+    warning:
+      "لا تعتمد Closed Loop إذا لم تكن طريقة الموقع معتمدة أو موثقة.",
+  };
+}
+
+function fieldHelp(key: string): HelpContent {
+  const map: Record<string, HelpContent> = {
+    suction: {
+      title: "ضغط السحب Suction PSI",
+      body:
+        "سجل قراءة عداد ضغط السحب أثناء تشغيل المضخة عند نقطة الاختبار الحالية.",
+      example: "مثال: 60",
+      warning:
+        "إذا كان العداد تالفًا أو غير مقروء، سجل ملاحظة وأرفق صورة في بند الفحص.",
+    },
+    discharge: {
+      title: "ضغط الطرد Discharge PSI",
+      body:
+        "سجل قراءة عداد ضغط الطرد أثناء تشغيل المضخة عند نقطة الاختبار الحالية.",
+      example: "مثال: 190",
+      warning:
+        "النظام يحسب Net PSI تلقائيًا: Discharge - Suction.",
+    },
+    rpm: {
+      title: "سرعة الدوران Actual RPM",
+      body:
+        "سجل RPM الفعلي أثناء التشغيل. يفيد في معرفة هل المضخة تعمل قريبًا من السرعة المقننة.",
+      example: "مثال: 2950",
+    },
+    actualFlow: {
+      title: "Actual Flow GPM",
+      body:
+        "سجل التدفق الفعلي عند نقطة الاختبار. إذا كانت الوسيلة Flowmeter، أدخل قراءة العداد. إذا كانت Hose Header/Pitot، أدخل التدفق المحسوب.",
+      example: "500 عند 100%، و750 عند 150% لمضخة Rated Flow = 500 GPM.",
+    },
+    runMinutes: {
+      title: "مدة التشغيل بالدقائق",
+      body:
+        "في اختبار No-flow / Churn، سجل مدة تشغيل المضخة. في مضخة الديزل تكون القيمة المرجعية غالبًا 30 دقيقة، وفي الكهرباء 10 دقائق.",
+      example: "Diesel: 30",
+    },
+    diesel: {
+      title: "قراءات الديزل",
+      body:
+        "سجل حالة الوقود وضغط الزيت وحرارة التبريد وحالة البطاريات/الشاحن أثناء تشغيل المضخة.",
+      example: "Fuel: 3/4، Oil Pressure: 55 PSI، Coolant: 85 °C، Battery: Normal",
+      warning:
+        "أي حرارة مرتفعة أو ضغط زيت منخفض أو بطارية ضعيفة يجب توثيقها كملاحظة.",
+    },
+    electric: {
+      title: "قراءات الكهرباء",
+      body:
+        "سجل الجهد والتيار لكل فاز أثناء تشغيل المضخة الكهربائية عند الاختبار.",
+      example: "Voltage: 400، Amp L1/L2/L3 حسب قراءة اللوحة.",
+    },
+  };
+
+  return map[key] || {
+    title: "تعليمات",
+    body: "أدخل القراءة كما تظهر في الجهاز أو العداد أثناء الاختبار.",
+  };
+}
+
+function HelpButton({
+  onClick,
+}: {
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: "1px solid #dbe4ef",
+        background: "#fff",
+        color: "#0f766e",
+        borderRadius: "999px",
+        width: "26px",
+        height: "26px",
+        display: "inline-grid",
+        placeItems: "center",
+        cursor: "pointer",
+        flexShrink: 0,
+      }}
+      title="تعليمات"
+    >
+      <HelpCircle size={15} />
+    </button>
+  );
+}
+
+function LabelWithHelp({
+  label,
+  onHelp,
+}: {
+  label: string;
+  onHelp: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "6px",
+        marginBottom: "5px",
+      }}
+    >
+      <span style={{ ...labelStyle(), marginBottom: 0 }}>{label}</span>
+      <HelpButton onClick={onHelp} />
+    </div>
+  );
+}
+
+function HelpModal({
+  content,
+  onClose,
+}: {
+  content: HelpContent | null;
+  onClose: () => void;
+}) {
+  if (!content) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 80,
+        background: "rgba(15, 23, 42, 0.35)",
+        display: "grid",
+        placeItems: "center",
+        padding: "18px",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="card"
+        style={{
+          width: "100%",
+          maxWidth: "430px",
+          padding: "16px",
+          background: "#fff",
+          borderRadius: "24px",
+          boxShadow: "0 24px 60px rgba(15, 23, 42, 0.24)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "10px",
+            alignItems: "center",
+            marginBottom: "10px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "17px",
+              fontWeight: 950,
+              color: "#0f172a",
+              lineHeight: 1.5,
+            }}
+          >
+            {content.title}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: 0,
+              background: "#f8fafc",
+              borderRadius: "12px",
+              width: "34px",
+              height: "34px",
+              display: "grid",
+              placeItems: "center",
+              cursor: "pointer",
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div
+          style={{
+            fontSize: "14px",
+            color: "#334155",
+            lineHeight: 1.9,
+          }}
+        >
+          {content.body}
+        </div>
+
+        {content.example ? (
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "10px 12px",
+              borderRadius: "16px",
+              background: "#ecfeff",
+              border: "1px solid #99f6e4",
+              color: "#0f766e",
+              fontSize: "13px",
+              lineHeight: 1.8,
+              fontWeight: 800,
+            }}
+          >
+            {content.example}
+          </div>
+        ) : null}
+
+        {content.warning ? (
+          <div
+            style={{
+              marginTop: "10px",
+              padding: "10px 12px",
+              borderRadius: "16px",
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              color: "#92400e",
+              fontSize: "13px",
+              lineHeight: 1.8,
+              fontWeight: 800,
+            }}
+          >
+            {content.warning}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function PumpCurveChart({
@@ -368,28 +659,10 @@ function PumpCurveChart({
         viewBox={`0 0 ${width} ${height}`}
         style={{ display: "block" }}
       >
-        <line
-          x1={pad}
-          y1={height - pad}
-          x2={width - pad}
-          y2={height - pad}
-          stroke="#cbd5e1"
-        />
-        <line
-          x1={pad}
-          y1={pad}
-          x2={pad}
-          y2={height - pad}
-          stroke="#cbd5e1"
-        />
+        <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#cbd5e1" />
+        <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#cbd5e1" />
 
-        <text
-          x={width / 2}
-          y={height - 6}
-          textAnchor="middle"
-          fontSize="10"
-          fill="#64748b"
-        >
+        <text x={width / 2} y={height - 6} textAnchor="middle" fontSize="10" fill="#64748b">
           Flow GPM
         </text>
 
@@ -419,19 +692,24 @@ function PumpCurveChart({
           p.pressure > 0 ? (
             <g key={p.label}>
               <circle cx={x(p.flow)} cy={y(p.pressure)} r="5" fill="#0f766e" />
-              <text
-                x={x(p.flow)}
-                y={y(p.pressure) - 8}
-                textAnchor="middle"
-                fontSize="9"
-                fill="#0f172a"
-              >
+              <text x={x(p.flow)} y={y(p.pressure) - 8} textAnchor="middle" fontSize="9" fill="#0f172a">
                 {p.label}
               </text>
             </g>
           ) : null
         )}
       </svg>
+
+      <div
+        style={{
+          marginTop: "8px",
+          fontSize: "12px",
+          color: "#64748b",
+          lineHeight: 1.7,
+        }}
+      >
+        هذا الخط يمثل القراءات الفعلية الحالية. سنضيف لاحقًا خط المرجع وخط الحد الأدنى للمقارنة.
+      </div>
     </div>
   );
 }
@@ -448,6 +726,7 @@ export default function FirePumpTestForm({
 
   const [profile, setProfile] = useState<PumpProfile | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [help, setHelp] = useState<HelpContent | null>(null);
 
   const [pumpTag, setPumpTag] = useState("");
   const [pumpLocation, setPumpLocation] = useState("");
@@ -458,7 +737,7 @@ export default function FirePumpTestForm({
   const [driverType, setDriverType] = useState(inferredDriver);
   const [testDate, setTestDate] = useState(todayIso());
   const [testMethod, setTestMethod] = useState(
-    annual ? "flow_test" : "no_flow_churn"
+    annual ? "flowmeter" : "no_flow_churn"
   );
 
   const [ratedFlow, setRatedFlow] = useState("");
@@ -505,7 +784,8 @@ export default function FirePumpTestForm({
         setProfile(loadedProfile);
 
         const nextDriver =
-          text(loadedProfile?.driver_type, "") || inferDriverType(visitSystem.system_code);
+          text(loadedProfile?.driver_type, "") ||
+          inferDriverType(visitSystem.system_code);
 
         const cleanDriver =
           normalize(nextDriver) === "diesel" ? "diesel" : "electric";
@@ -605,6 +885,57 @@ export default function FirePumpTestForm({
     setPoints((prev) =>
       prev.map((point, i) => (i === index ? { ...point, ...patch } : point))
     );
+  }
+
+  function fillSampleData() {
+    setRatedFlow((prev) => prev || "500");
+    setRatedPressure((prev) => prev || "100");
+    setRatedRpm((prev) => prev || "2950");
+
+    setDieselFuelLevel("3/4");
+    setDieselOilPressure("55 PSI");
+    setDieselCoolantTemp("85 °C");
+    setDieselBatteryStatus("Normal / Charger OK");
+
+    setElectricVoltage("400");
+    setElectricAmpL1("120");
+    setElectricAmpL2("118");
+    setElectricAmpL3("121");
+
+    setPoints((prev) =>
+      prev.map((point) => {
+        if (point.point_type === "churn") {
+          return {
+            ...point,
+            actual_flow_gpm: "0",
+            suction_pressure_psi: "60",
+            discharge_pressure_psi: "190",
+            rpm: "2950",
+            run_minutes: driverType === "diesel" ? "30" : "10",
+          };
+        }
+
+        if (point.point_type === "rated_100") {
+          return {
+            ...point,
+            actual_flow_gpm: "500",
+            suction_pressure_psi: "45",
+            discharge_pressure_psi: "146",
+            rpm: "2945",
+          };
+        }
+
+        return {
+          ...point,
+          actual_flow_gpm: "750",
+          suction_pressure_psi: "30",
+          discharge_pressure_psi: "100",
+          rpm: "2935",
+        };
+      })
+    );
+
+    setMessage("تمت تعبئة بيانات تجريبية لاختبار المنحنى.");
   }
 
   async function savePumpTest() {
@@ -710,6 +1041,8 @@ export default function FirePumpTestForm({
         border: "1px solid #dbeafe",
       }}
     >
+      <HelpModal content={help} onClose={() => setHelp(null)} />
+
       <div
         style={{
           display: "flex",
@@ -815,6 +1148,66 @@ export default function FirePumpTestForm({
           : "هذه زيارة تشغيل بدون تدفق لمضخة كهربائية: المطلوب تشغيل المضخة وتسجيل القراءات الأساسية، ومدة التشغيل المرجعية 10 دقائق إذا لم يحدد ملف المضخة غير ذلك."}
       </div>
 
+      {annual ? (
+        <div
+          style={{
+            border: "1px solid #dbe4ef",
+            background: "#fff",
+            borderRadius: "18px",
+            padding: "12px",
+            marginBottom: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "8px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: 950,
+                color: "#0f172a",
+              }}
+            >
+              وسيلة قياس التدفق
+            </div>
+
+            <HelpButton onClick={() => setHelp(methodGuidance(testMethod))} />
+          </div>
+
+          <select
+            value={testMethod}
+            onChange={(e) => setTestMethod(e.target.value)}
+            style={inputStyle()}
+          >
+            <option value="flowmeter">Flowmeter / عداد تدفق</option>
+            <option value="hose_header">Hose Header / Pitot</option>
+            <option value="closed_loop">Closed Loop</option>
+          </select>
+
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "12px",
+              color: "#64748b",
+              lineHeight: 1.7,
+            }}
+          >
+            {methodLabel(testMethod)}:{" "}
+            {testMethod === "flowmeter"
+              ? "أدخل Actual Flow GPM من قراءة عداد التدفق مباشرة."
+              : testMethod === "hose_header"
+              ? "أدخل Actual Flow GPM بعد حسابه من قراءات Pitot أو من جهاز الاختبار."
+              : "تأكد أن طريقة Closed Loop مقبولة وموثقة للموقع."}
+          </div>
+        </div>
+      ) : null}
+
       <div
         style={{
           display: "grid",
@@ -850,24 +1243,6 @@ export default function FirePumpTestForm({
             style={inputStyle(hasProfile)}
             readOnly={hasProfile}
           />
-        </label>
-
-        <label>
-          <span style={labelStyle()}>طريقة الاختبار</span>
-          {annual ? (
-            <select
-              value={testMethod}
-              onChange={(e) => setTestMethod(e.target.value)}
-              style={inputStyle()}
-            >
-              <option value="flow_test">Annual Flow Test</option>
-              <option value="flowmeter">Flowmeter</option>
-              <option value="hose_header">Hose Header / Pitot</option>
-              <option value="closed_loop">Closed Loop</option>
-            </select>
-          ) : (
-            <input value="No-flow / Churn" readOnly style={inputStyle(true)} />
-          )}
         </label>
 
         <label>
@@ -950,6 +1325,20 @@ export default function FirePumpTestForm({
           />
         </label>
       </div>
+
+      <button
+        type="button"
+        className="btn btn-secondary"
+        onClick={fillSampleData}
+        style={{
+          marginTop: "12px",
+          justifyContent: "center",
+          width: "100%",
+        }}
+      >
+        <TestTube2 size={18} />
+        تعبئة بيانات تجريبية لاختبار المنحنى
+      </button>
 
       <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
         {calculated.map((row, index) => {
@@ -1054,7 +1443,10 @@ export default function FirePumpTestForm({
                 </label>
 
                 <label>
-                  <span style={labelStyle()}>Actual Flow GPM</span>
+                  <LabelWithHelp
+                    label="Actual Flow GPM"
+                    onHelp={() => setHelp(fieldHelp("actualFlow"))}
+                  />
                   <input
                     value={row.actualFlow}
                     onChange={(e) =>
@@ -1069,7 +1461,10 @@ export default function FirePumpTestForm({
                 </label>
 
                 <label>
-                  <span style={labelStyle()}>Suction PSI</span>
+                  <LabelWithHelp
+                    label="Suction PSI"
+                    onHelp={() => setHelp(fieldHelp("suction"))}
+                  />
                   <input
                     value={point.suction_pressure_psi}
                     onChange={(e) =>
@@ -1083,7 +1478,10 @@ export default function FirePumpTestForm({
                 </label>
 
                 <label>
-                  <span style={labelStyle()}>Discharge PSI</span>
+                  <LabelWithHelp
+                    label="Discharge PSI"
+                    onHelp={() => setHelp(fieldHelp("discharge"))}
+                  />
                   <input
                     value={point.discharge_pressure_psi}
                     onChange={(e) =>
@@ -1097,7 +1495,10 @@ export default function FirePumpTestForm({
                 </label>
 
                 <label>
-                  <span style={labelStyle()}>Actual RPM</span>
+                  <LabelWithHelp
+                    label="Actual RPM"
+                    onHelp={() => setHelp(fieldHelp("rpm"))}
+                  />
                   <input
                     value={point.rpm}
                     onChange={(e) =>
@@ -1112,7 +1513,10 @@ export default function FirePumpTestForm({
 
                 {point.point_type === "churn" ? (
                   <label>
-                    <span style={labelStyle()}>مدة التشغيل بالدقائق</span>
+                    <LabelWithHelp
+                      label="مدة التشغيل بالدقائق"
+                      onHelp={() => setHelp(fieldHelp("runMinutes"))}
+                    />
                     <input
                       value={point.run_minutes}
                       onChange={(e) =>
@@ -1253,13 +1657,23 @@ export default function FirePumpTestForm({
         >
           <div
             style={{
-              fontSize: "14px",
-              fontWeight: 950,
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "8px",
+              alignItems: "center",
               marginBottom: "8px",
-              color: "#0f172a",
             }}
           >
-            قراءات كهربائية
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: 950,
+                color: "#0f172a",
+              }}
+            >
+              قراءات كهربائية
+            </div>
+            <HelpButton onClick={() => setHelp(fieldHelp("electric"))} />
           </div>
 
           <div
@@ -1317,13 +1731,23 @@ export default function FirePumpTestForm({
         >
           <div
             style={{
-              fontSize: "14px",
-              fontWeight: 950,
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "8px",
+              alignItems: "center",
               marginBottom: "8px",
-              color: "#0f172a",
             }}
           >
-            قراءات الديزل
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: 950,
+                color: "#0f172a",
+              }}
+            >
+              قراءات الديزل
+            </div>
+            <HelpButton onClick={() => setHelp(fieldHelp("diesel"))} />
           </div>
 
           <div
