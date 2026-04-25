@@ -43,98 +43,117 @@ function driverForSystem(systemCode: string) {
   return "all";
 }
 
-function resolveVisitProfile(systemCode: string, visitTypeRaw: string, visitProfileRaw: string) {
+function resolvePumpProfile(
+  systemCode: string,
+  visitTypeRaw: string,
+  visitProfileRaw: string
+) {
   const code = norm(systemCode);
   const visitType = norm(visitTypeRaw || "routine");
   const explicitProfile = norm(visitProfileRaw || "");
 
   if (explicitProfile) return explicitProfile;
 
-  if (!isPumpSystem(systemCode)) return visitType || "routine";
-
   if (code === "fp_jockey") {
     return "jockey_routine";
   }
 
-  if (["annual", "annual_flow", "flow_test", "performance_test"].includes(visitType)) {
+  if (
+    ["annual", "annual_flow", "flow_test", "performance_test"].includes(
+      visitType
+    )
+  ) {
     return "annual_flow";
   }
 
   if (code === "fp_diesel_pump") {
+    if (["weekly", "weekly_churn"].includes(visitType)) {
+      return "diesel_weekly_churn";
+    }
+
+    if (["monthly", "monthly_churn", "routine"].includes(visitType)) {
+      return "diesel_weekly_churn";
+    }
+
     return "diesel_weekly_churn";
   }
 
   if (code === "fp_elec_pump") {
+    if (["weekly", "weekly_churn"].includes(visitType)) {
+      return "electric_monthly_churn";
+    }
+
+    if (["monthly", "monthly_churn", "routine"].includes(visitType)) {
+      return "electric_monthly_churn";
+    }
+
     return "electric_monthly_churn";
   }
 
   return "pump_basic";
 }
 
-function allowedProfilesForVisit(systemCode: string, visitTypeRaw: string, visitProfileRaw: string) {
-  const profile = resolveVisitProfile(systemCode, visitTypeRaw, visitProfileRaw);
+function allowedProfilesForVisit(
+  systemCode: string,
+  visitTypeRaw: string,
+  visitProfileRaw: string
+) {
+  const visitType = norm(visitTypeRaw || "routine");
   const profiles = new Set<string>();
 
   profiles.add("all");
   profiles.add("any");
-  profiles.add(profile);
 
-  if (isPumpSystem(systemCode)) {
-    profiles.add("pump_basic");
-
-    if (profile === "annual_flow") {
-      profiles.add("annual_flow");
-    }
-
-    if (profile === "diesel_weekly_churn") {
-      profiles.add("diesel_weekly_churn");
-    }
-
-    if (profile === "electric_monthly_churn") {
-      profiles.add("electric_monthly_churn");
-    }
-
-    if (profile === "jockey_routine") {
-      profiles.add("jockey_routine");
-    }
-
-    if (profile === "reinspection") {
-      profiles.add("reinspection");
-    }
+  if (!isPumpSystem(systemCode)) {
+    profiles.add(visitType);
+    profiles.add(norm(visitProfileRaw || ""));
+    profiles.add("routine");
+    return profiles;
   }
+
+  const pumpProfile = resolvePumpProfile(systemCode, visitTypeRaw, visitProfileRaw);
+
+  profiles.add("pump_basic");
+  profiles.add(pumpProfile);
 
   return profiles;
 }
 
-function frequencyMatches(row: any, visitTypeRaw: string, systemCode: string) {
+function frequencyMatches(row: any, systemCode: string, visitTypeRaw: string) {
   const frequency = norm(row.frequency_code || "");
   const visitType = norm(visitTypeRaw || "routine");
 
-  if (!frequency || frequency === "all" || frequency === "any") {
-    return true;
-  }
-
-  if (frequency === visitType) {
-    return true;
-  }
+  if (!frequency || frequency === "all" || frequency === "any") return true;
 
   if (!isPumpSystem(systemCode)) {
-    return true;
+    return frequency === visitType || visitType === "routine";
   }
 
   if (visitType === "annual" || visitType === "annual_flow") {
-    return frequency === "annual";
+    return frequency === "annual" || frequency === "routine";
   }
 
-  if (visitType === "monthly" || visitType === "routine") {
-    return ["monthly", "weekly", "routine"].includes(frequency);
+  if (visitType === "monthly" || visitType === "monthly_churn") {
+    return (
+      frequency === "monthly" ||
+      frequency === "weekly" ||
+      frequency === "routine"
+    );
   }
 
-  if (visitType === "weekly") {
-    return ["weekly", "routine"].includes(frequency);
+  if (visitType === "weekly" || visitType === "weekly_churn") {
+    return frequency === "weekly" || frequency === "routine";
   }
 
-  return false;
+  if (visitType === "routine") {
+    return (
+      frequency === "routine" ||
+      frequency === "weekly" ||
+      frequency === "monthly"
+    );
+  }
+
+  return frequency === visitType;
 }
 
 function driverMatches(row: any, systemCode: string) {
@@ -151,32 +170,24 @@ function driverMatches(row: any, systemCode: string) {
 function itemMatchesVisit(row: any, systemCode: string, options: ChecklistOptions) {
   const visitType = clean(options.visitType || "routine");
   const visitProfile = clean(options.visitProfile || "");
-
   const isPump = isPumpSystem(systemCode);
+
   const rowProfile = norm(row.visit_profile || "");
-  const allowedProfiles = allowedProfilesForVisit(systemCode, visitType, visitProfile);
+  const allowedProfiles = allowedProfilesForVisit(
+    systemCode,
+    visitType,
+    visitProfile
+  );
 
   if (isPump) {
-    if (!rowProfile) {
-      return false;
-    }
-
-    if (!allowedProfiles.has(rowProfile)) {
-      return false;
-    }
+    if (!rowProfile) return false;
+    if (!allowedProfiles.has(rowProfile)) return false;
   } else {
-    if (rowProfile && !allowedProfiles.has(rowProfile)) {
-      return false;
-    }
+    if (rowProfile && !allowedProfiles.has(rowProfile)) return false;
   }
 
-  if (!frequencyMatches(row, visitType, systemCode)) {
-    return false;
-  }
-
-  if (!driverMatches(row, systemCode)) {
-    return false;
-  }
+  if (!frequencyMatches(row, systemCode, visitType)) return false;
+  if (!driverMatches(row, systemCode)) return false;
 
   return true;
 }
