@@ -1,24 +1,23 @@
 import Link from "next/link";
 import {
-  Boxes,
   Building2,
   ClipboardList,
   MapPin,
+  Plus,
   QrCode,
   ShieldAlert,
   Wrench,
 } from "lucide-react";
+
 import { AppShell } from "@/components/app-shell";
 import {
-  ActionCard,
   EmptyPanel,
-  ListRow,
-  MetricCard,
   PageHero,
   SectionCard,
   SoftBadge,
 } from "@/components/admin-page-kit";
 import FacilityStructureManager from "@/components/facility-structure-manager";
+
 import { requirePermission } from "@/lib/permissions";
 import { readSheet } from "@/lib/sheets";
 import {
@@ -31,12 +30,107 @@ import {
   isActiveRecord,
 } from "@/lib/display";
 
-function sortByDateDesc(rows: any[], field: string) {
+type Row = Record<string, any>;
+
+function sortByDateDesc(rows: Row[], field: string) {
   return [...rows].sort((a, b) => {
     const aTime = new Date(String(a?.[field] || 0)).getTime();
     const bTime = new Date(String(b?.[field] || 0)).getTime();
     return bTime - aTime;
   });
+}
+
+function groupSystemsByBuilding(buildings: Row[], systems: Row[]) {
+  const map: Record<string, Row[]> = {};
+
+  for (const building of buildings) {
+    map[String(building.building_id || "")] = [];
+  }
+
+  for (const system of systems) {
+    const buildingId = String(system.building_id || "");
+    if (!map[buildingId]) map[buildingId] = [];
+    map[buildingId].push(system);
+  }
+
+  return map;
+}
+
+function systemDisplayName(system: Row) {
+  return safeText(
+    system.system_name_override ||
+      system.system_display_name_ar ||
+      system.system_display_name ||
+      toSystemLabel(system.system_code),
+    "نظام"
+  );
+}
+
+function facilityName(facility: Row) {
+  return safeText(
+    facility.facility_name_ar || facility.facility_name,
+    "منشأة غير محددة"
+  );
+}
+
+function buildingName(building: Row) {
+  return safeText(
+    building.building_name_ar || building.building_name,
+    "مبنى"
+  );
+}
+
+function quickCardStyle(): React.CSSProperties {
+  return {
+    border: "1px solid #e2e8f0",
+    borderRadius: "24px",
+    padding: "18px",
+    background: "#fff",
+    minHeight: "132px",
+    display: "grid",
+    alignContent: "center",
+    justifyItems: "center",
+    textAlign: "center",
+    gap: "10px",
+    textDecoration: "none",
+    color: "#0f172a",
+  };
+}
+
+function iconBoxStyle(tone: "teal" | "amber" | "red" | "slate" = "teal") {
+  const map = {
+    teal: {
+      bg: "#ecfeff",
+      border: "#ccfbf1",
+      color: "#0f766e",
+    },
+    amber: {
+      bg: "#fffbeb",
+      border: "#fde68a",
+      color: "#b45309",
+    },
+    red: {
+      bg: "#fff1f2",
+      border: "#fecdd3",
+      color: "#be123c",
+    },
+    slate: {
+      bg: "#f8fafc",
+      border: "#e2e8f0",
+      color: "#475569",
+    },
+  }[tone];
+
+  return {
+    width: "66px",
+    height: "66px",
+    borderRadius: "22px",
+    display: "grid",
+    placeItems: "center",
+    background: map.bg,
+    border: `1px solid ${map.border}`,
+    color: map.color,
+  } as React.CSSProperties;
 }
 
 export default async function FacilityDetailPage({
@@ -45,99 +139,113 @@ export default async function FacilityDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
   const actor = await requirePermission("facilities", "view");
 
-  const [facilities, buildings, buildingSystems, assets, visits, visitSystems, findings] =
-    await Promise.all([
-      readSheet(actor.workbookId, "FACILITIES"),
-      readSheet(actor.workbookId, "BUILDINGS"),
-      readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
-      readSheet(actor.workbookId, "ASSETS"),
-      readSheet(actor.workbookId, "VISITS"),
-      readSheet(actor.workbookId, "VISIT_SYSTEMS"),
-      readSheet(actor.workbookId, "FINDINGS"),
-    ]);
+  const [
+    facilities,
+    buildings,
+    buildingSystems,
+    visits,
+    visitSystems,
+    findings,
+  ] = await Promise.all([
+    readSheet(actor.workbookId, "FACILITIES"),
+    readSheet(actor.workbookId, "BUILDINGS"),
+    readSheet(actor.workbookId, "BUILDING_SYSTEMS"),
+    readSheet(actor.workbookId, "VISITS"),
+    readSheet(actor.workbookId, "VISIT_SYSTEMS"),
+    readSheet(actor.workbookId, "FINDINGS"),
+  ]);
 
   const facility = facilities.find(
-    (row: any) => String(row.facility_id || "") === String(id)
+    (row: Row) => String(row.facility_id || "") === String(id)
   );
 
   if (!facility) {
     return (
       <AppShell>
-        <SectionCard
-          title="تفاصيل المنشأة"
-          subtitle="تعذر العثور على المنشأة المطلوبة"
-        >
-          <EmptyPanel
-            title="المنشأة غير موجودة"
-            description="قد يكون الرابط غير صحيح أو تم حذف المنشأة."
-          />
-        </SectionCard>
+        <div style={{ marginTop: "14px" }}>
+          <SectionCard
+            title="تفاصيل المنشأة"
+            subtitle="تعذر العثور على المنشأة المطلوبة"
+          >
+            <EmptyPanel
+              title="المنشأة غير موجودة"
+              description="قد يكون الرابط غير صحيح أو تم حذف المنشأة."
+            />
+          </SectionCard>
+        </div>
       </AppShell>
     );
   }
 
   const facilityBuildings = buildings.filter(
-    (row: any) => String(row.facility_id || "") === String(id)
+    (row: Row) => String(row.facility_id || "") === String(id)
   );
 
   const buildingIds = new Set(
-    facilityBuildings.map((row: any) => String(row.building_id || ""))
+    facilityBuildings.map((row: Row) => String(row.building_id || ""))
   );
 
-  const facilitySystems = buildingSystems.filter((row: any) =>
+  const facilitySystems = buildingSystems.filter((row: Row) =>
     buildingIds.has(String(row.building_id || ""))
   );
 
-  const facilityAssets = assets.filter(
-    (row: any) => String(row.facility_id || "") === String(id)
+  const systemsByBuilding = groupSystemsByBuilding(
+    facilityBuildings,
+    facilitySystems
   );
 
   const facilityVisits = sortByDateDesc(
-    visits.filter((row: any) => String(row.facility_id || "") === String(id)),
+    visits.filter((row: Row) => String(row.facility_id || "") === String(id)),
     "planned_date"
   );
 
   const facilityVisitIds = new Set(
-    facilityVisits.map((row: any) => String(row.visit_id || ""))
+    facilityVisits.map((row: Row) => String(row.visit_id || ""))
   );
 
   const facilityVisitSystemIds = new Set(
     visitSystems
-      .filter((row: any) => facilityVisitIds.has(String(row.visit_id || "")))
-      .map((row: any) => String(row.visit_system_id || ""))
+      .filter((row: Row) => facilityVisitIds.has(String(row.visit_id || "")))
+      .map((row: Row) => String(row.visit_system_id || ""))
   );
 
   const openFindingsCount = findings.filter(
-    (row: any) =>
+    (row: Row) =>
       facilityVisitSystemIds.has(String(row.visit_system_id || "")) &&
       isOpenFindingStatus(row.closure_status || row.compliance_status || "")
   ).length;
 
-  const activeBuildingsCount = facilityBuildings.filter((row: any) =>
+  const activeBuildingsCount = facilityBuildings.filter((row: Row) =>
     isActiveRecord(row.status || row.building_status)
   ).length;
+
+  const activeVisitsCount = facilityVisits.filter((row: Row) => {
+    const status = String(row.visit_status || "").toLowerCase();
+    return status === "planned" || status === "in_progress" || status === "open";
+  }).length;
 
   const systemCodes = Array.from(
     new Set(
       facilitySystems
-        .map((row: any) => String(row.system_code || "").trim())
+        .map((row: Row) => String(row.system_code || "").trim())
         .filter(Boolean)
     )
   );
 
+  const latestVisits = facilityVisits.slice(0, 3);
+
   return (
     <AppShell>
       <PageHero
-        eyebrow="ملف المنشأة والمباني والأنظمة والأصول المرتبطة بها"
-        title={safeText(
-          facility.facility_name_ar || facility.facility_name,
-          "منشأة"
-        )}
-        subtitle={`${safeText(facility.city, "-")}${
-          facility.district ? ` · ${String(facility.district)}` : ""
-        }${facility.address ? ` · ${String(facility.address)}` : ""}`}
+        eyebrow="ملف منشأة"
+        title={facilityName(facility)}
+        subtitle={`${safeText(facility.city, "مدينة غير محددة")} · ${safeText(
+          facility.district || facility.region,
+          "منطقة غير محددة"
+        )}`}
         icon={Building2}
         pills={[
           toFacilityTypeLabel(
@@ -157,40 +265,87 @@ export default async function FacilityDetailPage({
           marginTop: "14px",
         }}
       >
-        <MetricCard
-          label="المباني"
-          value={facilityBuildings.length}
-          hint="إجمالي المباني التابعة"
-          icon={Building2}
-          tone="teal"
-        />
-        <MetricCard
-          label="الأنظمة"
-          value={facilitySystems.length}
-          hint="الأنظمة المثبتة"
-          icon={Wrench}
-          tone="slate"
-        />
-        <MetricCard
-          label="الأصول"
-          value={facilityAssets.length}
-          hint="كل الأصول المسجلة"
-          icon={Boxes}
-          tone="slate"
-        />
-        <MetricCard
-          label="الزيارات"
-          value={facilityVisits.length}
-          hint="الزيارات المرتبطة"
-          icon={ClipboardList}
-          tone="amber"
-        />
+        <div className="card" style={{ padding: "18px" }}>
+          <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 800 }}>
+            المباني
+          </div>
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "42px",
+              fontWeight: 950,
+              color: "#0f172a",
+            }}
+          >
+            {activeBuildingsCount}
+          </div>
+          <div style={{ fontSize: "13px", color: "#64748b" }}>
+            مبانٍ نشطة
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: "18px" }}>
+          <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 800 }}>
+            الأنظمة
+          </div>
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "42px",
+              fontWeight: 950,
+              color: "#0f172a",
+            }}
+          >
+            {facilitySystems.length}
+          </div>
+          <div style={{ fontSize: "13px", color: "#64748b" }}>
+            أنظمة مثبتة
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: "18px" }}>
+          <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 800 }}>
+            الزيارات
+          </div>
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "42px",
+              fontWeight: 950,
+              color: "#0f172a",
+            }}
+          >
+            {activeVisitsCount}
+          </div>
+          <div style={{ fontSize: "13px", color: "#64748b" }}>
+            زيارات مفتوحة / مجدولة
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: "18px" }}>
+          <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 800 }}>
+            المخالفات
+          </div>
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "42px",
+              fontWeight: 950,
+              color: "#0f172a",
+            }}
+          >
+            {openFindingsCount}
+          </div>
+          <div style={{ fontSize: "13px", color: "#64748b" }}>
+            مفتوحة للمتابعة
+          </div>
+        </div>
       </div>
 
       <div style={{ marginTop: "14px" }}>
         <SectionCard
           title="إجراءات سريعة"
-          subtitle="أهم الإجراءات الخاصة بهذه المنشأة"
+          subtitle="العمليات الأساسية لهذه المنشأة"
         >
           <div
             style={{
@@ -199,44 +354,188 @@ export default async function FacilityDetailPage({
               gap: "12px",
             }}
           >
-            <ActionCard
-              href={`/visits/new?facility_id=${encodeURIComponent(String(id))}`}
-              title="زيارة جديدة"
-              icon={ClipboardList}
-              tone="teal"
-            />
-            <ActionCard
-              href={`/assets?facility_id=${encodeURIComponent(String(id))}`}
-              title="أصول المنشأة"
-              icon={Boxes}
-              tone="slate"
-            />
-            <ActionCard
-              href="/assets/labels"
-              title="ملصقات QR"
-              icon={QrCode}
-              tone="slate"
-            />
-            <ActionCard
-              href="/findings"
-              title="المخالفات"
-              icon={ShieldAlert}
-              tone={openFindingsCount > 0 ? "red" : "slate"}
-            />
+            <Link href="/visits/new" style={quickCardStyle()}>
+              <div style={iconBoxStyle("teal")}>
+                <ClipboardList size={30} />
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 900 }}>
+                زيارة جديدة
+              </div>
+            </Link>
+
+            <a href="#manage" style={quickCardStyle()}>
+              <div style={iconBoxStyle("teal")}>
+                <Plus size={30} />
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 900 }}>
+                إضافة مبنى
+              </div>
+            </a>
+
+            <a href="#manage" style={quickCardStyle()}>
+              <div style={iconBoxStyle("slate")}>
+                <Wrench size={30} />
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 900 }}>
+                إدارة الأنظمة
+              </div>
+            </a>
+
+            <a href="#systems" style={quickCardStyle()}>
+              <div style={iconBoxStyle("amber")}>
+                <QrCode size={30} />
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 900 }}>
+                QR الأنظمة
+              </div>
+            </a>
           </div>
         </SectionCard>
       </div>
 
-      <div style={{ marginTop: "14px" }}>
+      <div id="buildings" style={{ marginTop: "14px" }}>
         <SectionCard
-          title="إدارة المنشأة والمباني والأنظمة"
-          subtitle="تعديل مباشر وإضافة وأرشفة آمنة"
+          title="المباني والأنظمة"
+          subtitle="كل مبنى والأنظمة المسجلة داخله"
         >
-          <FacilityStructureManager
-            facility={facility}
-            buildings={facilityBuildings}
-            systems={facilitySystems}
-          />
+          {facilityBuildings.length === 0 ? (
+            <EmptyPanel
+              title="لا توجد مبانٍ"
+              description="ابدأ بإضافة مبنى، ثم اختر الأنظمة الموجودة داخله."
+            />
+          ) : (
+            <div style={{ display: "grid", gap: "12px" }}>
+              {facilityBuildings.map((building: Row) => {
+                const buildingId = String(building.building_id || "");
+                const systems = systemsByBuilding[buildingId] || [];
+
+                return (
+                  <div
+                    key={buildingId}
+                    className="card"
+                    style={{
+                      padding: "16px",
+                      display: "grid",
+                      gap: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: "12px",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "20px",
+                            fontWeight: 950,
+                            color: "#0f172a",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {buildingName(building)}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: "4px",
+                            fontSize: "13px",
+                            color: "#64748b",
+                            lineHeight: 1.7,
+                          }}
+                        >
+                          {safeText(building.building_code, "-")} · الأنظمة:{" "}
+                          {systems.length}
+                        </div>
+                      </div>
+
+                      <SoftBadge
+                        label={safeText(
+                          building.status || building.building_status,
+                          "active"
+                        )}
+                        tone="slate"
+                      />
+                    </div>
+
+                    {systems.length === 0 ? (
+                      <div
+                        style={{
+                          border: "1px dashed #cbd5e1",
+                          borderRadius: "18px",
+                          padding: "14px",
+                          fontSize: "13px",
+                          color: "#64748b",
+                          lineHeight: 1.8,
+                        }}
+                      >
+                        لا توجد أنظمة مسجلة لهذا المبنى. استخدم زر إدارة الأنظمة
+                        لإضافة الأنظمة الموجودة داخل المبنى.
+                      </div>
+                    ) : (
+                      <div
+                        id="systems"
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "8px",
+                        }}
+                      >
+                        {systems.map((system: Row) => {
+                          const href = `/systems/${String(
+                            system.building_system_id || ""
+                          )}`;
+
+                          return (
+                            <Link
+                              key={String(system.building_system_id || "")}
+                              href={href}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                borderRadius: "999px",
+                                border: "1px solid #e2e8f0",
+                                background: "#f8fafc",
+                                padding: "8px 12px",
+                                color: "#334155",
+                                textDecoration: "none",
+                                fontSize: "13px",
+                                fontWeight: 800,
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {systemDisplayName(system)}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "8px",
+                        marginTop: "2px",
+                      }}
+                    >
+                      <a href="#manage" className="btn btn-secondary">
+                        إدارة المبنى والأنظمة
+                      </a>
+
+                      <Link href="/visits/new" className="btn btn-secondary">
+                        بدء زيارة
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </SectionCard>
       </div>
 
@@ -253,12 +552,14 @@ export default async function FacilityDetailPage({
             }}
           >
             <div className="card" style={{ padding: "14px" }}>
-              <div style={{ fontSize: "13px", color: "#64748b" }}>المدينة</div>
+              <div style={{ fontSize: "13px", color: "#64748b" }}>
+                المدينة
+              </div>
               <div
                 style={{
                   marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 800,
+                  fontSize: "18px",
+                  fontWeight: 900,
                   color: "#0f172a",
                 }}
               >
@@ -273,8 +574,8 @@ export default async function FacilityDetailPage({
               <div
                 style={{
                   marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 800,
+                  fontSize: "18px",
+                  fontWeight: 900,
                   color: "#0f172a",
                 }}
               >
@@ -289,9 +590,10 @@ export default async function FacilityDetailPage({
               <div
                 style={{
                   marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 800,
+                  fontSize: "18px",
+                  fontWeight: 900,
                   color: "#0f172a",
+                  lineHeight: 1.6,
                 }}
               >
                 {toFacilityTypeLabel(
@@ -305,8 +607,8 @@ export default async function FacilityDetailPage({
               <div
                 style={{
                   marginTop: "6px",
-                  fontSize: "16px",
-                  fontWeight: 800,
+                  fontSize: "18px",
+                  fontWeight: 900,
                   color: "#0f172a",
                 }}
               >
@@ -325,7 +627,7 @@ export default async function FacilityDetailPage({
                 marginTop: "10px",
                 display: "flex",
                 alignItems: "center",
-                gap: "10px",
+                gap: "8px",
               }}
             >
               <MapPin size={18} color="#64748b" />
@@ -333,7 +635,7 @@ export default async function FacilityDetailPage({
                 style={{
                   fontSize: "14px",
                   color: "#334155",
-                  lineHeight: 1.7,
+                  lineHeight: 1.8,
                 }}
               >
                 {String(facility.address)}
@@ -345,96 +647,64 @@ export default async function FacilityDetailPage({
 
       <div style={{ marginTop: "14px" }}>
         <SectionCard
-          title="الأنظمة الموجودة"
-          subtitle="الأنظمة المستنتجة من الأنظمة المسجلة داخل المنشأة"
-        >
-          {systemCodes.length === 0 ? (
-            <EmptyPanel
-              title="لا توجد أنظمة مسجلة"
-              description="أضف نظامًا داخل أحد المباني ليتم عرضه هنا."
-            />
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "8px",
-              }}
-            >
-              {systemCodes.map((code) => (
-                <SoftBadge key={code} label={toSystemLabel(code)} tone="slate" />
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
-          title="أصول المنشأة"
-          subtitle="آخر الأصول المضافة أو المسجلة"
-        >
-          {facilityAssets.length === 0 ? (
-            <EmptyPanel
-              title="لا توجد أصول"
-              description="أضف أصلًا جديدًا داخل هذه المنشأة لعرضه هنا."
-            />
-          ) : (
-            <div style={{ display: "grid", gap: "10px" }}>
-              {facilityAssets.slice(0, 8).map((asset: any) => (
-                <ListRow
-                  key={String(asset.asset_id || "")}
-                  href={`/assets/${String(asset.asset_id || "")}`}
-                  title={safeText(asset.asset_name_ar || asset.asset_name, "أصل")}
-                  subtitle={`${toSystemLabel(asset.system_code)} · ${safeText(
-                    asset.location_note,
-                    "بدون موقع محدد"
-                  )}`}
-                  rightBadge={
-                    <SoftBadge
-                      label={safeText(asset.asset_code || asset.asset_id, "-")}
-                      tone="slate"
-                    />
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
-      <div style={{ marginTop: "14px" }}>
-        <SectionCard
           title="آخر الزيارات"
-          subtitle="أحدث الزيارات المرتبطة بهذه المنشأة"
+          subtitle="آخر ثلاث زيارات فقط لتقليل التشويش"
         >
-          {facilityVisits.length === 0 ? (
+          {latestVisits.length === 0 ? (
             <EmptyPanel
               title="لا توجد زيارات"
-              description="عند إنشاء زيارة جديدة للمنشأة ستظهر هنا."
+              description="لم يتم تسجيل زيارات لهذه المنشأة بعد."
             />
           ) : (
             <div style={{ display: "grid", gap: "10px" }}>
-              {facilityVisits.slice(0, 6).map((visit: any) => (
-                <ListRow
+              {latestVisits.map((visit: Row) => (
+                <Link
                   key={String(visit.visit_id || "")}
                   href={`/visits/${String(visit.visit_id || "")}`}
-                  title={toVisitTypeLabel(visit.visit_type)}
-                  subtitle={`التاريخ: ${String(
-                    visit.planned_date || visit.visit_date || "-"
-                  )}`}
-                  rightBadge={
-                    <SoftBadge
-                      label={toVisitStatusLabel(visit.visit_status)}
-                      tone={
-                        String(visit.visit_status || "").toLowerCase() === "closed" ||
-                        String(visit.visit_status || "").toLowerCase() === "completed"
-                          ? "teal"
-                          : "slate"
-                      }
-                    />
-                  }
-                />
+                  className="card"
+                  style={{
+                    padding: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {toVisitTypeLabel(visit.visit_type || "routine")}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        fontSize: "13px",
+                        color: "#64748b",
+                      }}
+                    >
+                      التاريخ:{" "}
+                      {safeText(visit.planned_date || visit.visit_date, "-")}
+                    </div>
+                  </div>
+
+                  <SoftBadge
+                    label={toVisitStatusLabel(visit.visit_status)}
+                    tone={
+                      String(visit.visit_status || "").toLowerCase() === "closed"
+                        ? "teal"
+                        : "slate"
+                    }
+                  />
+                </Link>
               ))}
             </div>
           )}
@@ -453,15 +723,15 @@ export default async function FacilityDetailPage({
               gap: "10px",
             }}
           >
-            <div className="card" style={{ padding: "14px", textAlign: "center" }}>
+            <div className="card" style={{ padding: "18px", textAlign: "center" }}>
               <div style={{ fontSize: "13px", color: "#64748b" }}>
                 المباني النشطة
               </div>
               <div
                 style={{
-                  marginTop: "6px",
-                  fontSize: "30px",
-                  fontWeight: 900,
+                  marginTop: "8px",
+                  fontSize: "34px",
+                  fontWeight: 950,
                   color: "#0f172a",
                 }}
               >
@@ -469,15 +739,15 @@ export default async function FacilityDetailPage({
               </div>
             </div>
 
-            <div className="card" style={{ padding: "14px", textAlign: "center" }}>
+            <div className="card" style={{ padding: "18px", textAlign: "center" }}>
               <div style={{ fontSize: "13px", color: "#64748b" }}>
                 المخالفات المفتوحة
               </div>
               <div
                 style={{
-                  marginTop: "6px",
-                  fontSize: "30px",
-                  fontWeight: 900,
+                  marginTop: "8px",
+                  fontSize: "34px",
+                  fontWeight: 950,
                   color: "#0f172a",
                 }}
               >
@@ -485,6 +755,19 @@ export default async function FacilityDetailPage({
               </div>
             </div>
           </div>
+        </SectionCard>
+      </div>
+
+      <div id="manage" style={{ marginTop: "14px" }}>
+        <SectionCard
+          title="إدارة المنشأة والمباني والأنظمة"
+          subtitle="تعديل البيانات، إضافة مبنى، وإدارة الأنظمة المسجلة"
+        >
+          <FacilityStructureManager
+            facility={facility}
+            buildings={facilityBuildings}
+            systems={facilitySystems}
+          />
         </SectionCard>
       </div>
     </AppShell>
