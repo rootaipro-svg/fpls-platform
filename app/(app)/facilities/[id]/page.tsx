@@ -56,14 +56,29 @@ function groupSystemsByBuilding(buildings: Row[], systems: Row[]) {
   return map;
 }
 
-function systemDisplayName(system: Row) {
+function systemDisplayName(system: Row, systemRefByCode: Map<string, Row>) {
+  const ref = systemRefByCode.get(String(system.system_code || ""));
+
   return safeText(
     system.system_name_override ||
-      system.system_display_name_ar ||
-      system.system_display_name ||
+      ref?.system_name_ar ||
+      ref?.system_name ||
+      ref?.system_display_name_ar ||
+      ref?.system_display_name ||
       toSystemLabel(system.system_code),
     "نظام"
   );
+}
+
+function systemSecondaryName(system: Row, systemRefByCode: Map<string, Row>) {
+  const ref = systemRefByCode.get(String(system.system_code || ""));
+
+  const englishName = safeText(ref?.system_name || ref?.system_display_name, "");
+  const code = safeText(system.system_code, "");
+
+  if (englishName && code) return `${englishName} · ${code}`;
+  if (englishName) return englishName;
+  return code;
 }
 
 function facilityName(facility: Row) {
@@ -229,13 +244,14 @@ export default async function FacilityDetailPage({
     return status === "planned" || status === "in_progress" || status === "open";
   }).length;
 
-  const systemCodes = Array.from(
-    new Set(
-      facilitySystems
-        .map((row: Row) => String(row.system_code || "").trim())
-        .filter(Boolean)
-    )
-  );
+const systemRefByCode = new Map<string, Row>();
+
+for (const row of systemsRef) {
+  const code = String(row.system_code || "").trim();
+  if (code && !systemRefByCode.has(code)) {
+    systemRefByCode.set(code, row);
+  }
+}
 
   const latestVisits = facilityVisits.slice(0, 3);
 
@@ -510,7 +526,7 @@ export default async function FacilityDetailPage({
                                 lineHeight: 1.5,
                               }}
                             >
-                              {systemDisplayName(system)}
+{systemDisplayName(system, systemRefByCode)}
                             </Link>
                           );
                         })}
