@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Building2,
   CheckCircle2,
   Layers3,
   Pencil,
@@ -25,7 +24,6 @@ type Props = {
 };
 
 type Mode = "none" | "edit-facility" | "add-building" | "manage-buildings";
-
 type WizardStep = 1 | 2 | 3;
 
 type SelectedSystemDraft = {
@@ -38,17 +36,13 @@ type SelectedSystemDraft = {
   qr_enabled: string;
 };
 
-
-
 function text(value: any) {
   return String(value ?? "");
 }
+
 function isEnabledSystem(system: any) {
   const value = String(
-    system.enabled ??
-      system.active_status ??
-      system.status ??
-      "TRUE"
+    system.enabled ?? system.active_status ?? system.status ?? "TRUE"
   )
     .trim()
     .toLowerCase();
@@ -59,23 +53,17 @@ function isEnabledSystem(system: any) {
 }
 
 function systemArabicName(system: any) {
-  return safeText(
-    system.system_name_ar || system.system_display_name_ar,
-    ""
-  );
+  return safeText(system?.system_name_ar || system?.system_display_name_ar, "");
 }
 
 function systemEnglishName(system: any) {
-  return safeText(
-    system.system_name || system.system_display_name,
-    ""
-  );
+  return safeText(system?.system_name || system?.system_display_name, "");
 }
 
 function systemOptionLabel(system: any) {
   const ar = systemArabicName(system);
   const en = systemEnglishName(system);
-  const code = safeText(system.system_code, "SYSTEM");
+  const code = safeText(system?.system_code, "SYSTEM");
 
   if (ar && en) return `${ar} (${en})`;
   if (ar) return ar;
@@ -83,21 +71,6 @@ function systemOptionLabel(system: any) {
 
   return code;
 }
-
-function selectedSystemLabel(
-  draft: SelectedSystemDraft,
-  systemOptions: any[]
-) {
-  const ref = systemOptions.find(
-    (system: any) => String(system.system_code) === String(draft.system_code)
-  );
-
-  return (
-    safeText(draft.system_name_override, "") ||
-    systemOptionLabel(ref || draft)
-  );
-}
-
 
 function defaultNewBuilding(facilityId: string) {
   return {
@@ -185,18 +158,21 @@ function actionCardStyle(active = false): CSSProperties {
   };
 }
 
-function miniLabel(textValue: string) {
-  return (
-    <div
-      style={{
-        fontSize: "12px",
-        color: "#64748b",
-        fontWeight: 800,
-        marginBottom: "6px",
-      }}
-    >
-      {textValue}
-    </div>
+function findSystemRef(systemOptions: any[], code: string) {
+  return systemOptions.find(
+    (system: any) => String(system.system_code || "") === String(code || "")
+  );
+}
+
+function displaySystemForCard(system: any) {
+  return safeText(
+    system.system_name_override ||
+      system.system_display_name_ar ||
+      system.system_display_name ||
+      system.system_name_ar ||
+      system.system_name ||
+      toSystemLabel(system.system_code),
+    "نظام"
   );
 }
 
@@ -218,20 +194,20 @@ export default function FacilityStructureManager({
   const [addingSystemBuildingId, setAddingSystemBuildingId] = useState("");
   const [editingSystemId, setEditingSystemId] = useState("");
 
- const systemOptions = useMemo(() => {
-  const seen = new Set<string>();
+  const systemOptions = useMemo(() => {
+    const seen = new Set<string>();
 
-  return systemsRef.filter((row: any) => {
-    const code = String(row.system_code || "").trim();
+    return systemsRef.filter((row: any) => {
+      const code = String(row.system_code || "").trim();
 
-    if (!code) return false;
-    if (seen.has(code)) return false;
-    if (!isEnabledSystem(row)) return false;
+      if (!code) return false;
+      if (seen.has(code)) return false;
+      if (!isEnabledSystem(row)) return false;
 
-    seen.add(code);
-    return true;
-  });
-}, [systemsRef]);
+      seen.add(code);
+      return true;
+    });
+  }, [systemsRef]);
 
   const [facilityForm, setFacilityForm] = useState({
     facility_code: text(facility.facility_code),
@@ -258,9 +234,9 @@ export default function FacilityStructureManager({
     defaultNewBuilding(String(facility.facility_id || ""))
   );
 
-  const [selectedSystems, setSelectedSystems] = useState<Record<string, SelectedSystemDraft>>(
-    {}
-  );
+  const [selectedSystems, setSelectedSystems] = useState<
+    Record<string, SelectedSystemDraft>
+  >({});
 
   const [buildingForms, setBuildingForms] = useState<Record<string, any>>(() => {
     const map: Record<string, any> = {};
@@ -472,17 +448,17 @@ export default function FacilityStructureManager({
         throw new Error(buildingData.message || "تعذر إضافة المبنى");
       }
 
-      const buildingId =
-        String(
-          buildingData.buildingId ||
-            buildingData.building_id ||
-            buildingData.id ||
-            ""
-        ).trim();
+      const buildingId = String(
+        buildingData.buildingId ||
+          buildingData.building_id ||
+          buildingData.id ||
+          buildingData.data?.building_id ||
+          ""
+      ).trim();
 
       if (systemsToCreate.length > 0 && !buildingId) {
         throw new Error(
-          "تم إنشاء المبنى، لكن API لا يرجع buildingId. نحتاج تعديل بسيط في app/api/buildings/route.ts قبل إنشاء الأنظمة تلقائيًا."
+          "تم إنشاء المبنى، لكن API لا يرجع buildingId. نحتاج تعديل app/api/buildings/route.ts."
         );
       }
 
@@ -700,9 +676,7 @@ export default function FacilityStructureManager({
           onClick={() => openMode("edit-facility")}
         >
           <Pencil size={32} color="#0f766e" />
-          <div style={{ fontSize: "17px", fontWeight: 900 }}>
-            تعديل المنشأة
-          </div>
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>تعديل المنشأة</div>
         </button>
 
         <button
@@ -711,9 +685,7 @@ export default function FacilityStructureManager({
           onClick={() => openMode("add-building")}
         >
           <Plus size={34} color="#0f766e" />
-          <div style={{ fontSize: "17px", fontWeight: 900 }}>
-            إضافة مبنى
-          </div>
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>إضافة مبنى</div>
         </button>
 
         <button
@@ -722,9 +694,7 @@ export default function FacilityStructureManager({
           onClick={() => openMode("manage-buildings")}
         >
           <Wrench size={32} color="#475569" />
-          <div style={{ fontSize: "17px", fontWeight: 900 }}>
-            إدارة المباني
-          </div>
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>إدارة المباني</div>
         </button>
 
         <button
@@ -733,9 +703,7 @@ export default function FacilityStructureManager({
           onClick={() => setMessage("قريبًا: صفحة طباعة ملصقات QR للأنظمة.")}
         >
           <QrCode size={32} color="#b45309" />
-          <div style={{ fontSize: "17px", fontWeight: 900 }}>
-            QR الأنظمة
-          </div>
+          <div style={{ fontSize: "17px", fontWeight: 900 }}>QR الأنظمة</div>
         </button>
       </div>
 
@@ -925,9 +893,7 @@ export default function FacilityStructureManager({
               disabled={isBusy("facility-archive")}
             >
               <Trash2 size={18} />
-              {isBusy("facility-archive")
-                ? "جارٍ الأرشفة..."
-                : "أرشفة المنشأة"}
+              {isBusy("facility-archive") ? "جارٍ الأرشفة..." : "أرشفة المنشأة"}
             </button>
           </div>
         </div>
@@ -945,23 +911,10 @@ export default function FacilityStructureManager({
             }}
           >
             <div>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 900,
-                  color: "#0f172a",
-                }}
-              >
+              <div style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a" }}>
                 إضافة مبنى جديد
               </div>
-
-              <div
-                style={{
-                  marginTop: "4px",
-                  fontSize: "13px",
-                  color: "#64748b",
-                }}
-              >
+              <div style={{ marginTop: "4px", fontSize: "13px", color: "#64748b" }}>
                 خطوة {wizardStep} من 3
               </div>
             </div>
@@ -979,13 +932,7 @@ export default function FacilityStructureManager({
             </button>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              marginBottom: "14px",
-            }}
-          >
+          <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
             {[1, 2, 3].map((step) => (
               <div
                 key={step}
@@ -1141,144 +1088,163 @@ export default function FacilityStructureManager({
                   lineHeight: 1.7,
                 }}
               >
-                اختر الأنظمة التي تريد ربطها بهذا المبنى. سيتم إنشاء QR لكل
-                نظام تلقائيًا.
+                القائمة تقرأ من شيت SYSTEMS_REF بنفس الترتيب. اختر الأنظمة
+                الموجودة داخل هذا المبنى.
               </div>
 
-              <div style={{ display: "grid", gap: "10px" }}>
-                {systemOptions.map((system: any) => {
-                  const code = String(system.system_code || "");
-                  const selected = Boolean(selectedSystems[code]);
+              {systemOptions.length === 0 ? (
+                <div
+                  style={{
+                    border: "1px dashed #cbd5e1",
+                    borderRadius: "18px",
+                    padding: "14px",
+                    color: "#64748b",
+                    fontSize: "13px",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  لا توجد أنظمة مفعّلة في SYSTEMS_REF.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {systemOptions.map((system: any) => {
+                    const code = String(system.system_code || "");
+                    const selected = Boolean(selectedSystems[code]);
 
-                  return (
-                    <div key={code} style={panelStyle(selected)}>
-                      <button
-                        type="button"
-                        onClick={() => toggleSystem(system)}
-                        style={{
-                          width: "100%",
-                          border: 0,
-                          background: "transparent",
-                          padding: 0,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: "10px",
-                          cursor: "pointer",
-                          textAlign: "right",
-                        }}
-                      >
-                     <div>
-  <div
-    style={{
-      fontSize: "15px",
-      fontWeight: 900,
-      color: "#0f172a",
-      lineHeight: 1.6,
-    }}
-  >
-    {systemArabicName(system) || systemEnglishName(system) || String(system.system_code)}
-  </div>
-
-  {systemEnglishName(system) ? (
-    <div
-      style={{
-        marginTop: "2px",
-        fontSize: "12px",
-        color: "#64748b",
-        lineHeight: 1.5,
-      }}
-    >
-      {systemEnglishName(system)}
-    </div>
-  ) : null}
-
-  <div
-    style={{
-      marginTop: "4px",
-      fontSize: "12px",
-      color: "#94a3b8",
-      lineHeight: 1.5,
-    }}
-  >
-    {String(system.system_code || "")}
-    {system.related_standard ? ` · ${String(system.related_standard)}` : ""}
-  </div>
-</div>
-
-                        <div
+                    return (
+                      <div key={code} style={panelStyle(selected)}>
+                        <button
+                          type="button"
+                          onClick={() => toggleSystem(system)}
                           style={{
-                            width: "28px",
-                            height: "28px",
-                            borderRadius: "50%",
-                            border: selected
-                              ? "7px solid #0f766e"
-                              : "2px solid #cbd5e1",
-                            background: "#fff",
-                            flexShrink: 0,
-                          }}
-                        />
-                      </button>
-
-                      {selected ? (
-                        <div
-                          style={{
-                            marginTop: "12px",
-                            display: "grid",
-                            gap: "8px",
+                            width: "100%",
+                            border: 0,
+                            background: "transparent",
+                            padding: 0,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "10px",
+                            cursor: "pointer",
+                            textAlign: "right",
                           }}
                         >
-                          <input
-                            className="field"
-                            placeholder="اسم العرض داخل المبنى"
-                            value={selectedSystems[code].system_name_override}
-                            onChange={(e) =>
-                              updateSelectedSystem(code, {
-                                system_name_override: e.target.value,
-                              })
-                            }
-                          />
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "15px",
+                                fontWeight: 900,
+                                color: "#0f172a",
+                                lineHeight: 1.6,
+                              }}
+                            >
+                              {systemArabicName(system) ||
+                                systemEnglishName(system) ||
+                                code}
+                            </div>
 
-                          <input
-                            className="field"
-                            placeholder="منطقة الحماية / الموقع"
-                            value={selectedSystems[code].protection_area}
-                            onChange={(e) =>
-                              updateSelectedSystem(code, {
-                                protection_area: e.target.value,
-                              })
-                            }
-                          />
+                            {systemEnglishName(system) ? (
+                              <div
+                                style={{
+                                  marginTop: "2px",
+                                  fontSize: "12px",
+                                  color: "#64748b",
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                {systemEnglishName(system)}
+                              </div>
+                            ) : null}
 
-                          <input
-                            className="field"
-                            placeholder="نطاق التغطية"
-                            value={selectedSystems[code].coverage_scope}
-                            onChange={(e) =>
-                              updateSelectedSystem(code, {
-                                coverage_scope: e.target.value,
-                              })
-                            }
-                          />
+                            <div
+                              style={{
+                                marginTop: "4px",
+                                fontSize: "12px",
+                                color: "#94a3b8",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {code}
+                              {system.related_standard
+                                ? ` · ${String(system.related_standard)}`
+                                : ""}
+                            </div>
+                          </div>
 
-                          <select
-                            className="field"
-                            value={selectedSystems[code].qr_enabled}
-                            onChange={(e) =>
-                              updateSelectedSystem(code, {
-                                qr_enabled: e.target.value,
-                              })
-                            }
+                          <div
+                            style={{
+                              width: "28px",
+                              height: "28px",
+                              borderRadius: "50%",
+                              border: selected
+                                ? "7px solid #0f766e"
+                                : "2px solid #cbd5e1",
+                              background: "#fff",
+                              flexShrink: 0,
+                            }}
+                          />
+                        </button>
+
+                        {selected ? (
+                          <div
+                            style={{
+                              marginTop: "12px",
+                              display: "grid",
+                              gap: "8px",
+                            }}
                           >
-                            <option value="TRUE">تفعيل QR لهذا النظام</option>
-                            <option value="FALSE">بدون QR</option>
-                          </select>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
+                            <input
+                              className="field"
+                              placeholder="اسم مخصص داخل المبنى - اختياري"
+                              value={selectedSystems[code].system_name_override}
+                              onChange={(e) =>
+                                updateSelectedSystem(code, {
+                                  system_name_override: e.target.value,
+                                })
+                              }
+                            />
+
+                            <input
+                              className="field"
+                              placeholder="منطقة الحماية / الموقع"
+                              value={selectedSystems[code].protection_area}
+                              onChange={(e) =>
+                                updateSelectedSystem(code, {
+                                  protection_area: e.target.value,
+                                })
+                              }
+                            />
+
+                            <input
+                              className="field"
+                              placeholder="نطاق التغطية"
+                              value={selectedSystems[code].coverage_scope}
+                              onChange={(e) =>
+                                updateSelectedSystem(code, {
+                                  coverage_scope: e.target.value,
+                                })
+                              }
+                            />
+
+                            <select
+                              className="field"
+                              value={selectedSystems[code].qr_enabled}
+                              onChange={(e) =>
+                                updateSelectedSystem(code, {
+                                  qr_enabled: e.target.value,
+                                })
+                              }
+                            >
+                              <option value="TRUE">تفعيل QR لهذا النظام</option>
+                              <option value="FALSE">بدون QR</option>
+                            </select>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div
                 style={{
@@ -1328,9 +1294,7 @@ export default function FacilityStructureManager({
                   marginBottom: "12px",
                 }}
               >
-                <div style={{ fontSize: "13px", color: "#64748b" }}>
-                  المبنى
-                </div>
+                <div style={{ fontSize: "13px", color: "#64748b" }}>المبنى</div>
 
                 <div
                   style={{
@@ -1374,62 +1338,69 @@ export default function FacilityStructureManager({
                     لم يتم اختيار أنظمة. سيتم إنشاء المبنى فقط.
                   </div>
                 ) : (
-                  Object.values(selectedSystems).map((system) => (
-                    <div
-                      key={system.system_code}
-                      className="card"
-                      style={{
-                        padding: "12px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: "15px",
-                            fontWeight: 900,
-                            color: "#0f172a",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {safeText(system.system_name_override, system.system_code)}
+                  Object.values(selectedSystems).map((system) => {
+                    const ref = findSystemRef(systemOptions, system.system_code);
+                    const label =
+                      safeText(system.system_name_override, "") ||
+                      systemOptionLabel(ref || system);
+
+                    return (
+                      <div
+                        key={system.system_code}
+                        className="card"
+                        style={{
+                          padding: "12px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "10px",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "15px",
+                              fontWeight: 900,
+                              color: "#0f172a",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {label}
+                          </div>
+
+                          <div
+                            style={{
+                              marginTop: "3px",
+                              fontSize: "12px",
+                              color: "#64748b",
+                            }}
+                          >
+                            {system.system_code}
+                          </div>
                         </div>
 
-                        <div
-                          style={{
-                            marginTop: "3px",
-                            fontSize: "12px",
-                            color: "#64748b",
-                          }}
-                        >
-                          {system.system_code}
-                        </div>
+                        {system.qr_enabled === "TRUE" ? (
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              borderRadius: "999px",
+                              padding: "6px 10px",
+                              background: "#ecfeff",
+                              border: "1px solid #ccfbf1",
+                              color: "#0f766e",
+                              fontSize: "12px",
+                              fontWeight: 800,
+                            }}
+                          >
+                            <QrCode size={14} />
+                            QR
+                          </div>
+                        ) : null}
                       </div>
-
-                      {system.qr_enabled === "TRUE" ? (
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            borderRadius: "999px",
-                            padding: "6px 10px",
-                            background: "#ecfeff",
-                            border: "1px solid #ccfbf1",
-                            color: "#0f766e",
-                            fontSize: "12px",
-                            fontWeight: 800,
-                          }}
-                        >
-                          <QrCode size={14} />
-                          QR
-                        </div>
-                      ) : null}
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -1617,9 +1588,7 @@ export default function FacilityStructureManager({
                             <button
                               key={systemId}
                               type="button"
-                              onClick={() =>
-                                setEditingSystemId(active ? "" : systemId)
-                              }
+                              onClick={() => setEditingSystemId(active ? "" : systemId)}
                               style={{
                                 borderRadius: "999px",
                                 border: active
@@ -1633,11 +1602,7 @@ export default function FacilityStructureManager({
                                 cursor: "pointer",
                               }}
                             >
-                              {safeText(
-                                system.system_name_override ||
-                                  toSystemLabel(system.system_code),
-                                "نظام"
-                              )}
+                              {displaySystemForCard(system)}
                             </button>
                           );
                         })
@@ -1817,187 +1782,203 @@ export default function FacilityStructureManager({
                           إضافة نظام لهذا المبنى
                         </div>
 
-                       <div style={{ display: "grid", gap: "8px" }}>
-  {systemOptions.map((option: any) => {
-    const code = String(option.system_code || "");
-    const active = String(newSystemForm.system_code || "") === code;
-
-    return (
-      <button
-        key={code}
-        type="button"
-        onClick={() => {
-          setNewSystemForms((prev) => ({
-            ...prev,
-            [buildingId]: {
-              ...defaultNewSystem(buildingId),
-              system_code: code,
-              system_name_override: "",
-              standard_profile: String(
-                option.related_standard || option.standard_profile || ""
-              ),
-              qr_enabled: "TRUE",
-            },
-          }));
-        }}
-        style={{
-          width: "100%",
-          border: active ? "1px solid #99f6e4" : "1px solid #e2e8f0",
-          background: active ? "#ecfeff" : "#fff",
-          borderRadius: "18px",
-          padding: "12px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "10px",
-          cursor: "pointer",
-          textAlign: "right",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: "15px",
-              fontWeight: 900,
-              color: "#0f172a",
-              lineHeight: 1.6,
-            }}
-          >
-            {systemArabicName(option) ||
-              systemEnglishName(option) ||
-              code}
-          </div>
-
-          {systemEnglishName(option) ? (
-            <div
-              style={{
-                marginTop: "2px",
-                fontSize: "12px",
-                color: "#64748b",
-                lineHeight: 1.5,
-              }}
-            >
-              {systemEnglishName(option)}
-            </div>
-          ) : null}
-
-          <div
-            style={{
-              marginTop: "4px",
-              fontSize: "12px",
-              color: "#94a3b8",
-              lineHeight: 1.5,
-            }}
-          >
-            {code}
-            {option.related_standard
-              ? ` · ${String(option.related_standard)}`
-              : ""}
-          </div>
-        </div>
-
-        <div
-          style={{
-            width: "26px",
-            height: "26px",
-            borderRadius: "50%",
-            border: active ? "7px solid #0f766e" : "2px solid #cbd5e1",
-            background: "#fff",
-            flexShrink: 0,
-          }}
-        />
-      </button>
-    );
-  })}
-</div>
-                          <option value="">اختر نوع النظام</option>
-                          {systemOptions.map((option: any) => (
-                            <option
-                              key={String(option.system_code)}
-                              value={String(option.system_code)}
-                            >
-                              {systemOptionLabel(option)} - {String(option.system_code)}
-                            </option>
-                          ))}
-                        </select>
-
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                            gap: "10px",
-                            marginTop: "10px",
-                          }}
-                        >
-                          <input
-                            className="field"
-                            placeholder="اسم العرض داخل المبنى"
-                            value={newSystemForm.system_name_override || ""}
-                            onChange={(e) =>
-                              setNewSystemForms((prev) => ({
-                                ...prev,
-                                [buildingId]: {
-                                  ...prev[buildingId],
-                                  system_name_override: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-
-                          <input
-                            className="field"
-                            placeholder="منطقة الحماية / الموقع"
-                            value={newSystemForm.protection_area || ""}
-                            onChange={(e) =>
-                              setNewSystemForms((prev) => ({
-                                ...prev,
-                                [buildingId]: {
-                                  ...prev[buildingId],
-                                  protection_area: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-
-                          <input
-                            className="field"
-                            placeholder="نطاق التغطية"
-                            value={newSystemForm.coverage_scope || ""}
-                            onChange={(e) =>
-                              setNewSystemForms((prev) => ({
-                                ...prev,
-                                [buildingId]: {
-                                  ...prev[buildingId],
-                                  coverage_scope: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-
-                          <select
-                            className="field"
-                            value={newSystemForm.qr_enabled || "TRUE"}
-                            onChange={(e) =>
-                              setNewSystemForms((prev) => ({
-                                ...prev,
-                                [buildingId]: {
-                                  ...prev[buildingId],
-                                  qr_enabled: e.target.value,
-                                },
-                              }))
-                            }
+                        {systemOptions.length === 0 ? (
+                          <div
+                            style={{
+                              border: "1px dashed #cbd5e1",
+                              borderRadius: "18px",
+                              padding: "14px",
+                              color: "#64748b",
+                              fontSize: "13px",
+                            }}
                           >
-                            <option value="TRUE">تفعيل QR</option>
-                            <option value="FALSE">بدون QR</option>
-                          </select>
-                        </div>
+                            لا توجد أنظمة مفعّلة في SYSTEMS_REF.
+                          </div>
+                        ) : (
+                          <div style={{ display: "grid", gap: "8px" }}>
+                            {systemOptions.map((option: any) => {
+                              const code = String(option.system_code || "");
+                              const active =
+                                String(newSystemForm.system_code || "") === code;
+
+                              return (
+                                <button
+                                  key={code}
+                                  type="button"
+                                  onClick={() => {
+                                    setNewSystemForms((prev) => ({
+                                      ...prev,
+                                      [buildingId]: {
+                                        ...defaultNewSystem(buildingId),
+                                        system_code: code,
+                                        system_name_override: "",
+                                        standard_profile: String(
+                                          option.related_standard ||
+                                            option.standard_profile ||
+                                            ""
+                                        ),
+                                        qr_enabled: "TRUE",
+                                      },
+                                    }));
+                                  }}
+                                  style={{
+                                    width: "100%",
+                                    border: active
+                                      ? "1px solid #99f6e4"
+                                      : "1px solid #e2e8f0",
+                                    background: active ? "#ecfeff" : "#fff",
+                                    borderRadius: "18px",
+                                    padding: "12px",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    gap: "10px",
+                                    cursor: "pointer",
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  <div>
+                                    <div
+                                      style={{
+                                        fontSize: "15px",
+                                        fontWeight: 900,
+                                        color: "#0f172a",
+                                        lineHeight: 1.6,
+                                      }}
+                                    >
+                                      {systemArabicName(option) ||
+                                        systemEnglishName(option) ||
+                                        code}
+                                    </div>
+
+                                    {systemEnglishName(option) ? (
+                                      <div
+                                        style={{
+                                          marginTop: "2px",
+                                          fontSize: "12px",
+                                          color: "#64748b",
+                                          lineHeight: 1.5,
+                                        }}
+                                      >
+                                        {systemEnglishName(option)}
+                                      </div>
+                                    ) : null}
+
+                                    <div
+                                      style={{
+                                        marginTop: "4px",
+                                        fontSize: "12px",
+                                        color: "#94a3b8",
+                                        lineHeight: 1.5,
+                                      }}
+                                    >
+                                      {code}
+                                      {option.related_standard
+                                        ? ` · ${String(option.related_standard)}`
+                                        : ""}
+                                    </div>
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      width: "26px",
+                                      height: "26px",
+                                      borderRadius: "50%",
+                                      border: active
+                                        ? "7px solid #0f766e"
+                                        : "2px solid #cbd5e1",
+                                      background: "#fff",
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {newSystemForm.system_code ? (
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                              gap: "10px",
+                              marginTop: "10px",
+                            }}
+                          >
+                            <input
+                              className="field"
+                              placeholder="اسم مخصص داخل المبنى - اختياري"
+                              value={newSystemForm.system_name_override || ""}
+                              onChange={(e) =>
+                                setNewSystemForms((prev) => ({
+                                  ...prev,
+                                  [buildingId]: {
+                                    ...prev[buildingId],
+                                    system_name_override: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+
+                            <input
+                              className="field"
+                              placeholder="منطقة الحماية / الموقع"
+                              value={newSystemForm.protection_area || ""}
+                              onChange={(e) =>
+                                setNewSystemForms((prev) => ({
+                                  ...prev,
+                                  [buildingId]: {
+                                    ...prev[buildingId],
+                                    protection_area: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+
+                            <input
+                              className="field"
+                              placeholder="نطاق التغطية"
+                              value={newSystemForm.coverage_scope || ""}
+                              onChange={(e) =>
+                                setNewSystemForms((prev) => ({
+                                  ...prev,
+                                  [buildingId]: {
+                                    ...prev[buildingId],
+                                    coverage_scope: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+
+                            <select
+                              className="field"
+                              value={newSystemForm.qr_enabled || "TRUE"}
+                              onChange={(e) =>
+                                setNewSystemForms((prev) => ({
+                                  ...prev,
+                                  [buildingId]: {
+                                    ...prev[buildingId],
+                                    qr_enabled: e.target.value,
+                                  },
+                                }))
+                              }
+                            >
+                              <option value="TRUE">تفعيل QR</option>
+                              <option value="FALSE">بدون QR</option>
+                            </select>
+                          </div>
+                        ) : null}
 
                         <div style={{ marginTop: "12px" }}>
                           <button
                             type="button"
                             className="btn"
                             onClick={() => addSystem(buildingId)}
-                            disabled={isBusy(`system-add-${buildingId}`)}
+                            disabled={
+                              isBusy(`system-add-${buildingId}`) ||
+                              !newSystemForm.system_code
+                            }
                           >
                             <Plus size={18} />
                             {isBusy(`system-add-${buildingId}`)
@@ -2053,7 +2034,7 @@ export default function FacilityStructureManager({
                                 >
                                   <input
                                     className="field"
-                                    placeholder="اسم النظام"
+                                    placeholder="اسم مخصص للنظام - اختياري"
                                     value={form.system_name_override || ""}
                                     onChange={(e) =>
                                       setSystemForms((prev) => ({
