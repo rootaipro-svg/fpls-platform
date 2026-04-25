@@ -75,6 +75,7 @@ type ActiveAsset = {
 
 type Props = {
   visitId: string;
+  visitType?: string;
   visitSystems: VisitSystem[];
   checklistItems: ChecklistItem[];
   existingResponses: ExistingResponse[];
@@ -146,9 +147,11 @@ function getSmartInputCount(item: ChecklistItem) {
 
   if (rule === "PRESSURE_SETPOINTS") return 2;
   if (rule === "PRESSURE_STABILITY") return 3;
+
   if (String(item.response_type_v2 || "").toLowerCase() === "numeric_range") {
     return 1;
   }
+
   if (rule === "EMERGENCY_LIGHT_DURATION") return 1;
 
   return 0;
@@ -160,6 +163,7 @@ function smartInputLabel(item: ChecklistItem, index: number) {
 
   if (rule === "PRESSURE_SETPOINTS") {
     if (index === 1) return `ضغط تشغيل الجوكي${unit ? ` (${unit})` : ""}`;
+
     if (index === 2) {
       return `ضغط تشغيل المضخة الرئيسية${unit ? ` (${unit})` : ""}`;
     }
@@ -191,6 +195,9 @@ function isFirePumpSystemCode(systemCode: unknown) {
   return (
     code === "fire_pump" ||
     code === "firepump" ||
+    code === "fp_diesel_pump" ||
+    code === "fp_elec_pump" ||
+    code === "fp_jockey" ||
     code.includes("fire_pump") ||
     code.includes("pump")
   );
@@ -198,6 +205,7 @@ function isFirePumpSystemCode(systemCode: unknown) {
 
 export default function VisitExecutionForm({
   visitId,
+  visitType = "routine",
   visitSystems,
   checklistItems,
   existingResponses,
@@ -503,7 +511,7 @@ export default function VisitExecutionForm({
             }}
           >
             {isFirePumpSystem
-              ? "هذا النظام يستخدم وحدة اختبار أداء مضخة الحريق بدل قائمة البنود التقليدية."
+              ? `وحدة اختبار المضخة بالأعلى، وقائمة الفحص المرجعية بالأسفل. تم إنجاز ${completedCount} من ${selectedItems.length} بند`
               : `تم إنجاز ${completedCount} من ${selectedItems.length} بند`}
           </div>
         </div>
@@ -512,19 +520,60 @@ export default function VisitExecutionForm({
       {isFirePumpSystem && selectedSystem ? (
         <FirePumpTestForm
           visitId={visitId}
+          visitType={visitType}
           visitSystem={{
             visit_system_id: String(selectedSystem.visit_system_id || ""),
             building_system_id: String(selectedSystem.building_system_id || ""),
             system_code: String(selectedSystem.system_code || ""),
           }}
         />
-      ) : selectedItems.length === 0 ? (
+      ) : null}
+
+      {selectedItems.length === 0 ? (
         <EmptyPanel
           title="لا توجد بنود فحص"
-          description="لم يتم العثور على بنود لهذا النظام داخل الزيارة."
+          description={
+            isFirePumpSystem
+              ? "لم يتم العثور على بنود Checklist مرتبطة بهذه المضخة. يمكن حفظ اختبار المضخة من النموذج أعلاه، لكن يلزم إضافة بنود CHECKLIST_TEMPLATES حتى يتم إقفال الزيارة بنتائج مرجعية."
+              : "لم يتم العثور على بنود لهذا النظام داخل الزيارة."
+          }
         />
       ) : (
         <div style={{ display: "grid", gap: "10px" }}>
+          {isFirePumpSystem ? (
+            <div
+              className="card"
+              style={{
+                padding: "14px",
+                background: "#fff",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 900,
+                  color: "#0f172a",
+                  lineHeight: 1.6,
+                }}
+              >
+                قائمة الفحص المرجعية للمضخة
+              </div>
+
+              <div
+                style={{
+                  marginTop: "5px",
+                  fontSize: "13px",
+                  color: "#64748b",
+                  lineHeight: 1.8,
+                }}
+              >
+                هذه البنود قادمة من CHECKLIST_TEMPLATES حسب نوع الزيارة. أكملها
+                بعد تسجيل قراءات المضخة.
+              </div>
+            </div>
+          ) : null}
+
           {selectedItems.map((item, index) => {
             const state = getItemState(
               item.visit_system_id,
@@ -851,32 +900,28 @@ export default function VisitExecutionForm({
         </div>
       )}
 
-      {!isFirePumpSystem ? (
-        <>
-          {message ? (
-            <div className="alert-success" style={{ marginTop: "14px" }}>
-              {message}
-            </div>
-          ) : null}
-
-          {error ? (
-            <div className="alert-error" style={{ marginTop: "14px" }}>
-              {error}
-            </div>
-          ) : null}
-
-          <div style={{ marginTop: "14px" }}>
-            <button
-              type="button"
-              className="btn btn-grow"
-              onClick={handleSaveAndClose}
-              disabled={saving}
-            >
-              {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
-            </button>
-          </div>
-        </>
+      {message ? (
+        <div className="alert-success" style={{ marginTop: "14px" }}>
+          {message}
+        </div>
       ) : null}
+
+      {error ? (
+        <div className="alert-error" style={{ marginTop: "14px" }}>
+          {error}
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: "14px" }}>
+        <button
+          type="button"
+          className="btn btn-grow"
+          onClick={handleSaveAndClose}
+          disabled={saving}
+        >
+          {saving ? "جارٍ الحفظ..." : "حفظ النتائج وإقفال الزيارة"}
+        </button>
+      </div>
     </div>
   );
 }
