@@ -102,7 +102,79 @@ function toNumber(value: unknown) {
 function round1(value: number) {
   return Math.round(value * 10) / 10;
 }
+function referencePressureForPoint(pointType: string, ratedPressure: number) {
+  if (!ratedPressure) return 0;
 
+  if (pointType === "churn") return round1(ratedPressure * 1.3);
+  if (pointType === "rated_100") return round1(ratedPressure);
+  if (pointType === "rated_150") return round1(ratedPressure * 0.7);
+
+  return ratedPressure;
+}
+
+function acceptanceLimitForPoint(pointType: string, ratedPressure: number) {
+  if (!ratedPressure) return 0;
+
+  // في Churn هذا حد أعلى، وليس حد أدنى
+  if (pointType === "churn") return round1(ratedPressure * 1.4);
+
+  // في نقاط التدفق هذه حدود دنيا
+  if (pointType === "rated_100") return round1(ratedPressure * 0.95);
+  if (pointType === "rated_150") return round1(ratedPressure * 0.65);
+
+  return 0;
+}
+
+function pointNotice(
+  pointType: string,
+  ratedPressure: number,
+  evaluation: { result: string; net: number }
+) {
+  const limit = acceptanceLimitForPoint(pointType, ratedPressure);
+
+  if (!ratedPressure || evaluation.result === "pending") {
+    return {
+      text: pointRequirementText(pointType, ratedPressure),
+      bg: "#f8fafc",
+      border: "#e2e8f0",
+      color: "#475569",
+    };
+  }
+
+  if (evaluation.result === "fail") {
+    return {
+      text: `النقطة غير مطابقة: Net PSI = ${evaluation.net} أقل من الحد الأدنى المرجعي ${limit} PSI.`,
+      bg: "#fff1f2",
+      border: "#fecdd3",
+      color: "#be123c",
+    };
+  }
+
+  if (evaluation.result === "warning") {
+    return {
+      text: `تحتاج مراجعة: Net PSI = ${evaluation.net} أعلى من حد Churn المرجعي ${limit} PSI.`,
+      bg: "#fffbeb",
+      border: "#fde68a",
+      color: "#92400e",
+    };
+  }
+
+  if (pointType === "churn") {
+    return {
+      text: `النقطة مقبولة: Net PSI = ${evaluation.net} ولم يتجاوز حد Churn المرجعي ${limit} PSI.`,
+      bg: "#ecfdf5",
+      border: "#bbf7d0",
+      color: "#166534",
+    };
+  }
+
+  return {
+    text: `النقطة مقبولة: Net PSI = ${evaluation.net} وهو أعلى من الحد الأدنى المرجعي ${limit} PSI.`,
+    bg: "#ecfdf5",
+    border: "#bbf7d0",
+    color: "#166534",
+  };
+}
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -602,6 +674,7 @@ function PumpCurveChart({
 }: {
   points: Array<{
     label: string;
+    pointType: string;
     flow: number;
     pressure: number;
   }>;
@@ -609,13 +682,21 @@ function PumpCurveChart({
   ratedPressure: number;
 }) {
   const width = 330;
-  const height = 210;
-  const pad = 34;
+  const height = 230;
+  const pad = 36;
 
-  const maxFlow = Math.max(ratedFlow * 1.6, ...points.map((p) => p.flow), 1);
+  const curveRows = points.map((point) => ({
+    ...point,
+    reference: referencePressureForPoint(point.pointType, ratedPressure),
+    acceptance: acceptanceLimitForPoint(point.pointType, ratedPressure),
+  }));
+
+  const maxFlow = Math.max(ratedFlow * 1.6, ...curveRows.map((p) => p.flow), 1);
   const maxPressure = Math.max(
-    ratedPressure * 1.5,
-    ...points.map((p) => p.pressure),
+    ratedPressure * 1.55,
+    ...curveRows.map((p) => p.pressure),
+    ...curveRows.map((p) => p.reference),
+    ...curveRows.map((p) => p.acceptance),
     1
   );
 
@@ -627,11 +708,51 @@ function PumpCurveChart({
     return height - pad - (pressure / maxPressure) * (height - pad * 2);
   }
 
-  const sorted = [...points].sort((a, b) => a.flow - b.flow);
-  const polyline = sorted
-    .filter((p) => p.pressure > 0)
-    .map((p) => `${x(p.flow)},${y(p.pressure)}`)
-    .join(" ");
+  const sorted = [...curveRows].sort((a, b) => a.flow - b.flow);
+
+  function polylineFor(key: "pressure" | "reference" | "acceptance") {
+    return sorted
+      .filter((p) => Number(p[key]) > 0)
+      .map((p) => `${x(p.flow)},${y(Number(p[key]))}`)
+      .join(" ");
+  }
+
+  const actualLine = polylineFor("pressure");
+  const referenceLine = polylineFor("reference");
+  const acceptanceLine = polylineFor("acceptance");
+
+  const complete = sorted.every((p) => p.pressure > 0);
+
+  const hasFail = sorted.some((p) => {
+    if (!ratedPressure || !p.pressure) return false;
+
+    if (p.pointType === "churn") {
+      return p.pressure > p.acceptance;
+    }
+
+    return p.pressure < p.acceptance;
+  });
+
+  const decision = !complete
+    ? {
+        label: "المنحنى غير مكتمل",
+        bg: "#f8fafc",
+        color: "#475569",
+        border: "#e2e8f0",
+      }
+    : hasFail
+    ? {
+        label: "المنحنى يحتاج معالجة",
+        bg: "#fff1f2",
+        color: "#be123c",
+        border: "#fecdd3",
+      }
+    : {
+        label: "المنحنى مقبول مبدئيًا",
+        bg: "#ecfdf5",
+        color: "#166534",
+        border: "#bbf7d0",
+      };
 
   return (
     <div
@@ -645,24 +766,92 @@ function PumpCurveChart({
     >
       <div
         style={{
-          fontSize: "14px",
-          fontWeight: 950,
-          color: "#0f172a",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "8px",
+          alignItems: "center",
           marginBottom: "8px",
         }}
       >
-        منحنى أداء المضخة الحالي
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: 950,
+            color: "#0f172a",
+          }}
+        >
+          منحنى أداء المضخة
+        </div>
+
+        <span
+          style={{
+            display: "inline-flex",
+            borderRadius: "999px",
+            padding: "7px 10px",
+            fontSize: "11px",
+            fontWeight: 900,
+            background: decision.bg,
+            color: decision.color,
+            border: `1px solid ${decision.border}`,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {decision.label}
+        </span>
       </div>
 
-      <svg
-        width="100%"
-        viewBox={`0 0 ${width} ${height}`}
-        style={{ display: "block" }}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: "6px",
+          marginBottom: "10px",
+        }}
       >
-        <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#cbd5e1" />
-        <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#cbd5e1" />
+        {sorted.map((p) => (
+          <div
+            key={p.label}
+            style={{
+              border: "1px solid #e2e8f0",
+              borderRadius: "14px",
+              padding: "8px",
+              background: "#f8fafc",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "10px", color: "#64748b", fontWeight: 800 }}>
+              {p.label}
+            </div>
+            <div style={{ fontSize: "15px", color: "#0f172a", fontWeight: 950 }}>
+              {p.pressure || 0} PSI
+            </div>
+          </div>
+        ))}
+      </div>
 
-        <text x={width / 2} y={height - 6} textAnchor="middle" fontSize="10" fill="#64748b">
+      <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
+        <line
+          x1={pad}
+          y1={height - pad}
+          x2={width - pad}
+          y2={height - pad}
+          stroke="#cbd5e1"
+        />
+        <line
+          x1={pad}
+          y1={pad}
+          x2={pad}
+          y2={height - pad}
+          stroke="#cbd5e1"
+        />
+
+        <text
+          x={width / 2}
+          y={height - 6}
+          textAnchor="middle"
+          fontSize="10"
+          fill="#64748b"
+        >
           Flow GPM
         </text>
 
@@ -677,9 +866,33 @@ function PumpCurveChart({
           Net PSI
         </text>
 
-        {polyline ? (
+        {referenceLine ? (
           <polyline
-            points={polyline}
+            points={referenceLine}
+            fill="none"
+            stroke="#2563eb"
+            strokeWidth="2"
+            strokeDasharray="6 4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : null}
+
+        {acceptanceLine ? (
+          <polyline
+            points={acceptanceLine}
+            fill="none"
+            stroke="#dc2626"
+            strokeWidth="2"
+            strokeDasharray="3 4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : null}
+
+        {actualLine ? (
+          <polyline
+            points={actualLine}
             fill="none"
             stroke="#0f766e"
             strokeWidth="3"
@@ -692,7 +905,13 @@ function PumpCurveChart({
           p.pressure > 0 ? (
             <g key={p.label}>
               <circle cx={x(p.flow)} cy={y(p.pressure)} r="5" fill="#0f766e" />
-              <text x={x(p.flow)} y={y(p.pressure) - 8} textAnchor="middle" fontSize="9" fill="#0f172a">
+              <text
+                x={x(p.flow)}
+                y={y(p.pressure) - 8}
+                textAnchor="middle"
+                fontSize="9"
+                fill="#0f172a"
+              >
                 {p.label}
               </text>
             </g>
@@ -702,13 +921,26 @@ function PumpCurveChart({
 
       <div
         style={{
-          marginTop: "8px",
+          display: "grid",
+          gap: "6px",
+          marginTop: "10px",
           fontSize: "12px",
-          color: "#64748b",
+          color: "#334155",
           lineHeight: 1.7,
         }}
       >
-        هذا الخط يمثل القراءات الفعلية الحالية. سنضيف لاحقًا خط المرجع وخط الحد الأدنى للمقارنة.
+        <div>
+          <span style={{ color: "#0f766e", fontWeight: 950 }}>● Actual</span>{" "}
+          القراءات الحالية التي أدخلها المفتش.
+        </div>
+        <div>
+          <span style={{ color: "#2563eb", fontWeight: 950 }}>▬ Reference</span>{" "}
+          منحنى مرجعي تقريبي من بيانات Rated.
+        </div>
+        <div>
+          <span style={{ color: "#dc2626", fontWeight: 950 }}>- - Limit</span>{" "}
+          حد القبول: في Churn حد أعلى، وفي 100% و150% حد أدنى.
+        </div>
       </div>
     </div>
   );
@@ -1018,16 +1250,17 @@ export default function FirePumpTestForm({
     }
   }
 
-  const chartPoints = calculated.map((row) => ({
-    label:
-      row.point.point_type === "churn"
-        ? "Churn"
-        : row.point.point_type === "rated_100"
-        ? "100%"
-        : "150%",
-    flow: toNumber(row.actualFlow),
-    pressure: row.evaluation.net,
-  }));
+const chartPoints = calculated.map((row) => ({
+  label:
+    row.point.point_type === "churn"
+      ? "Churn"
+      : row.point.point_type === "rated_100"
+      ? "100%"
+      : "150%",
+  pointType: row.point.point_type,
+  flow: toNumber(row.actualFlow),
+  pressure: row.evaluation.net,
+}));
 
   const hasProfile = Boolean(profile?.pump_profile_id || profile?.building_system_id);
 
@@ -1342,8 +1575,9 @@ export default function FirePumpTestForm({
 
       <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
         {calculated.map((row, index) => {
-          const point = row.point;
-          const evaluation = row.evaluation;
+         const point = row.point;
+const evaluation = row.evaluation;
+const notice = pointNotice(point.point_type, toNumber(ratedPressure), evaluation);
 
           return (
             <div
@@ -1601,22 +1835,21 @@ export default function FirePumpTestForm({
                   </div>
                 </div>
               </div>
-
-              <div
-                style={{
-                  marginTop: "10px",
-                  border: "1px solid #fde68a",
-                  background: "#fffbeb",
-                  color: "#92400e",
-                  borderRadius: "14px",
-                  padding: "10px",
-                  fontSize: "12px",
-                  lineHeight: 1.7,
-                  fontWeight: 800,
-                }}
-              >
-                {pointRequirementText(point.point_type, toNumber(ratedPressure))}
-              </div>
+<div
+  style={{
+    marginTop: "10px",
+    border: `1px solid ${notice.border}`,
+    background: notice.bg,
+    color: notice.color,
+    borderRadius: "14px",
+    padding: "10px",
+    fontSize: "12px",
+    lineHeight: 1.7,
+    fontWeight: 800,
+  }}
+>
+  {notice.text}
+</div>
 
               <textarea
                 value={point.notes}
