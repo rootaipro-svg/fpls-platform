@@ -221,27 +221,16 @@ export default function FacilityStructureManager({
  const systemOptions = useMemo(() => {
   const seen = new Set<string>();
 
-  return systemsRef
-    .filter((row: any) => {
-      const code = String(row.system_code || "").trim();
+  return systemsRef.filter((row: any) => {
+    const code = String(row.system_code || "").trim();
 
-      if (!code) return false;
-      if (seen.has(code)) return false;
-      if (!isEnabledSystem(row)) return false;
+    if (!code) return false;
+    if (seen.has(code)) return false;
+    if (!isEnabledSystem(row)) return false;
 
-      seen.add(code);
-      return true;
-    })
-    .sort((a: any, b: any) => {
-      const groupA = String(a.major_category || "");
-      const groupB = String(b.major_category || "");
-
-      if (groupA !== groupB) {
-        return groupA.localeCompare(groupB);
-      }
-
-      return systemOptionLabel(a).localeCompare(systemOptionLabel(b));
-    });
+    seen.add(code);
+    return true;
+  });
 }, [systemsRef]);
 
   const [facilityForm, setFacilityForm] = useState({
@@ -1828,27 +1817,99 @@ export default function FacilityStructureManager({
                           إضافة نظام لهذا المبنى
                         </div>
 
-                        <select
-                          className="field"
-                          value={newSystemForm.system_code || ""}
-                          onChange={(e) => {
-                            const code = e.target.value;
-                            const option = systemOptions.find(
-                              (s: any) => String(s.system_code) === code
-                            );
+                       <div style={{ display: "grid", gap: "8px" }}>
+  {systemOptions.map((option: any) => {
+    const code = String(option.system_code || "");
+    const active = String(newSystemForm.system_code || "") === code;
 
-                            setNewSystemForms((prev) => ({
-                              ...prev,
-                              [buildingId]: {
-                                ...defaultNewSystem(buildingId),
-                                system_code: code,
-                                system_name_override: option
-                                  ? systemOptionLabel(option)
-                                  : "",
-                              },
-                            }));
-                          }}
-                        >
+    return (
+      <button
+        key={code}
+        type="button"
+        onClick={() => {
+          setNewSystemForms((prev) => ({
+            ...prev,
+            [buildingId]: {
+              ...defaultNewSystem(buildingId),
+              system_code: code,
+              system_name_override: "",
+              standard_profile: String(
+                option.related_standard || option.standard_profile || ""
+              ),
+              qr_enabled: "TRUE",
+            },
+          }));
+        }}
+        style={{
+          width: "100%",
+          border: active ? "1px solid #99f6e4" : "1px solid #e2e8f0",
+          background: active ? "#ecfeff" : "#fff",
+          borderRadius: "18px",
+          padding: "12px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "10px",
+          cursor: "pointer",
+          textAlign: "right",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 900,
+              color: "#0f172a",
+              lineHeight: 1.6,
+            }}
+          >
+            {systemArabicName(option) ||
+              systemEnglishName(option) ||
+              code}
+          </div>
+
+          {systemEnglishName(option) ? (
+            <div
+              style={{
+                marginTop: "2px",
+                fontSize: "12px",
+                color: "#64748b",
+                lineHeight: 1.5,
+              }}
+            >
+              {systemEnglishName(option)}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              marginTop: "4px",
+              fontSize: "12px",
+              color: "#94a3b8",
+              lineHeight: 1.5,
+            }}
+          >
+            {code}
+            {option.related_standard
+              ? ` · ${String(option.related_standard)}`
+              : ""}
+          </div>
+        </div>
+
+        <div
+          style={{
+            width: "26px",
+            height: "26px",
+            borderRadius: "50%",
+            border: active ? "7px solid #0f766e" : "2px solid #cbd5e1",
+            background: "#fff",
+            flexShrink: 0,
+          }}
+        />
+      </button>
+    );
+  })}
+</div>
                           <option value="">اختر نوع النظام</option>
                           {systemOptions.map((option: any) => (
                             <option
